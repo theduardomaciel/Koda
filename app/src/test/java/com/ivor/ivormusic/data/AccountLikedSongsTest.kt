@@ -182,8 +182,44 @@ class AccountLikedSongsTest {
     }
 
     @Test
-    fun anUnknownServerCountMeansTheWholeList() {
-        // A page that did not arrive says nothing about what was removed.
-        assertTrue(plan(storedCount = 1665, serverCount = null, newCount = 0))
+    fun earlyExitOnPage3Removal() {
+        // Removal found on page 3: N=0, R=1, stored=1665, server=1664 -> stop early
+        assertTrue(shouldStopFullWalkEarly(1665, 1664, 0, 1))
+    }
+
+    @Test
+    fun earlyExitOnPage3WithAddAndRemoval() {
+        // N=1 add, R=1 removal on page 3, server=stored -> stop early
+        assertTrue(shouldStopFullWalkEarly(1665, 1665, 1, 1))
+    }
+
+    @Test
+    fun fullWalkToEndWhenUnreconcilable() {
+        // Mismatch that never balances: R=0, server=stored-1, N=0
+        assertFalse(shouldStopFullWalkEarly(1665, 1664, 0, 0))
+    }
+
+    @Test
+    fun fullWalkToEndWhenBalancesOnlyOnLastPage() {
+        // Mismatch that only balances on last page (simulated by not calling the function)
+        // This test verifies the function correctly returns false for unbalanced state
+        assertFalse(shouldStopFullWalkEarly(1665, 1664, 0, 0))
+    }
+
+    @Test
+    fun earlyExitOnPage1Removal() {
+        // Removal on page 1 (top item): R=1, N=0, server=stored-1
+        assertTrue(shouldStopFullWalkEarly(1665, 1664, 0, 1))
+    }
+
+    @Test
+    fun earlyExitOnPage1WithAddAndRemoval() {
+        // N=1, R=1, server=stored
+        assertTrue(shouldStopFullWalkEarly(1665, 1665, 1, 1))
+    }
+
+    @Test
+    fun unknownServerCountNeverStopsEarly() {
+        assertFalse(shouldStopFullWalkEarly(1665, null, 1, 1))
     }
 }

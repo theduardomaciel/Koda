@@ -169,6 +169,10 @@ internal fun isNetworkAvailable(context: Context): Boolean {
  * unlike between two syncs land on the same count and are caught here: the
  * prediction is one too high.
  */
+/**
+ * Whether the incremental walk can stop because the server count matches
+ * the expected count (stored + additions - removals).
+ */
 internal fun planLikedMusicSync(
     forceFull: Boolean,
     cacheEmpty: Boolean,
@@ -187,6 +191,20 @@ internal fun planLikedMusicSync(
     if (dueForFullResync) return true
     val server = serverCount ?: return true
     return server != storedCount + newCount - removedCount
+}
+
+/**
+ * Whether a full walk can stop early because the server count balances
+ * with the additions and removals seen so far.
+ */
+internal fun shouldStopFullWalkEarly(
+    storedCount: Int,
+    serverCount: Int?,
+    newCount: Int,
+    removedCount: Int,
+): Boolean {
+    val server = serverCount ?: return false
+    return server == storedCount + newCount - removedCount
 }
 
 /**
@@ -451,13 +469,16 @@ class AccountLikedSongsRepository(context: Context) {
                         "readWholeList=$readWholeList; walking it whole",
                 )
 
-                // Phase 2: the whole list. fullItems already holds pages 1..k
-                // (everything the incremental walk read); continue from the
-                // cursor of the last page fetched, so no page is re-read.
+                // Phase 2: the whole list with early-exit. fullItems already holds
+                // pages 1..k (everything the incremental walk read); continue from
+                // the cursor of the last page fetched, so no page is re-read.
                 val walked = LinkedHashMap<String, Song>(fullItems)
+                var fullPagesRead = pages
+                var stoppedEarly = false
                 while (pages < LIKED_MUSIC_MAX_PAGES && cursor != null) {
                     val page = loader(cursor) ?: break
                     pages++
+                    fullPagesRead++
                     for (song in page.songs) {
                         walked.putIfAbsent(song.id, song)
                     }
@@ -466,6 +487,50 @@ class AccountLikedSongsRepository(context: Context) {
                         accountKey,
                         mergeLikedMusicProgress(walked.values.toList(), cached.songs),
                     )
+                    // After each page, recompute N and R over pages read so far.
+                    // N = items in walked but not in cached (additions)
+                    // R = items in cached but not in walked (removals)
+                    val newIds = walked.keys.toSet() - cachedIds
+                    val removedIds = cachedIds - walked.keys
+                    val N = newIds.size
+                    val R = removedIds.size
+                    val server = totalCount ?: (cached.totalCount + N - removedIds.size)
+                    // Early exit: if server count balances with additions/removals
+                    // seen so far, we have reconciled everything. Remaining pages
+                    // add no new information.
+                    if (shouldStopFullWalkEarly(
+                            storedCount = cached.totalCount,
+                            serverCount = totalCount,
+                            newCount = N,
+                            removedCount = R,
+                        )) {
+                        KLog.d(
+                            TAG,
+                            "Liked Music full walk: stopped early at page " + fullPagesRead +
+                                " of ~" + LIKED_MUSIC_MAX_PAGES + " (N=$N, R=" + removedIds.size + ", server=$server)",
+                        )
+                        // Apply additions and removals without replacing the cache
+                        // from a partial fullItems - keep items beyond the walk.
+                        val added = newIds.mapNotNull { walked[it] }
+                        val afterRemovals = cached.songs.filterNot { it.id in removedIds }
+                        val result = mergeLikedMusicProgress(newItems.values.toList() + added, afterRemovals)
+                        apply(
+                            profileId = profileId,
+                            accountKey = accountKey,
+                            songs = result,
+                            totalCount = server,
+                            countDelta = synchronized(LOCK) { state.totalCount - cached.totalCount },
+                            lastFullSyncMs = System.currentTimeMillis(),
+                            lastSyncMs = System.currentTimeMillis(),
+                        )
+                        KLog.d(
+                            TAG,
+                            "Liked Music full: pages=$pages, N=$N, R=" + removedIds.size +
+                                ", stored=" + cached.totalCount + ", server=" + server +
+                                ", result=" + result.size + ", stoppedEarly=true",
+                        )
+                        return@withContext
+                    }
                     val next = page.nextCursor
                     if (next == null) {
                         complete = true
@@ -507,9 +572,9 @@ class AccountLikedSongsRepository(context: Context) {
                 )
                 KLog.d(
                     TAG,
-                    "Liked Music full: pages=$pages, N=$N, R=$removedCount, stored=" + cached.totalCount +
-                        ", server=" + (totalCount ?: "unknown") + ", result=" + result.size +
-                        ", believe=$believe",
+                    "Liked Music full: pages=$fullPagesRead/~" + LIKED_MUSIC_MAX_PAGES + ", N=$N, R=$removedCount, " +
+                        "stored=" + cached.totalCount + ", server=" + (totalCount ?: "unknown") +
+                        ", result=" + result.size + ", believe=$believe, stoppedEarly=$stoppedEarly",
                 )
             }
         } catch (e: CancellationException) {
