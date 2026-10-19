@@ -272,16 +272,21 @@ class AccountLikedSongsRepository(context: Context) {
                 val cached = snapshot()
                 val cachedIds = cached.songs.mapTo(HashSet(cached.songs.size)) { it.id }
 
-                // Phase 1: incremental walk. Read page 1 onwards and stop at
-                // the first id the cache already holds. `scanned` holds the new
-                // items found before that point; N is their count.
-                val scanned = LinkedHashMap<String, Song>()
+                // Phase 1: the incremental walk. Read page 1 onwards and stop at
+                // the first id the cache already holds. `newItems` holds the
+                // items found before that point; N is their count. `fullItems`
+                // holds everything read so far (all of pages 1..k), so a later
+                // full walk only fetches from page k+1 instead of re-reading
+                // page 1.
+                val newItems = LinkedHashMap<String, Song>()
+                val fullItems = LinkedHashMap<String, Song>()
                 var cursor: String? = null
                 var complete = false
                 var stopped = false
                 var totalCount: Int? = null
                 var recentFirst = true
                 var topChanged = false
+                val countedForN = mutableSetOf<String>()
                 var incrementalN = 0
 
                 while (pages < LIKED_MUSIC_MAX_PAGES) {
@@ -301,28 +306,32 @@ class AccountLikedSongsRepository(context: Context) {
                     }
                     var hitKnown = false
                     for (song in page.songs) {
+                        fullItems.putIfAbsent(song.id, song)
+                        if (hitKnown) continue
                         if (stopsLikedMusicWalk(song.id, cachedIds)) {
                             hitKnown = true
-                            break
+                        } else {
+                            newItems.putIfAbsent(song.id, song)
+                            if (countedForN.add(song.id)) {
+                                incrementalN++
+                            }
                         }
-                        scanned.putIfAbsent(song.id, song)
                     }
-                    incrementalN = scanned.size
                     publish(
                         profileId,
                         accountKey,
-                        mergeLikedMusicProgress(scanned.values.toList(), cached.songs),
+                        mergeLikedMusicProgress(newItems.values.toList(), cached.songs),
                     )
+                    val next = page.nextCursor
+                    cursor = next
                     if (hitKnown) {
                         stopped = true
                         break
                     }
-                    val next = page.nextCursor
                     if (next == null) {
                         complete = true
                         break
                     }
-                    cursor = next
                 }
 
                 val N = incrementalN
@@ -347,14 +356,13 @@ class AccountLikedSongsRepository(context: Context) {
                 if (!needFull) {
                     // Incremental: merge the N new items, persist, and the
                     // server's count becomes the stored count.
-                    val result = mergeLikedMusicProgress(scanned.values.toList(), cached.songs)
-                    val countDelta = synchronized(LOCK) { state.totalCount - cached.totalCount }
+                    val result = mergeLikedMusicProgress(newItems.values.toList(), cached.songs)
                     apply(
                         profileId = profileId,
                         accountKey = accountKey,
                         songs = result,
                         totalCount = totalCount ?: cached.totalCount,
-                        countDelta = countDelta,
+                        countDelta = synchronized(LOCK) { state.totalCount - cached.totalCount },
                         lastFullSyncMs = cached.lastFullSyncMs,
                     )
                     KLog.d(
@@ -372,17 +380,13 @@ class AccountLikedSongsRepository(context: Context) {
                         "readWholeList=$readWholeList; walking it whole",
                 )
 
-                // Phase 2: the whole list, from page 1. The incremental walk
-                // stopped at the first known id and never read past it, so
-                // resuming would give a truncated list. Re-reading page 1 is
-                // one extra request, negligible against 17.
-                val walked = LinkedHashMap<String, Song>()
-                var fullCursor: String? = null
-                var fullPages = 0
-                var fullComplete = false
-                while (fullPages < LIKED_MUSIC_MAX_PAGES) {
-                    val page = loader(fullCursor) ?: break
-                    fullPages++
+                // Phase 2: the whole list. fullItems already holds pages 1..k
+                // (everything the incremental walk read); continue from the
+                // cursor of the last page fetched, so no page is re-read.
+                val walked = LinkedHashMap<String, Song>(fullItems)
+                while (pages < LIKED_MUSIC_MAX_PAGES && cursor != null) {
+                    val page = loader(cursor) ?: break
+                    pages++
                     for (song in page.songs) {
                         walked.putIfAbsent(song.id, song)
                     }
@@ -393,10 +397,10 @@ class AccountLikedSongsRepository(context: Context) {
                     )
                     val next = page.nextCursor
                     if (next == null) {
-                        fullComplete = true
+                        complete = true
                         break
                     }
-                    fullCursor = next
+                    cursor = next
                 }
 
                 val list = walked.values.toList()
@@ -405,7 +409,7 @@ class AccountLikedSongsRepository(context: Context) {
                 // page that answered a shell. Only the first is a list to
                 // believe, so an empty walk with no total leaves the cache
                 // alone.
-                val believe = fullComplete && (list.isNotEmpty() || totalCount == 0)
+                val believe = complete && (list.isNotEmpty() || totalCount == 0)
                 val result = if (believe) reconcileLikedMusic(list)
                 else mergeLikedMusicProgress(list, cached.songs)
                 val countDelta = synchronized(LOCK) { state.totalCount - cached.totalCount }
@@ -415,12 +419,12 @@ class AccountLikedSongsRepository(context: Context) {
                     songs = result,
                     totalCount = totalCount ?: cached.totalCount,
                     countDelta = countDelta,
-                    lastFullSyncMs = if (fullComplete) System.currentTimeMillis()
+                    lastFullSyncMs = if (complete) System.currentTimeMillis()
                     else cached.lastFullSyncMs,
                 )
                 KLog.d(
                     TAG,
-                    "Liked Music full: pages=$fullPages, N=$N, stored=" + cached.totalCount +
+                    "Liked Music full: pages=$pages, N=$N, stored=" + cached.totalCount +
                         ", server=" + (totalCount ?: "unknown") + ", result=" + result.size +
                         ", believe=$believe",
                 )
