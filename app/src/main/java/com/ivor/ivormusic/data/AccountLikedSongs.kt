@@ -54,6 +54,7 @@ data class LikedMusicPage(
 internal data class StoredAccountLikes(
     val accountKey: String? = null,
     val lastFullSyncMs: Long = 0L,
+    val lastSyncMs: Long = 0L,
     val totalCount: Int = 0,
     val songs: List<Song> = emptyList(),
 )
@@ -66,6 +67,13 @@ internal data class StoredAccountLikes(
  * handful of rows.
  */
 internal const val LIKED_MUSIC_FULL_RESYNC_INTERVAL_MS = 7L * 24 * 60 * 60 * 1000
+
+/**
+ * How recently a sync must have succeeded for the next one to be skipped
+ * entirely. Like React Query's staleTime: quick reopens don't hit the
+ * network. Pull-to-refresh bypasses this.
+ */
+internal const val LIKED_MUSIC_STALE_WINDOW_MS = 5L * 60 * 1000
 
 /**
  * How many pages one walk may read. 100 rows a page, so this is 2,500 songs -
@@ -247,6 +255,7 @@ class AccountLikedSongsRepository(context: Context) {
      */
     suspend fun sync(
         forceFull: Boolean = false,
+        bypassStale: Boolean = false,
         loader: suspend (cursor: String?) -> LikedMusicPage?,
     ) {
         if (!syncLock.tryLock()) return
@@ -257,6 +266,22 @@ class AccountLikedSongsRepository(context: Context) {
             // rest off the caller's dispatcher, which is the main one.
             withContext(Dispatchers.IO) {
                 val profileId = ensureLoaded()
+                // Skip the network entirely if the last sync was recent enough.
+                // Like React Query's staleTime: quick reopens serve the cache.
+                // Pull-to-refresh passes bypassStale = true.
+                if (!forceFull && !bypassStale) {
+                    val cached = snapshot()
+                    if (cached.lastSyncMs > 0L &&
+                        System.currentTimeMillis() - cached.lastSyncMs < LIKED_MUSIC_STALE_WINDOW_MS
+                    ) {
+                        KLog.d(
+                            TAG,
+                            "Liked Music sync skipped: last sync " +
+                                (System.currentTimeMillis() - cached.lastSyncMs) + "ms ago",
+                        )
+                        return@withContext
+                    }
+                }
                 // The walk's result belongs to the identity it started under.
                 // A profile switch or a sign-out while it runs reloads the
                 // state, and publishing into that would hand one account's
@@ -391,6 +416,7 @@ class AccountLikedSongsRepository(context: Context) {
                         totalCount = totalCount ?: cached.totalCount,
                         countDelta = synchronized(LOCK) { state.totalCount - cached.totalCount },
                         lastFullSyncMs = cached.lastFullSyncMs,
+                        lastSyncMs = System.currentTimeMillis(),
                     )
                     KLog.d(
                         TAG,
@@ -459,6 +485,7 @@ class AccountLikedSongsRepository(context: Context) {
                     countDelta = countDelta,
                     lastFullSyncMs = if (complete) System.currentTimeMillis()
                     else cached.lastFullSyncMs,
+                    lastSyncMs = System.currentTimeMillis(),
                 )
                 KLog.d(
                     TAG,
@@ -613,6 +640,7 @@ class AccountLikedSongsRepository(context: Context) {
         totalCount: Int,
         countDelta: Int,
         lastFullSyncMs: Long,
+        lastSyncMs: Long = 0L,
     ) {
         var applied = false
         synchronized(LOCK) {
@@ -628,6 +656,7 @@ class AccountLikedSongsRepository(context: Context) {
             state = StoredAccountLikes(
                 accountKey = state.accountKey,
                 lastFullSyncMs = lastFullSyncMs,
+                lastSyncMs = if (lastSyncMs > 0L) lastSyncMs else state.lastSyncMs,
                 totalCount = effectiveCount,
                 songs = result,
             )
