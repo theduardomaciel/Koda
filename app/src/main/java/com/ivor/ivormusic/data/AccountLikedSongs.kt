@@ -437,6 +437,17 @@ class AccountLikedSongsRepository(context: Context) {
                 // believe, so an empty walk with no total leaves the cache
                 // alone.
                 val believe = complete && (list.isNotEmpty() || totalCount == 0)
+                // Final count check: if a like/unlike arrived mid-walk, the
+                // count at the end may differ from what we started with. Log it
+                // so the next sync can reconcile; the walk itself is not retried
+                // here to avoid an unbounded loop.
+                if (complete && totalCount != null) {
+                    KLog.d(
+                        TAG,
+                        "Liked Music full-walk final count: walked=" + list.size +
+                            " (unique), server=" + totalCount,
+                    )
+                }
                 val result = if (believe) reconcileLikedMusic(list)
                 else mergeLikedMusicProgress(list, cached.songs)
                 val countDelta = synchronized(LOCK) { state.totalCount - cached.totalCount }
