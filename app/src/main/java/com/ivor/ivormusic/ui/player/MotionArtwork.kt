@@ -44,6 +44,7 @@ import com.ivor.ivormusic.data.MotionArtworkRepository
 import com.ivor.ivormusic.data.MotionArtworkResolver
 import com.ivor.ivormusic.data.Song
 import com.ivor.ivormusic.data.ThemePreferences
+import com.ivor.ivormusic.data.hasValidatedInternet
 import com.ivor.ivormusic.ui.components.SongArtwork
 import java.io.File
 import java.io.IOException
@@ -117,7 +118,7 @@ private fun rememberMotionArtworkAllowed(wifiOnly: Boolean): Boolean {
         fun update() {
             if (disposed) return
             val capabilities = connectivity.getNetworkCapabilities(connectivity.activeNetwork)
-            val connected = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
+            val connected = hasValidatedInternet(capabilities)
             val wifi = capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true &&
                 capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
             val reducedMotion = Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f

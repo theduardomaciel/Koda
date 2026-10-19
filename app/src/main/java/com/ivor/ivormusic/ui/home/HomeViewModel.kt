@@ -26,6 +26,8 @@ import com.ivor.ivormusic.data.AccountLikedSongsRepository
 import com.ivor.ivormusic.data.LibraryCacheSnapshot
 import com.ivor.ivormusic.data.LibraryCacheStore
 import com.ivor.ivormusic.data.ProfileManager
+import com.ivor.ivormusic.data.hasValidatedInternet
+import com.ivor.ivormusic.data.hasValidatedNetwork
 import com.ivor.ivormusic.data.mergeLikedSongsForDisplay
 import com.ivor.ivormusic.data.offlineAlbumTracks
 import com.ivor.ivormusic.data.HomeRecommendationCache
@@ -763,7 +765,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             // The Albums tab draws the account's own list, and the album's
             // saved state on its page reads from it, so both sides are re-read
             // rather than left showing a write that may not have landed.
-            if (isAlbum && hasNetworkConnection() && !themePreferences.isLocalOnlyModeEnabled()) {
+            if (isAlbum && canReachAccount()) {
                 youtubeRepository.getSavedAlbumsOrNull()?.let {
                     _savedAlbums.value = it
                     persistLibraryCache()
@@ -870,10 +872,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 network: android.net.Network,
                 caps: android.net.NetworkCapabilities,
             ) {
-                trySend(
-                    caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
-                        caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED)
-                )
+                trySend(hasValidatedInternet(caps))
             }
 
             override fun onLost(network: android.net.Network) {
@@ -1714,18 +1713,15 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
      * connection is a real empty feed, not something the user can fix by
      * checking their wifi.
      */
-    fun hasNetworkConnection(): Boolean = try {
-        val cm = getApplication<Application>()
-            .getSystemService(android.content.Context.CONNECTIVITY_SERVICE)
-                as android.net.ConnectivityManager
-        val caps = cm.getNetworkCapabilities(cm.activeNetwork)
-        caps?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) == true &&
-            caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED)
-    } catch (e: Exception) {
-        // Unknown is treated as connected, so a permissions or API oddity does
-        // not turn every empty feed into a bogus "check your connection".
-        true
-    }
+    fun hasNetworkConnection(): Boolean = hasValidatedNetwork(getApplication())
+
+    /**
+     * Whether the account can be reached right now. Local-only mode is a
+     * deliberate block, not a connection failure, but both mean the same thing
+     * to an account fetch.
+     */
+    private fun canReachAccount(): Boolean =
+        hasNetworkConnection() && !themePreferences.isLocalOnlyModeEnabled()
 
     /**
      * How a rate limit is worded for the user.
@@ -3056,7 +3052,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             if (!force && loadedRecently(accountLoadedAtMs)) return@launch
             // Offline the cached lists are the answer. Asking YouTube would
             // fail page by page and only delay the screen.
-            if (!hasNetworkConnection() || themePreferences.isLocalOnlyModeEnabled()) return@launch
+            if (!canReachAccount()) return@launch
             youtubeRepository.fetchAccountInfo()
             _userAvatar.value = sessionManager.getUserAvatar()
             _userName.value = sessionManager.getUserName()
@@ -3065,7 +3061,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun loadLibraryData() {
-        if (!hasNetworkConnection() || themePreferences.isLocalOnlyModeEnabled()) return
+        if (!canReachAccount()) return
         refreshAccountLibrary()
         // Last: the ordinary sync is one request, but the first one reads the
         // list whole - 17 pages on the account this was measured against - and
@@ -3356,7 +3352,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     suspend fun fetchPlaylistSongs(playlistId: String): List<Song> {
-        val online = hasNetworkConnection() && !themePreferences.isLocalOnlyModeEnabled()
+        val online = canReachAccount()
         val downloadedPlaylist = downloadRepository.playlistStore.playlists.value.find { it.id == playlistId }
         val offlineSongs = downloadedPlaylist?.offlineSongs(downloadRepository.downloadedSongs.value).orEmpty()
         // Album downloads are individual tracks, not a downloaded-playlist
@@ -3589,7 +3585,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 try {
                     _isYouTubeConnected.value = sessionManager.isLoggedIn()
-                    val online = hasNetworkConnection() && !themePreferences.isLocalOnlyModeEnabled()
+                    val online = canReachAccount()
                     if (_isYouTubeConnected.value && online) {
                         // Fetch account info and avatar sync
                         try {
@@ -3701,7 +3697,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     fun loadTrendingVideos() {
         val generation = ++videoHomeLoadGeneration
         videoHomeLoadJob?.cancel()
-        if (!hasNetworkConnection() || themePreferences.isLocalOnlyModeEnabled()) {
+        if (!canReachAccount()) {
             _isVideoHomeOffline.value = true
             _isVideoLoading.value = false
             return
@@ -4144,7 +4140,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         // The same refusal the initial load makes, for the same reason: a pull
         // with no connection should answer with the downloads immediately
         // rather than spin over them until a network call times out.
-        if (!hasNetworkConnection() || themePreferences.isLocalOnlyModeEnabled()) {
+        if (!canReachAccount()) {
             _isVideoHomeOffline.value = true
             _isVideoLoading.value = false
             return

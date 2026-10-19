@@ -118,9 +118,7 @@ class NetworkChangeWatcher(context: Context, private val onChanged: () -> Unit) 
         current = manager.activeNetwork
         val watch = object : ConnectivityManager.NetworkCallback() {
             override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
-                if (network == current ||
-                    !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
-                ) return
+                if (network == current || !hasValidatedInternet(capabilities)) return
                 current = network
                 onChanged()
             }

@@ -38,6 +38,7 @@ import com.ivor.ivormusic.data.PlayerTrackOption
 import com.ivor.ivormusic.data.VideoDynamicRange
 import com.ivor.ivormusic.data.audioTrackDetail
 import com.ivor.ivormusic.data.audioTrackLabel
+import com.ivor.ivormusic.data.hasValidatedNetwork
 import com.ivor.ivormusic.data.localVideoQualityLabel
 import com.ivor.ivormusic.data.textTrackLabel
 import com.ivor.ivormusic.data.SegmentAction
@@ -1932,15 +1933,8 @@ class VideoPlayerViewModel(application: android.app.Application) : AndroidViewMo
         return error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS
     }
 
-    private fun networkPlaybackAllowed(): Boolean {
-        if (ThemePreferences.isLocalOnly(context)) return false
-        val connectivity = context.getSystemService(Context.CONNECTIVITY_SERVICE)
-            as? android.net.ConnectivityManager ?: return false
-        val capabilities = connectivity.getNetworkCapabilities(connectivity.activeNetwork)
-            ?: return false
-        return capabilities.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
-            capabilities.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED)
-    }
+    private fun networkPlaybackAllowed(): Boolean =
+        !ThemePreferences.isLocalOnly(context) && hasValidatedNetwork(context)
 
     /** HTTP status behind a source error, or null when it was not an HTTP failure. */
     private fun httpResponseCode(error: PlaybackException): Int? {

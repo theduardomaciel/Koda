@@ -1,8 +1,6 @@
 package com.ivor.ivormusic.data
 
 import android.content.Context
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
 import com.ivor.ivormusic.util.KLog
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -209,13 +207,6 @@ internal fun needsFullLikedMusicSync(
 internal fun likedMusicCacheBelongsToAccount(storedKey: String?, currentKey: String?): Boolean =
     !currentKey.isNullOrBlank() && storedKey == currentKey
 
-internal fun isNetworkAvailable(context: Context): Boolean {
-    val connectivity = context.getSystemService(ConnectivityManager::class.java) ?: return false
-    val capabilities = connectivity.getNetworkCapabilities(connectivity.activeNetwork) ?: return false
-    return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
-        capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
-}
-
 /**
  * Whether a sync has to read the whole list, or the incremental result is
  * already the truth.
@@ -363,7 +354,7 @@ class AccountLikedSongsRepository(context: Context) {
                 // Don't walk while offline: the loader would just fail page by
                 // page and the cache stays as it is. The next online open
                 // retries.
-                if (!isNetworkAvailable(appContext)) {
+                if (!hasValidatedNetwork(appContext)) {
                     KLog.d(TAG, "Liked Music sync skipped: offline")
                     return@withContext
                 }
