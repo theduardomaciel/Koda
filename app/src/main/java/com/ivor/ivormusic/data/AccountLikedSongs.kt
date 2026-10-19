@@ -240,6 +240,7 @@ internal fun shouldStopFullWalkEarly(
 class AccountLikedSongsRepository(context: Context) {
 
     private val appContext = context.applicationContext
+    private val deviceLikedSongs = LikedSongsRepository(appContext)
 
     /** The account's liked songs, newest first. Empty signed out. */
     val songs: StateFlow<List<Song>> = _songs.asStateFlow()
@@ -444,6 +445,9 @@ class AccountLikedSongsRepository(context: Context) {
                     } else emptySet()
                     val afterRemovals = cached.songs.filterNot { it.id in removedIds }
                     val result = mergeLikedMusicProgress(newItems.values.toList(), afterRemovals)
+                    // Also remove from device store so the merged likedSongs flow
+                    // doesn't resurrect them.
+                    removedIds.forEach { deviceLikedSongs.toggleLike(it) }
                     apply(
                         profileId = profileId,
                         accountKey = accountKey,
@@ -455,7 +459,7 @@ class AccountLikedSongsRepository(context: Context) {
                     )
                     KLog.d(
                         TAG,
-                        "Liked Music incremental: N=$N, R=$removedCount, stored=" + cached.totalCount +
+                        "Liked Music incremental: N=$N, R=$removedCount, removedIds=$removedIds, stored=" + cached.totalCount +
                             ", server=" + (totalCount ?: "unknown") + ", result=" + result.size +
                             ", lastPageMs=$lastPageMs",
                     )
@@ -514,6 +518,9 @@ class AccountLikedSongsRepository(context: Context) {
                         val added = newIds.mapNotNull { walked[it] }
                         val afterRemovals = cached.songs.filterNot { it.id in removedIds }
                         val result = mergeLikedMusicProgress(newItems.values.toList() + added, afterRemovals)
+                        // Also remove from device store so the merged likedSongs flow
+                        // doesn't resurrect them.
+                        removedIds.forEach { deviceLikedSongs.toggleLike(it) }
                         apply(
                             profileId = profileId,
                             accountKey = accountKey,
@@ -556,6 +563,13 @@ class AccountLikedSongsRepository(context: Context) {
                         "Liked Music full-walk final count: walked=" + list.size +
                             " (unique), server=" + totalCount,
                     )
+                }
+                // Items that disappeared from the server (not in walked) should
+                // also be removed from the device store.
+                val walkedIds = walked.keys.toSet()
+                val fullWalkRemovedIds = cachedIds - walkedIds
+                if (fullWalkRemovedIds.isNotEmpty()) {
+                    fullWalkRemovedIds.forEach { deviceLikedSongs.toggleLike(it) }
                 }
                 val result = if (believe) reconcileLikedMusic(list)
                 else mergeLikedMusicProgress(list, cached.songs)
