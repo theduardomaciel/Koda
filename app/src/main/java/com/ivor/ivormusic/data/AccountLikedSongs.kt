@@ -161,6 +161,7 @@ internal fun planLikedMusicSync(
     storedCount: Int,
     serverCount: Int?,
     newCount: Int,
+    removedCount: Int = 0,
 ): Boolean {
     if (forceFull) return true
     if (cacheEmpty) return true
@@ -169,7 +170,7 @@ internal fun planLikedMusicSync(
     if (topChanged) return true
     if (dueForFullResync) return true
     val server = serverCount ?: return true
-    return server != storedCount + newCount
+    return server != storedCount + newCount - removedCount
 }
 
 /**
@@ -288,6 +289,8 @@ class AccountLikedSongsRepository(context: Context) {
                 var topChanged = false
                 val countedForN = mutableSetOf<String>()
                 var incrementalN = 0
+                var page1Ids: List<String> = emptyList()
+                var lastKnownPage1CacheIndex = -1
 
                 while (pages < LIKED_MUSIC_MAX_PAGES) {
                     val page = loader(cursor) ?: break
@@ -303,6 +306,13 @@ class AccountLikedSongsRepository(context: Context) {
                         val firstCachedId = cached.songs.firstOrNull()?.id
                         topChanged = firstCachedId != null &&
                             firstCachedId !in page.songs.map { it.id }
+                        page1Ids = page.songs.map { it.id }
+                        // Last cached id in page 1 (by page-1 position).
+                        val knownInPage1 = page1Ids.filter { it in cachedIds }
+                        val lastKnownId = knownInPage1.lastOrNull()
+                        lastKnownPage1CacheIndex = if (lastKnownId != null)
+                            cached.songs.indexOfFirst { it.id == lastKnownId }
+                        else -1
                     }
                     var hitKnown = false
                     for (song in page.songs) {
@@ -335,6 +345,12 @@ class AccountLikedSongsRepository(context: Context) {
                 }
 
                 val N = incrementalN
+                // R = cached ids positioned above the last page-1 id that's
+                // known in the cache (cache index j), that are absent from
+                // page 1. These are removals visible in the scanned window.
+                val removedCount = if (lastKnownPage1CacheIndex > 0) {
+                    cached.songs.take(lastKnownPage1CacheIndex).count { it.id !in page1Ids }
+                } else 0
                 val readWholeList = complete && !stopped
                 val needFull = planLikedMusicSync(
                     forceFull = forceFull,
@@ -351,12 +367,23 @@ class AccountLikedSongsRepository(context: Context) {
                     storedCount = cached.totalCount,
                     serverCount = totalCount,
                     newCount = N,
+                    removedCount = removedCount,
                 )
 
                 if (!needFull) {
                     // Incremental: merge the N new items, persist, and the
                     // server's count becomes the stored count.
-                    val result = mergeLikedMusicProgress(newItems.values.toList(), cached.songs)
+                    // Apply R removals: remove the removedCount items from the
+                    // cache. The removed items are cached ids above the last
+                    // known page-1 id that are absent from page 1.
+                    val removedIds = if (lastKnownPage1CacheIndex > 0) {
+                        cached.songs.take(lastKnownPage1CacheIndex)
+                            .map { it.id }
+                            .filter { it !in page1Ids }
+                            .toSet()
+                    } else emptySet()
+                    val afterRemovals = cached.songs.filterNot { it.id in removedIds }
+                    val result = mergeLikedMusicProgress(newItems.values.toList(), afterRemovals)
                     apply(
                         profileId = profileId,
                         accountKey = accountKey,
@@ -367,7 +394,7 @@ class AccountLikedSongsRepository(context: Context) {
                     )
                     KLog.d(
                         TAG,
-                        "Liked Music incremental: N=$N, stored=" + cached.totalCount +
+                        "Liked Music incremental: N=$N, R=$removedCount, stored=" + cached.totalCount +
                             ", server=" + (totalCount ?: "unknown") + ", result=" + result.size,
                     )
                     return@withContext

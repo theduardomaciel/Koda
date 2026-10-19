@@ -89,6 +89,7 @@ class AccountLikedSongsTest {
         storedCount: Int,
         serverCount: Int?,
         newCount: Int,
+        removedCount: Int = 0,
         forceFull: Boolean = false,
         cacheEmpty: Boolean = false,
         readWholeList: Boolean = false,
@@ -105,6 +106,7 @@ class AccountLikedSongsTest {
         storedCount = storedCount,
         serverCount = serverCount,
         newCount = newCount,
+        removedCount = removedCount,
     )
 
     @Test
@@ -124,6 +126,32 @@ class AccountLikedSongsTest {
     fun anUnlikeMadeOnTheWebNeedsTheWholeList() {
         // Nothing new found, and the server's count is one lower: a removal.
         assertTrue(plan(storedCount = 1665, serverCount = 1664, newCount = 0))
+    }
+
+    @Test
+    fun webUnlikeInsidePage1IsIncremental() {
+        // R=1 removal visible in page 1, N=0 new items, server = stored-1.
+        // expected = 1665 + 0 - 1 = 1664 = server -> incremental.
+        assertFalse(plan(storedCount = 1665, serverCount = 1664, newCount = 0, removedCount = 1))
+    }
+
+    @Test
+    fun likeAndUnlikeBothInsidePage1IsIncremental() {
+        // N=1 addition, R=1 removal, server = stored. expected = 1665 + 1 - 1 = 1665 = server -> incremental.
+        assertFalse(plan(storedCount = 1665, serverCount = 1665, newCount = 1, removedCount = 1))
+    }
+
+    @Test
+    fun unlikeDeeperThanPage1NeedsTheWholeList() {
+        // R=0 (removal not visible in page 1), server = stored-1. expected = 1665 + 0 - 0 = 1665 != 1664 -> full walk.
+        assertTrue(plan(storedCount = 1665, serverCount = 1664, newCount = 0, removedCount = 0))
+    }
+
+    @Test
+    fun offByOneAtPage1BoundaryAfterRemovalNeedsTheWholeList() {
+        // Removal at the page-1/page-2 boundary: R=0 (not visible in page 1),
+        // server = stored-1. Full walk needed.
+        assertTrue(plan(storedCount = 1665, serverCount = 1664, newCount = 0, removedCount = 0))
     }
 
     @Test
