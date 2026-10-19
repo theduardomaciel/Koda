@@ -389,9 +389,9 @@ internal fun parseLikedMusicPage(json: String): LikedMusicPage? {
     return LikedMusicPage(
         songs = songs.distinctBy { it.id },
         nextCursor = extractPlaylistContinuationToken(json),
-        // Page one's header states how many songs the account holds ("1,661
-        // songs"); a page with no header - a later page, or a sign-in shell -
-        // carries no total. An empty first page is an account with no likes,
+        // Page one's header states how many songs the account holds ("N songs");
+        // a page with no header - a later page, or a sign-in shell - carries
+        // no total. An empty first page is an account with no likes,
         // reported as zero so the sync can believe it rather than treat it as a
         // page that failed to arrive.
         totalCount = parseLikedMusicTotalCount(root, songs.isEmpty()),
@@ -405,8 +405,8 @@ internal fun parseLikedMusicPage(json: String): LikedMusicPage? {
 }
 
 /**
- * The account's own count of Liked Music, from page one's header ("1,661
- * songs"). A page with no header - a later page, or a sign-in shell - carries
+ * The account's own count of Liked Music, from page one's header ("N songs").
+ * A page with no header - a later page, or a sign-in shell - carries
  * no total, so the answer is null rather than a guess. An empty first page is
  * reported as zero, the one reading of an account with no likes.
  */

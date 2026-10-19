@@ -70,14 +70,14 @@ internal const val LIKED_MUSIC_FULL_RESYNC_INTERVAL_MS = 7L * 24 * 60 * 60 * 100
 
 /**
  * How recently a sync must have succeeded for the next one to be skipped
- * entirely. Like React Query's staleTime: quick reopens don't hit the
- * network. Pull-to-refresh bypasses this.
+ * entirely: quick reopens serve the cache without hitting the network.
+ * Pull-to-refresh bypasses this.
  */
 internal const val LIKED_MUSIC_STALE_WINDOW_MS = 5L * 60 * 1000
 
 /**
  * How many pages one walk may read. 100 rows a page, so this is 2,500 songs -
- * above the 1,612 this was built against, and a walk that hits it is treated as
+ * well above any realistic library, and a walk that hits it is treated as
  * incomplete rather than as the end of the list.
  */
 internal const val LIKED_MUSIC_MAX_PAGES = 25
@@ -185,9 +185,9 @@ internal fun planLikedMusicSync(
  * The account's Liked Music, cached on the device.
  *
  * Koda reads `LM` for liked songs, which is the list a like both reads and
- * writes, and it is the account's own: read whole it is 17 pages on the account
- * this was built against (1,612 songs, about 20 MB, one request per page), which
- * is why it is cached rather than fetched. What is on screen comes from the
+ * writes, and it is the account's own: read whole it is about 17 pages on a
+ * large account (about 20 MB, one request per page), which is why it is
+ * cached rather than fetched. What is on screen comes from the
  * cache at every moment - the first frame of a cold start included - and the
  * network only ever fills the cache in.
  *
@@ -266,9 +266,9 @@ class AccountLikedSongsRepository(context: Context) {
             // rest off the caller's dispatcher, which is the main one.
             withContext(Dispatchers.IO) {
                 val profileId = ensureLoaded()
-                // Skip the network entirely if the last sync was recent enough.
-                // Like React Query's staleTime: quick reopens serve the cache.
-                // Pull-to-refresh passes bypassStale = true.
+                // Skip the network entirely if the last sync was recent enough:
+                // quick reopens serve the cache. Pull-to-refresh passes
+                // bypassStale = true.
                 if (!forceFull && !bypassStale) {
                     val cached = snapshot()
                     if (cached.lastSyncMs > 0L &&
