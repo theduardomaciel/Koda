@@ -825,6 +825,11 @@ fun LibraryMainScreen(
     val playCounts by viewModel.playCounts.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val isYouTubeConnected by viewModel.isYouTubeConnected.collectAsState()
+    // The account's own library. Signed in these are what the Artists and
+    // Albums tabs show; signed out they are empty and the tabs fall back to
+    // grouping the device's songs and the follows kept on it.
+    val accountAlbums by viewModel.savedAlbums.collectAsState()
+    val accountArtists by viewModel.followedArtists.collectAsState()
 
     // Sort order sticks across launches, so it lives in prefs rather than in
     // rememberSaveable. Matched by name instead of valueOf so an option
@@ -1081,33 +1086,71 @@ fun LibraryMainScreen(
                         )
                     }
                     LibraryTab.Artists -> {
-                        val artistSort by themePreferences.libraryArtistSort.collectAsState()
-                        val tasteContext = LocalContext.current
-                        val tasteStore = remember(tasteContext) {
-                            com.ivor.ivormusic.data.TasteProfileStore(tasteContext)
+                        // Signed in, YouTube is the source of truth: this tab
+                        // lists who the account follows there. The device's own
+                        // follows and the artists its songs name are the
+                        // signed-out view and would otherwise disagree with what
+                        // the account says about the same artist.
+                        if (isYouTubeConnected) {
+                            AccountArtistsGrid(
+                                artists = accountArtists,
+                                onArtistClick = { artist ->
+                                    onNavigateToFollowedArtist(
+                                        com.ivor.ivormusic.data.TasteArtist(
+                                            id = artist.id,
+                                            name = artist.name,
+                                            thumbnailUrl = artist.thumbnailUrl
+                                        )
+                                    )
+                                },
+                                onUnfollow = { artist ->
+                                    viewModel.setArtistFollowed(artist, follow = false)
+                                },
+                                contentPadding = contentPadding,
+                                isLoading = isLoading
+                            )
+                        } else {
+                            val artistSort by themePreferences.libraryArtistSort.collectAsState()
+                            val tasteContext = LocalContext.current
+                            val tasteStore = remember(tasteContext) {
+                                com.ivor.ivormusic.data.TasteProfileStore(tasteContext)
+                            }
+                            val tasteProfile by tasteStore.profile.collectAsState()
+                            ArtistsGrid(
+                                songs = librarySongs,
+                                followed = tasteProfile.artists,
+                                onFollowedClick = onNavigateToFollowedArtist,
+                                onArtistClick = onNavigateToArtist,
+                                contentPadding = contentPadding,
+                                sort = LibraryGroupSort.from(artistSort),
+                                onSortChange = { themePreferences.setLibraryArtistSort(it.name) },
+                                playCounts = playCounts
+                            )
                         }
-                        val tasteProfile by tasteStore.profile.collectAsState()
-                        ArtistsGrid(
-                            songs = librarySongs,
-                            followed = tasteProfile.artists,
-                            onFollowedClick = onNavigateToFollowedArtist,
-                            onArtistClick = onNavigateToArtist,
-                            contentPadding = contentPadding,
-                            sort = LibraryGroupSort.from(artistSort),
-                            onSortChange = { themePreferences.setLibraryArtistSort(it.name) },
-                            playCounts = playCounts
-                        )
                     }
                     LibraryTab.Albums -> {
-                        val albumSort by themePreferences.libraryAlbumSort.collectAsState()
-                        AlbumsGrid(
-                            songs = librarySongs,
-                            onAlbumClick = onNavigateToAlbum,
-                            contentPadding = contentPadding,
-                            sort = LibraryGroupSort.from(albumSort),
-                            onSortChange = { themePreferences.setLibraryAlbumSort(it.name) },
-                            playCounts = playCounts
-                        )
+                        // Same rule as the Artists tab: signed in, this is the
+                        // album list the account saved, not the albums the
+                        // device's songs happen to belong to.
+                        if (isYouTubeConnected) {
+                            AccountAlbumsGrid(
+                                albums = accountAlbums,
+                                onAlbumClick = onNavigateToPlaylist,
+                                onRemoveSaved = { album -> viewModel.removeSavedPlaylist(album.id) },
+                                contentPadding = contentPadding,
+                                isLoading = isLoading
+                            )
+                        } else {
+                            val albumSort by themePreferences.libraryAlbumSort.collectAsState()
+                            AlbumsGrid(
+                                songs = librarySongs,
+                                onAlbumClick = onNavigateToAlbum,
+                                contentPadding = contentPadding,
+                                sort = LibraryGroupSort.from(albumSort),
+                                onSortChange = { themePreferences.setLibraryAlbumSort(it.name) },
+                                playCounts = playCounts
+                            )
+                        }
                     }
                 }
             }
@@ -2105,6 +2148,188 @@ fun AlbumsGrid(
                 ),
                 selected = LocalLibraryOpenItem.current?.albumName == album,
                 onClick = { onAlbumClick(album, albumSongs) }
+            )
+        }
+    }
+}
+
+/**
+ * The artists the signed-in account follows on YouTube Music.
+ *
+ * One list rather than a section above the device's own groupings: signed in,
+ * the account is the source of truth, and a follow made in the YouTube Music
+ * app has to read the same here as one made here. The id is the `UC...` channel
+ * id YouTube served, which is what the artist page opens on.
+ */
+@Composable
+fun AccountArtistsGrid(
+    artists: List<com.ivor.ivormusic.data.ArtistItem>,
+    onArtistClick: (com.ivor.ivormusic.data.ArtistItem) -> Unit,
+    contentPadding: PaddingValues,
+    isLoading: Boolean = false,
+    /** Unfollow on the account. Null where there is no account to write to. */
+    onUnfollow: ((com.ivor.ivormusic.data.ArtistItem) -> Unit)? = null
+) {
+    if (artists.isEmpty()) {
+        // "Still loading" and "follows nobody" are different answers, and
+        // drawing the second while the first is true tells the user something
+        // false about their account.
+        if (isLoading) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        } else {
+            EmptyLibraryState(
+                icon = Icons.Rounded.Person,
+                title = stringResource(R.string.lib_no_followed_artists),
+                subtitle = stringResource(R.string.lib_no_followed_artists_subtitle)
+            )
+        }
+        return
+    }
+
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(minSize = 140.dp),
+        contentPadding = PaddingValues(
+            top = 8.dp,
+            bottom = contentPadding.calculateBottomPadding() + 16.dp,
+            start = 16.dp,
+            end = 16.dp
+        ),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(24.dp),
+        modifier = Modifier.fillMaxSize()
+    ) {
+        items(artists, key = { "account_artist_" + it.id }) { artist ->
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .clickable { onArtistClick(artist) }
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    modifier = Modifier.size(140.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    shadowElevation = 6.dp,
+                    border = libraryOpenBorder(
+                        LocalLibraryOpenItem.current?.artistName == artist.name
+                    )
+                ) {
+                    if (!artist.thumbnailUrl.isNullOrBlank()) {
+                        AsyncImage(
+                            model = artist.thumbnailUrl,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Rounded.Person,
+                                null,
+                                modifier = Modifier.size(48.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    artist.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                artist.subscriberCount?.takeIf { it.isNotBlank() }?.let { count ->
+                    Text(
+                        count,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                // Unfollowing is the one thing this grid can do to the
+                // account, and it is offered on the card rather than only on
+                // the artist's page: removing 50 artists one page at a time is
+                // the reason someone opens this tab.
+                onUnfollow?.let { unfollow ->
+                    TextButton(
+                        onClick = { unfollow(artist) },
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                        modifier = Modifier.height(28.dp)
+                    ) {
+                        Text(
+                            stringResource(R.string.lib_unfollow),
+                            style = MaterialTheme.typography.labelMedium
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The albums saved to the signed-in account's YouTube Music library.
+ *
+ * The row is an album, so its caption is the release kind and year rather than
+ * a track count: the saved-albums page carries no track count, and inventing
+ * one would be worse than saying nothing.
+ */
+@Composable
+fun AccountAlbumsGrid(
+    albums: List<PlaylistDisplayItem>,
+    onAlbumClick: (PlaylistDisplayItem) -> Unit,
+    contentPadding: PaddingValues,
+    isLoading: Boolean = false,
+    /** Remove from the account's library. Null where there is no account. */
+    onRemoveSaved: ((PlaylistDisplayItem) -> Unit)? = null
+) {
+    if (albums.isEmpty()) {
+        if (isLoading) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        } else {
+            EmptyLibraryState(
+                icon = Icons.Rounded.Album,
+                title = stringResource(R.string.lib_no_saved_albums),
+                subtitle = stringResource(R.string.lib_no_saved_albums_subtitle)
+            )
+        }
+        return
+    }
+
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(minSize = 160.dp),
+        contentPadding = PaddingValues(
+            top = 8.dp,
+            bottom = contentPadding.calculateBottomPadding() + 16.dp,
+            start = 16.dp,
+            end = 16.dp
+        ),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        modifier = Modifier.fillMaxSize()
+    ) {
+        items(albums, key = { it.id }) { album ->
+            val typeLabel = album.releaseType?.let { stringResource(it.labelRes) }
+                ?: stringResource(R.string.label_album)
+            val subtitle = listOfNotNull(typeLabel, album.releaseYear?.toString())
+                .joinToString(" • ")
+            ExpressivePlaylistCard(
+                name = album.name,
+                count = album.itemCount,
+                thumbnailUrl = album.thumbnailUrl,
+                subtitle = subtitle,
+                selected = LocalLibraryOpenItem.current?.playlistId == album.id,
+                isSaved = true,
+                onRemoveSaved = { onRemoveSaved?.invoke(album) },
+                onClick = { onAlbumClick(album) }
             )
         }
     }
@@ -3285,6 +3510,17 @@ fun PlaylistDetailScreen(
         !isAlbum && localPlaylistIds.contains(playlist.id)
     }
     val isSavedPlaylist = savedPlaylistIds.contains(playlist.id)
+    // A YouTube album's saved state lives on the account, not on the device:
+    // saving an album anywhere in Koda while signed in never wrote a local
+    // reference, so reading only the device store would draw "Save" over an
+    // album the account already has. Signed out the device reference is all
+    // there is, and this is false.
+    val isYouTubeConnected by viewModel.isYouTubeConnected.collectAsState()
+    val accountAlbums by viewModel.savedAlbums.collectAsState()
+    val isYouTubeAlbum = playlist.id.startsWith("MPRE")
+    val savedInAccount = isYouTubeAlbum &&
+        remember(accountAlbums, playlist.id) { accountAlbums.any { it.id == playlist.id } }
+    val isSaved = isSavedPlaylist || savedInAccount
     // A video-mode device playlist opened from the music Library's "From video
     // mode" section: a device list with nothing on YouTube behind it, so it is
     // neither savable nor a YouTube playlist, and it is edited in video mode.
@@ -3297,10 +3533,10 @@ fun PlaylistDetailScreen(
      * copy of something they already have. The synthesized feeds have no
      * playlist behind them to keep at all.
      */
-    val canSavePlaylist = remember(playlist.id, userPlaylists, isLocalPlaylist, isSavedPlaylist) {
+    val canSavePlaylist = remember(playlist.id, userPlaylists, isLocalPlaylist, isSaved) {
         !isLocalPlaylist && !isVideoModePlaylist &&
             playlist.id !in NON_SAVABLE_PLAYLIST_IDS &&
-            (isSavedPlaylist || userPlaylists.none { it.id == playlist.id })
+            (isSaved || userPlaylists.none { it.id == playlist.id })
     }
     // YouTube playlists can be edited through InnerTube. "LM" (Your Likes) only
     // supports song removal (= removing the like), not rename/delete, and the
@@ -3358,7 +3594,6 @@ fun PlaylistDetailScreen(
     val haptics = com.ivor.ivormusic.util.rememberKodaHaptics()
     val focusManager = LocalFocusManager.current
     val snackbarHostState = remember { SnackbarHostState() }
-    val isYouTubeConnected by viewModel.isYouTubeConnected.collectAsState()
     var isUploading by remember(playlist.id) { mutableStateOf(false) }
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
 
@@ -4388,10 +4623,18 @@ fun PlaylistDetailScreen(
                         if (canSavePlaylist) {
                             FilledTonalButton(
                                 onClick = {
-                                    val nowSaved = viewModel.toggleSavedPlaylist(
-                                        resolvedPlaylist,
-                                        isAlbum = isAlbum
-                                    )
+                                    val nowSaved = if (isYouTubeAlbum && isYouTubeConnected) {
+                                        // The account's copy is the truth, so
+                                        // the direction comes from it rather
+                                        // than from a blind toggle of the
+                                        // device store.
+                                        viewModel.toggleAlbumSaved(resolvedPlaylist, savedInAccount)
+                                    } else {
+                                        viewModel.toggleSavedPlaylist(
+                                            resolvedPlaylist,
+                                            isAlbum = isAlbum
+                                        )
+                                    }
                                     haptics.performHapticFeedback(HapticFeedbackType.Confirm)
                                     scope.launch {
                                         val snackbarMsg =
@@ -4406,7 +4649,7 @@ fun PlaylistDetailScreen(
                                 // button must not resize under the finger that
                                 // is still on it.
                                 AnimatedContent(
-                                    targetState = isSavedPlaylist,
+                                    targetState = isSaved,
                                     transitionSpec = { fadeIn() togetherWith fadeOut() },
                                     label = "savePlaylist"
                                 ) { saved ->

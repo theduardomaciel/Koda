@@ -23,6 +23,7 @@ import com.ivor.ivormusic.data.youtube.LiveChat
 import com.ivor.ivormusic.data.youtube.LocalSubscriptionFeed
 import com.ivor.ivormusic.data.youtube.MusicApi
 import com.ivor.ivormusic.data.youtube.MusicBrowse
+import com.ivor.ivormusic.data.youtube.MusicLibrary
 import com.ivor.ivormusic.data.youtube.MusicPlaylists
 import com.ivor.ivormusic.data.youtube.MusicSearch
 import com.ivor.ivormusic.data.youtube.NewPipeGateway
@@ -68,6 +69,7 @@ class YouTubeRepository(private val context: Context) {
     private val musicSearch = MusicSearch(musicApi, newPipeGateway)
     private val musicPlaylists = MusicPlaylists(musicApi, sessionManager)
     private val musicBrowse = MusicBrowse(http, musicApi, musicSearch, musicPlaylists, sessionManager)
+    private val musicLibrary = MusicLibrary(musicApi, sessionManager)
 
     // --- YouTube ---
     private val videoSearch = VideoSearch(context, webApi, newPipeGateway)
@@ -278,6 +280,23 @@ class YouTubeRepository(private val context: Context) {
     suspend fun getLikedMusic(): List<Song> = musicPlaylists.getLikedMusic()
 
     suspend fun getUserPlaylists(): List<PlaylistDisplayItem> = musicPlaylists.getUserPlaylists()
+
+    // --- The account's music library (MusicLibrary) ---
+
+    suspend fun getSavedAlbums(): List<PlaylistDisplayItem> = musicLibrary.getSavedAlbums()
+
+    suspend fun getFollowedArtists(): List<ArtistItem> = musicLibrary.getFollowedArtists()
+
+    suspend fun getAlbumAudioPlaylistId(browseId: String): String? =
+        musicLibrary.getAlbumAudioPlaylistId(browseId)
+
+    /** Like or unlike a song on the signed-in account (its Liked Music). */
+    suspend fun setSongLiked(videoId: String, liked: Boolean): Boolean =
+        musicLibrary.setSongLiked(videoId, liked)
+
+    /** Follow or unfollow an artist on the signed-in account. */
+    suspend fun setArtistFollowed(artistBrowseId: String, follow: Boolean): Boolean =
+        musicLibrary.setArtistFollowed(artistBrowseId, follow)
 
     // --- Song streams (SongStreams) ---
 

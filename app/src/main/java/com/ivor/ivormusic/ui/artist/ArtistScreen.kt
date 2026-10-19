@@ -563,20 +563,34 @@ fun ArtistScreen(
         }
     }
 
-    // Following is Koda's own: a note on this device that the user likes
-    // this artist, read by the recommendations and listed in the Library.
-    // Nothing is sent to YouTube, so it needs no account. An artist that is
-    // only an unknown tag on some files has nothing to follow.
+    // Following is Koda's own note on this device, and — signed in — the
+    // account's subscription on YouTube Music, which the Library's Artists tab
+    // draws. Signed in the account is what the button reads: a follow made in
+    // the YouTube Music app has to show here, or this page would disagree with
+    // the Library about the same artist. The device note is written either way,
+    // so a follow made while signed in still survives a sign-out.
     val followContext = androidx.compose.ui.platform.LocalContext.current
     val tasteStore = remember(followContext) { com.ivor.ivormusic.data.TasteProfileStore(followContext) }
     val tasteProfile by tasteStore.profile.collectAsState()
+    // Held so the flow can be collected unconditionally: a composable call
+    // behind a null check is the kind of conditional composition that breaks
+    // when the check changes.
+    val noAccountArtists = remember {
+        kotlinx.coroutines.flow.MutableStateFlow(emptyList<com.ivor.ivormusic.data.ArtistItem>())
+    }
+    val noAccount = remember { kotlinx.coroutines.flow.MutableStateFlow(false) }
+    val accountArtists by (viewModel?.followedArtists ?: noAccountArtists).collectAsState()
+    val isYouTubeConnected by (viewModel?.isYouTubeConnected ?: noAccount).collectAsState()
     val canFollow = !isUnknownArtist(artistPage?.name ?: artistName)
     val followArtist = com.ivor.ivormusic.data.TasteArtist(
         id = (resolvedChannelId ?: artistId).orEmpty().takeIf { it.startsWith("UC") }.orEmpty(),
         name = displayName,
         thumbnailUrl = heroFallback.second ?: heroFallback.first
     )
-    val isFollowing = tasteProfile.artists.any { it.sameArtistAs(followArtist) }
+    val followedOnAccount = followArtist.id.isNotBlank() &&
+        accountArtists.any { it.id == followArtist.id }
+    val isFollowing = if (isYouTubeConnected) followedOnAccount
+    else tasteProfile.artists.any { it.sameArtistAs(followArtist) }
 
     val spatialSpec = MaterialTheme.motionScheme.defaultSpatialSpec<IntOffset>()
     val effectsSpec = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
@@ -643,8 +657,19 @@ fun ArtistScreen(
                                 isFollowing = isFollowing,
                                 onFollowToggle = if (canFollow) {
                                     {
-                                        if (isFollowing) tasteStore.unfollow(followArtist)
-                                        else tasteStore.follow(followArtist)
+                                        val target = !isFollowing
+                                        if (target) tasteStore.follow(followArtist)
+                                        else tasteStore.unfollow(followArtist)
+                                        if (isYouTubeConnected && followArtist.id.startsWith("UC")) {
+                                            viewModel?.setArtistFollowed(
+                                                com.ivor.ivormusic.data.ArtistItem(
+                                                    id = followArtist.id,
+                                                    name = followArtist.name,
+                                                    thumbnailUrl = followArtist.thumbnailUrl
+                                                ),
+                                                target
+                                            )
+                                        }
                                     }
                                 } else {
                                     null

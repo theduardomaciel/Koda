@@ -1,5 +1,6 @@
 package com.ivor.ivormusic.data.youtube
 
+import com.ivor.ivormusic.data.ArtistItem
 import com.ivor.ivormusic.data.MusicMetadata
 import com.ivor.ivormusic.data.PlaylistDisplayItem
 import com.ivor.ivormusic.data.Song
@@ -334,6 +335,141 @@ internal fun extractPlaylistContinuationToken(json: String): String? = try {
     findObjectsByKey(root, "musicPlaylistShelfContinuation", scopes)
     findObjectsByKey(root, "appendContinuationItemsAction", scopes)
     findObjectsByKey(root, "reloadContinuationItemsCommand", scopes)
+    scopes.asSequence().mapNotNull { scope ->
+        val tokens = mutableListOf<String>()
+        findContinuationTokens(scope, tokens)
+        tokens.firstOrNull()
+    }.firstOrNull()
+} catch (e: Exception) {
+    null
+}
+
+// ---------------------------------------------------------------------------
+// The account's own library pages: saved albums and followed artists.
+//
+// Both are account browse ids, so signed out they answer a sign-in shell rather
+// than an error and the caller gate is `isLoggedIn()`. Every shape here was
+// probed signed in on music.youtube.com (WEB_REMIX), October 2026.
+// ---------------------------------------------------------------------------
+
+/**
+ * The albums saved to the account's YouTube Music library, from
+ * `FEmusic_liked_albums` (`GetBrowseCorpusReleasesPage`).
+ *
+ * Page one is a `gridRenderer`; later pages answer under
+ * `continuationContents.gridContinuation.items`. Only the grid is read: the
+ * page carries other two-row cards beside it, and an album's identity is the
+ * `MUSIC_PAGE_TYPE_ALBUM` endpoint [MusicMetadata.release] requires, never a
+ * subtitle position.
+ */
+internal fun parseSavedAlbums(json: String): List<PlaylistDisplayItem> {
+    val rows = mutableListOf<JSONObject>()
+    try {
+        val root = JSONObject(json)
+        val grids = mutableListOf<JSONObject>()
+        findObjectsByKey(root, "gridRenderer", grids)
+        for (grid in grids) collectRendererItems(grid.optJSONArray("items"), rows)
+        collectRendererItems(
+            root.optJSONObject("continuationContents")
+                ?.optJSONObject("gridContinuation")?.optJSONArray("items"),
+            rows
+        )
+        return rows.mapNotNull { item ->
+            item.optJSONObject("musicTwoRowItemRenderer")?.let { row -> MusicMetadata.release(row) }
+        }.distinctBy { it.id }
+    } catch (e: Exception) {
+        KLog.e(YOUTUBE_TAG, "Could not parse saved albums", e)
+        return emptyList()
+    }
+}
+
+/**
+ * The artists followed in YouTube (`FEmusic_library_corpus_artists`,
+ * `GetBrowseSubscriptionsPage`) - the Library's Subscriptions chip, which is
+ * distinct from its Artists chip: that one
+ * (`FEmusic_library_corpus_track_artists`, `GetBrowseCorpusArtistsPage`) lists
+ * the artists of songs already in the library and answers with
+ * `MUSIC_PAGE_TYPE_LIBRARY_ARTIST` rows whose ids are `MPLAUC...` rather than
+ * the `UC...` channel ids an artist page opens on.
+ *
+ * Page one is a `musicShelfRenderer`; later pages answer under
+ * `continuationContents.musicShelfContinuation.contents`. The name is the
+ * first flex column's run text (it leads with a space), the audience is the
+ * second, and the id comes from the row's own browse endpoint.
+ */
+internal fun parseFollowedArtists(json: String): List<ArtistItem> {
+    val rows = mutableListOf<JSONObject>()
+    try {
+        val root = JSONObject(json)
+        val shelves = mutableListOf<JSONObject>()
+        findObjectsByKey(root, "musicShelfRenderer", shelves)
+        for (shelf in shelves) collectRendererItems(shelf.optJSONArray("contents"), rows)
+        collectRendererItems(
+            root.optJSONObject("continuationContents")
+                ?.optJSONObject("musicShelfContinuation")?.optJSONArray("contents"),
+            rows
+        )
+        return rows.mapNotNull { item ->
+            val row = item.optJSONObject("musicResponsiveListItemRenderer")
+                ?: return@mapNotNull null
+            val id = row.optJSONObject("navigationEndpoint")
+                ?.optJSONObject("browseEndpoint")?.optString("browseId")
+                ?.takeIf { it.startsWith("UC") } ?: return@mapNotNull null
+            val name = getRunText(flexColumnText(row, 0))?.trim()
+                ?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            val subscribers = getRunText(flexColumnText(row, 1))?.takeIf { it.isNotBlank() }
+            val thumbnails = MusicMetadata.objects(row, "musicThumbnailRenderer").firstOrNull()
+                ?.optJSONObject("thumbnail")?.optJSONArray("thumbnails")
+            ArtistItem(
+                id = id,
+                name = name,
+                thumbnailUrl = bestThumbnail(thumbnails),
+                subscriberCount = subscribers,
+            )
+        }.distinctBy { it.id }
+    } catch (e: Exception) {
+        KLog.e(YOUTUBE_TAG, "Could not parse followed artists", e)
+        return emptyList()
+    }
+}
+
+private fun collectRendererItems(array: JSONArray?, into: MutableList<JSONObject>) {
+    if (array == null) return
+    for (i in 0 until array.length()) array.optJSONObject(i)?.let(into::add)
+}
+
+private fun flexColumnText(row: JSONObject, index: Int): JSONObject? =
+    row.optJSONArray("flexColumns")?.optJSONObject(index)
+        ?.optJSONObject("musicResponsiveListItemFlexColumnRenderer")?.optJSONObject("text")
+
+/**
+ * The next token of a grid list (the saved-albums page). Scoped to the grid so
+ * the section-list continuations the other tabs of the same response carry are
+ * never followed instead.
+ */
+internal fun extractGridContinuationToken(json: String): String? = try {
+    val root = JSONObject(json)
+    val scopes = mutableListOf<JSONObject>()
+    findObjectsByKey(root, "gridRenderer", scopes)
+    findObjectsByKey(root, "gridContinuation", scopes)
+    scopes.asSequence().mapNotNull { scope ->
+        val tokens = mutableListOf<String>()
+        findContinuationTokens(scope, tokens)
+        tokens.firstOrNull()
+    }.firstOrNull()
+} catch (e: Exception) {
+    null
+}
+
+/**
+ * The next token of a music shelf (the followed-artists page). Scoped to the
+ * shelf for the same reason as [extractGridContinuationToken].
+ */
+internal fun extractShelfContinuationToken(json: String): String? = try {
+    val root = JSONObject(json)
+    val scopes = mutableListOf<JSONObject>()
+    findObjectsByKey(root, "musicShelfRenderer", scopes)
+    findObjectsByKey(root, "musicShelfContinuation", scopes)
     scopes.asSequence().mapNotNull { scope ->
         val tokens = mutableListOf<String>()
         findContinuationTokens(scope, tokens)

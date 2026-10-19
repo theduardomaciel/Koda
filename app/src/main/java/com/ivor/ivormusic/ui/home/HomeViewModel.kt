@@ -267,6 +267,19 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     // YouTube playlists
     private val _youtubePlaylists = MutableStateFlow<List<com.ivor.ivormusic.data.PlaylistDisplayItem>>(emptyList())
+
+    // The account's YouTube Music library: the albums saved to it and the
+    // artists followed on it. Both are account-scoped, so they are empty signed
+    // out and the Library falls back to its device-derived groupings there.
+    private val _savedAlbums =
+        MutableStateFlow<List<com.ivor.ivormusic.data.PlaylistDisplayItem>>(emptyList())
+    val savedAlbums: StateFlow<List<com.ivor.ivormusic.data.PlaylistDisplayItem>> =
+        _savedAlbums.asStateFlow()
+
+    private val _followedArtists =
+        MutableStateFlow<List<com.ivor.ivormusic.data.ArtistItem>>(emptyList())
+    val followedArtists: StateFlow<List<com.ivor.ivormusic.data.ArtistItem>> =
+        _followedArtists.asStateFlow()
     
     // Playlists and albums saved from search or an artist page: references,
     // fetched live when opened. See SavedPlaylistsRepository.
@@ -622,32 +635,99 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleSavedPlaylist(
         playlist: com.ivor.ivormusic.data.PlaylistDisplayItem,
         isAlbum: Boolean = false
-    ): Boolean = savedPlaylistsRepository.toggle(
-        com.ivor.ivormusic.data.SavedPlaylist(
-            id = playlist.id,
-            url = playlist.url,
-            name = playlist.name,
-            uploaderName = playlist.uploaderName,
-            thumbnailUrl = playlist.thumbnailUrl,
-            itemCount = playlist.itemCount,
-            isAlbum = isAlbum,
-            releaseType = playlist.releaseType,
-            releaseYear = playlist.releaseYear
-        )
-    ).also { saved -> syncSavedToAccount(playlist.id, saved) }
+    ): Boolean = savedPlaylistsRepository.toggle(savedPlaylistOf(playlist, isAlbum))
+        .also { saved -> syncSavedToAccount(playlist.id, saved) }
+
+    /**
+     * Keep or drop an album in the account's library, and this device's
+     * reference with it. Returns the state after the toggle.
+     *
+     * [savedInAccount] comes from the account's own saved list rather than
+     * being read out of the device store, because signed in the account is the
+     * source of truth: an album the account has and this device has never
+     * saved would otherwise be toggled *on* — a save of something already
+     * saved — and the remove would take two taps.
+     */
+    fun toggleAlbumSaved(
+        album: com.ivor.ivormusic.data.PlaylistDisplayItem,
+        savedInAccount: Boolean
+    ): Boolean {
+        val target = !savedInAccount
+        if (target) savedPlaylistsRepository.save(savedPlaylistOf(album, isAlbum = true))
+        else savedPlaylistsRepository.remove(album.id)
+        syncSavedToAccount(album.id, target)
+        return target
+    }
+
+    private fun savedPlaylistOf(
+        playlist: com.ivor.ivormusic.data.PlaylistDisplayItem,
+        isAlbum: Boolean
+    ) = com.ivor.ivormusic.data.SavedPlaylist(
+        id = playlist.id,
+        url = playlist.url,
+        name = playlist.name,
+        uploaderName = playlist.uploaderName,
+        thumbnailUrl = playlist.thumbnailUrl,
+        itemCount = playlist.itemCount,
+        isAlbum = isAlbum,
+        releaseType = playlist.releaseType,
+        releaseYear = playlist.releaseYear
+    )
 
     fun removeSavedPlaylist(playlistId: String) {
         savedPlaylistsRepository.remove(playlistId)
         syncSavedToAccount(playlistId, false)
     }
 
-    // Signed in, Save also puts the playlist in the account's library. Albums
-    // (MPREb browse ids) have no playlist id to like, so they stay device-only.
+    // Signed in, Save also puts the item in the account's library. A playlist
+    // is liked by its own id. An album has none — the browse id is `MPREb_...`,
+    // which `like/like` refuses — so its audio playlist (`OLAK5uy_...`) is
+    // resolved first and that is what the account accepts.
     private fun syncSavedToAccount(playlistId: String, saved: Boolean) {
-        if (!sessionManager.isLoggedIn() || playlistId.startsWith("MPRE")) return
+        if (!sessionManager.isLoggedIn()) return
+        val isAlbum = playlistId.startsWith("MPRE")
         viewModelScope.launch {
-            if (!youtubeRepository.setPlaylistInLibrary(playlistId, saved)) {
+            val target = if (isAlbum) {
+                youtubeRepository.getAlbumAudioPlaylistId(playlistId)
+            } else {
+                playlistId
+            }
+            if (target == null) {
+                KLog.w("HomeViewModel", "No account target to save $playlistId against")
+                if (isAlbum) _savedAlbums.value = youtubeRepository.getSavedAlbums()
+                return@launch
+            }
+            if (!youtubeRepository.setPlaylistInLibrary(target, saved)) {
                 KLog.w("HomeViewModel", "Account library ${if (saved) "save" else "remove"} failed for $playlistId")
+            }
+            // The Albums tab draws the account's own list, and the album's
+            // saved state on its page reads from it, so both sides are re-read
+            // rather than left showing a write that may not have landed.
+            if (isAlbum) _savedAlbums.value = youtubeRepository.getSavedAlbums()
+        }
+    }
+
+    /**
+     * Follow or unfollow an artist on the account.
+     *
+     * The list is updated before the write because YouTube's subscription
+     * pages take several seconds to catch up: re-reading straight after a
+     * follow would hand back the list from before it and the button would snap
+     * back to "Follow" under the user's finger. It is re-read only when the
+     * write failed, where the honest answer is what the account actually says.
+     */
+    fun setArtistFollowed(artist: com.ivor.ivormusic.data.ArtistItem, follow: Boolean) {
+        if (!sessionManager.isLoggedIn()) return
+        _followedArtists.value = if (follow) {
+            if (_followedArtists.value.any { it.id == artist.id }) _followedArtists.value
+            else listOf(artist) + _followedArtists.value
+        } else {
+            _followedArtists.value.filterNot { it.id == artist.id }
+        }
+        viewModelScope.launch {
+            if (!youtubeRepository.setArtistFollowed(artist.id, follow)) {
+                KLog.w("HomeViewModel", "Artist ${if (follow) "follow" else "unfollow"} failed for ${artist.id}")
+                _followedArtists.value = youtubeRepository.getFollowedArtists()
             }
         }
     }
@@ -1439,6 +1519,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         _youtubeSongs.value = homeRecommendationCache.load()
         _likedSongs.value = emptyList()
         _youtubePlaylists.value = emptyList()
+        _savedAlbums.value = emptyList()
+        _followedArtists.value = emptyList()
         _accountChannels.value = emptyList()
         _subscriptionFeed.value = emptyList()
         resetSubscriptionFeedPaging()
@@ -2911,6 +2993,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         try {
             _likedSongs.value = youtubeRepository.getLikedMusic()
             _youtubePlaylists.value = youtubeRepository.getUserPlaylists()
+            _savedAlbums.value = youtubeRepository.getSavedAlbums()
+            _followedArtists.value = youtubeRepository.getFollowedArtists()
             accountLoadedAtMs = System.currentTimeMillis()
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
@@ -3288,6 +3372,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         _youtubeSongs.value = emptyList()
         _likedSongs.value = emptyList()
         _youtubePlaylists.value = emptyList()
+        _savedAlbums.value = emptyList()
+        _followedArtists.value = emptyList()
         forgetHomeLoadTimes()
         accountLoadJob?.cancel()
         clearSubscriptionMix()
@@ -3323,6 +3409,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     // Update library data
                     _likedSongs.value = youtubeRepository.getLikedMusic()
                     _youtubePlaylists.value = youtubeRepository.getUserPlaylists()
+                    _savedAlbums.value = youtubeRepository.getSavedAlbums()
+                    _followedArtists.value = youtubeRepository.getFollowedArtists()
                     accountLoadedAtMs = System.currentTimeMillis()
                 } else if (_youtubeSongs.value.isNotEmpty()) {
                     // Logged-out YouTube mode: refresh the taste-based feed too.

@@ -190,6 +190,15 @@ class PlayerViewModel(private val context: Context) : ViewModel() {
     // YouTube Repository for fetching more songs
     private val youTubeRepository = com.ivor.ivormusic.data.YouTubeRepository(context)
 
+    /**
+     * The like toggle, and the one place the account write is decided. Signed
+     * in, a like made here is also a like on YouTube Music; see
+     * [com.ivor.ivormusic.data.SongLikeActions]. Declared after
+     * [youTubeRepository] because it is built with it.
+     */
+    private val songLikeActions =
+        com.ivor.ivormusic.data.SongLikeActions(context, youTubeRepository, viewModelScope)
+
     // Taste-profile based recommendations for the auto-queue
     private val recommendationEngine = com.ivor.ivormusic.data.RecommendationEngine(context, youTubeRepository)
 
@@ -1662,7 +1671,7 @@ class PlayerViewModel(private val context: Context) : ViewModel() {
         val song = _currentSong.value ?: return
         // Pass the full song so its metadata is persisted — the Library's
         // Liked Songs list needs it to display YouTube songs without a login.
-        val isNowLiked = likedSongsRepository.toggleLike(song)
+        val isNowLiked = songLikeActions.toggleLike(song)
         _isCurrentSongLiked.value = isNowLiked
     }
 
@@ -1682,7 +1691,7 @@ class PlayerViewModel(private val context: Context) : ViewModel() {
      * @return true when the song is now liked.
      */
     fun toggleLike(song: Song): Boolean {
-        val isNowLiked = likedSongsRepository.toggleLike(song)
+        val isNowLiked = songLikeActions.toggleLike(song)
         if (song.id == _currentSong.value?.id) _isCurrentSongLiked.value = isNowLiked
         return isNowLiked
     }

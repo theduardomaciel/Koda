@@ -1764,6 +1764,11 @@
     <string name="no_artists_yet_subtitle">Artists from your songs will show up here</string>
     <string name="no_albums_yet">No albums yet</string>
     <string name="no_albums_yet_subtitle">Albums from your songs will show up here</string>
+    <string name="lib_no_followed_artists">No followed artists</string>
+    <string name="lib_no_followed_artists_subtitle">Artists you follow on YouTube Music will show up here</string>
+    <string name="lib_no_saved_albums">No saved albums</string>
+    <string name="lib_no_saved_albums_subtitle">Albums you save to your YouTube Music library will show up here</string>
+    <string name="lib_unfollow">Unfollow</string>
 
     <!-- Search -->
     <string name="search_title">Search</string>

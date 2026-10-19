@@ -126,6 +126,15 @@ class MusicService : MediaLibraryService() {
     private lateinit var themePreferences: ThemePreferences
     private lateinit var audioProfileStore: AudioProfileStore
     private val likedSongsRepository by lazy { LikedSongsRepository(this) }
+
+    /**
+     * The like toggle, and the one place the account write is decided. Built
+     * lazily because [youtubeRepository] is only assigned in `onCreate`; the
+     * first read is always a tap, which is long after that.
+     */
+    private val songLikeActions by lazy {
+        com.ivor.ivormusic.data.SongLikeActions(this, youtubeRepository, serviceScope)
+    }
     private val statsRepository by lazy { StatsRepository(this) }
     private val songRepository by lazy { SongRepository(this) }
     private val transitionFilters = ConcurrentHashMap<ExoPlayer, TransitionFilterAudioProcessor>()
@@ -961,7 +970,7 @@ class MusicService : MediaLibraryService() {
      */
     private fun toggleCurrentSongLike(player: Player) {
         val song = player.currentMediaItem?.toQueueSong() ?: return
-        likedSongsRepository.toggleLike(song)
+        songLikeActions.toggleLike(song)
         // The store's flow calls refreshMediaButtons too; this just skips the wait.
         refreshMediaButtons()
     }

@@ -70,6 +70,16 @@ internal class MusicPlaylists(
     /**
      * Get liked music with pagination support.
      * YouTube Music API returns paginated results, so we need to fetch all pages.
+     *
+     * Signed in this reads `FEmusic_liked_videos`, the account's liked
+     * *videos*, which is not the list `like/like` writes to: that is `LM`, and
+     * the two share no video id. Reading `LM` here instead is the right answer
+     * but is not a one-line change - the account's Liked Music is 1,612 songs
+     * across 17 pages, so doing it on the library load would make every open
+     * walk the whole list. It needs a preview at the root and demand paging on
+     * Liked Songs, and the counts and heart ticks that read this list to know
+     * they are looking at a preview. `docs/youtube-data.md` carries the
+     * measurement and the shape.
      */
     suspend fun getLikedMusic(): List<Song> = withContext(Dispatchers.IO) {
         if (!sessionManager.isLoggedIn()) {
