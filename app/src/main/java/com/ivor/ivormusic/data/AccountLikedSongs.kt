@@ -141,6 +141,38 @@ internal fun likedMusicCacheBelongsToAccount(storedKey: String?, currentKey: Str
     !currentKey.isNullOrBlank() && storedKey == currentKey
 
 /**
+ * Whether a sync has to read the whole list, or the incremental result is
+ * already the truth.
+ *
+ * The server count is compared with what the stored count plus the new items
+ * predicts. A match means only additions happened, so nothing was removed and
+ * the incremental result stands. A mismatch means something left the list,
+ * which an incremental walk cannot see - it stops before the tail - and only a
+ * walk of the whole list can find it. A like and an unlike between two syncs
+ * land on the same count and are caught here: the prediction is one too high.
+ */
+internal fun planLikedMusicSync(
+    forceFull: Boolean,
+    cacheEmpty: Boolean,
+    readWholeList: Boolean,
+    recentFirst: Boolean,
+    topChanged: Boolean,
+    dueForFullResync: Boolean,
+    storedCount: Int,
+    serverCount: Int?,
+    newCount: Int,
+): Boolean {
+    if (forceFull) return true
+    if (cacheEmpty) return true
+    if (readWholeList) return true
+    if (!recentFirst) return true
+    if (topChanged) return true
+    if (dueForFullResync) return true
+    val server = serverCount ?: return true
+    return server != storedCount + newCount
+}
+
+/**
  * The account's Liked Music, cached on the device.
  *
  * Koda reads `LM` for liked songs, which is the list a like both reads and
@@ -201,12 +233,14 @@ class AccountLikedSongsRepository(context: Context) {
      * never empty while the walk runs and never taken away and put back.
      *
      * It reads the list whole when the cache is empty, when the server's count
-     * changed since the last sync, when the cache's newest entry left page one,
-     * when the last full walk is [LIKED_MUSIC_FULL_RESYNC_INTERVAL_MS] old, or
-     * when [forceFull] is set. A whole walk that reached
-     * the end *replaces* the cache, which is what reconciles a song unliked
-     * elsewhere; one that failed part way through adds what it read and leaves
-     * the rest, since a prefix of the list is not evidence about its tail.
+     * is not what the stored count plus the new items predicts - which is how a
+     * removal shows up, since an incremental walk only ever adds - when the
+     * cache's newest entry left page one, when the last full walk is
+     * [LIKED_MUSIC_FULL_RESYNC_INTERVAL_MS] old, or when [forceFull] is set.
+     * A whole walk that reached the end *replaces* the cache, which is what
+     * reconciles a song unliked elsewhere; one that failed part way through
+     * adds what it read and leaves the rest, since a prefix of the list is not
+     * evidence about its tail.
      *
      * @param loader one page, or null when the page could not be read.
      */
@@ -216,7 +250,6 @@ class AccountLikedSongsRepository(context: Context) {
     ) {
         if (!syncLock.tryLock()) return
         var pages = 0
-        var full = false
         try {
             // The merges, dedupes and the snapshot are per-song work over up
             // to 2,500 rows. The loader already requests on IO; this keeps the
@@ -234,64 +267,41 @@ class AccountLikedSongsRepository(context: Context) {
                 // A tap that lands while this walk is in flight must win over
                 // the page it was read from, which was fetched before it.
                 synchronized(LOCK) {
-                    likedDuringWalk.clear()
                     unlikedDuringWalk.clear()
                 }
                 val cached = snapshot()
                 val cachedIds = cached.songs.mapTo(HashSet(cached.songs.size)) { it.id }
-                full = needsFullLikedMusicSync(
-                    lastFullSyncMs = cached.lastFullSyncMs,
-                    nowMs = System.currentTimeMillis(),
-                    cachedCount = cached.songs.size,
-                    force = forceFull,
-                )
 
+                // Phase 1: the incremental walk. Read page 1 onwards and stop at
+                // the first id the cache already holds - everything above it is
+                // new, and N counts those new items.
                 val scanned = LinkedHashMap<String, Song>()
                 var cursor: String? = null
-                var complete = false
+                var readToEnd = false
                 var stopped = false
                 var totalCount: Int? = null
+                var recentFirst = true
+                var topChanged = false
 
                 while (pages < LIKED_MUSIC_MAX_PAGES) {
                     val page = loader(cursor) ?: break
                     pages++
                     if (pages == 1) {
                         totalCount = page.totalCount
-                        if (!page.recentFirst && !full) {
-                            KLog.w(TAG, "Liked Music did not come back newest-first; walking it whole")
-                            full = true
-                        }
-                        // A removal on another device lowers the account's count
-                        // before it lowers ours, so a drop means something left
-                        // that an incremental walk (which only ever adds) cannot
-                        // see. Read the list whole to reconcile it.
-                        // The count is the server's own, compared to what it said
-                        // last time: a change means something was added or removed.
-                        // (It is not compared to the cache size, because the
-                        // header over-counts - duplicates and liked videos - so
-                        // the two never agree.) topChanged catches a removal at
-                        // the top that left the count unchanged (add+remove).
-                        val countChanged = totalCount != null && totalCount != cached.totalCount
+                        recentFirst = page.recentFirst
                         // topChanged is false when liking on the web: the new
                         // song is prepended, pushing the old first entry to
-                        // position 1, but it is still in page 1. topChanged
-                        // only fires when the first cached id is gone entirely
-                        // (a removal at the very top). Additions are detected
-                        // by the count change, not by topChanged.
+                        // position 1, but it is still in page 1. It fires only
+                        // when the first cached id is gone entirely - a removal
+                        // at the very top.
                         val firstCachedId = cached.songs.firstOrNull()?.id
-                        val topChanged = firstCachedId != null && firstCachedId !in page.songs.map { it.id }
-                        if ((countChanged || topChanged) && !full) {
-                            KLog.w(
-                                TAG,
-                                "Liked Music changed (stored=${cached.totalCount}, server=$totalCount, " +
-                                    "topChanged=$topChanged); walking it whole",
-                            )
-                            full = true
-                        }
+                        topChanged = firstCachedId != null &&
+                            firstCachedId !in page.songs.map { it.id }
                     }
+                    var hitKnown = false
                     for (song in page.songs) {
-                        if (!full && stopsLikedMusicWalk(song.id, cachedIds)) {
-                            stopped = true
+                        if (stopsLikedMusicWalk(song.id, cachedIds)) {
+                            hitKnown = true
                             break
                         }
                         scanned.putIfAbsent(song.id, song)
@@ -301,7 +311,81 @@ class AccountLikedSongsRepository(context: Context) {
                         accountKey,
                         mergeLikedMusicProgress(scanned.values.toList(), cached.songs),
                     )
-                    if (stopped) break
+                    if (hitKnown) {
+                        stopped = true
+                        break
+                    }
+                    val next = page.nextCursor
+                    if (next == null) {
+                        readToEnd = true
+                        break
+                    }
+                    cursor = next
+                }
+
+                val N = scanned.size  // new items found before the first known id
+                val needFull = planLikedMusicSync(
+                    forceFull = forceFull,
+                    cacheEmpty = cached.songs.isEmpty(),
+                    readWholeList = readToEnd,
+                    recentFirst = recentFirst,
+                    topChanged = topChanged,
+                    dueForFullResync = needsFullLikedMusicSync(
+                        lastFullSyncMs = cached.lastFullSyncMs,
+                        nowMs = System.currentTimeMillis(),
+                        cachedCount = cached.songs.size,
+                        force = false,
+                    ),
+                    storedCount = cached.totalCount,
+                    serverCount = totalCount,
+                    newCount = N,
+                )
+
+                if (!needFull) {
+                    // Incremental: merge the N new items, persist, and the
+                    // server's count becomes the stored count.
+                    val result = mergeLikedMusicProgress(scanned.values.toList(), cached.songs)
+                    apply(
+                        profileId = profileId,
+                        accountKey = accountKey,
+                        songs = result,
+                        totalCount = totalCount ?: cached.totalCount,
+                        lastFullSyncMs = cached.lastFullSyncMs,
+                    )
+                    KLog.d(
+                        TAG,
+                        "Liked Music incremental: N=$N, stored=" + cached.totalCount +
+                            ", server=" + (totalCount ?: "unknown") + ", result=" + result.size,
+                    )
+                    return@withContext
+                }
+
+                KLog.w(
+                    TAG,
+                    "Liked Music full: stored=" + cached.totalCount + ", N=$N, server=" +
+                        (totalCount ?: "unknown") + ", topChanged=$topChanged, " +
+                        "readToEnd=$readToEnd; walking it whole",
+                )
+
+                // Phase 2: the whole list, from page 1. The incremental walk
+                // stopped at the first known id and never read past it, so
+                // what it gathered cannot replace the cache - the list has to
+                // be read again to know what is in it.
+                val walked = LinkedHashMap<String, Song>()
+                cursor = null
+                var fullPages = 0
+                var complete = false
+                while (fullPages < LIKED_MUSIC_MAX_PAGES) {
+                    val page = loader(cursor) ?: break
+                    fullPages++
+                    for (song in page.songs) {
+                        walked.putIfAbsent(song.id, song)
+                    }
+                    publish(
+                        profileId,
+                        accountKey,
+                        mergeLikedMusicProgress(walked.values.toList(), cached.songs),
+                    )
                     val next = page.nextCursor
                     if (next == null) {
                         complete = true
@@ -309,30 +393,30 @@ class AccountLikedSongsRepository(context: Context) {
                     }
                     cursor = next
                 }
+                pages = fullPages
 
-                val walked = scanned.values.toList()
-                val readWholeList = complete && (full || !stopped)
+                val list = walked.values.toList()
                 // An end reached with nothing read is either an account with no
                 // likes - which the header states as a total of zero - or a
                 // page that answered a shell. Only the first is a list to
                 // believe, so an empty walk with no total leaves the cache
                 // alone.
-                val believe = readWholeList && (walked.isNotEmpty() || totalCount == 0)
-                val result = if (believe) reconcileLikedMusic(walked)
-                else mergeLikedMusicProgress(walked, cached.songs)
+                val believe = complete && (list.isNotEmpty() || totalCount == 0)
+                val result = if (believe) reconcileLikedMusic(list)
+                else mergeLikedMusicProgress(list, cached.songs)
                 apply(
                     profileId = profileId,
                     accountKey = accountKey,
                     songs = result,
                     totalCount = totalCount ?: cached.totalCount,
-                    lastFullSyncMs = if (readWholeList) System.currentTimeMillis()
+                    lastFullSyncMs = if (complete) System.currentTimeMillis()
                     else cached.lastFullSyncMs,
                 )
                 KLog.d(
                     TAG,
-                    "Liked Music sync: pages=$pages full=$full complete=$complete stopped=$stopped " +
-                        "N=${scanned.size} stored=${cached.totalCount} server=${totalCount ?: "unknown"} " +
-                        "cached=${cached.songs.size} -> ${result.size}",
+                    "Liked Music full: pages=$pages, N=$N, stored=" + cached.totalCount +
+                        ", server=" + (totalCount ?: "unknown") + ", result=" + result.size +
+                        ", believe=$believe",
                 )
             }
         } catch (e: CancellationException) {
