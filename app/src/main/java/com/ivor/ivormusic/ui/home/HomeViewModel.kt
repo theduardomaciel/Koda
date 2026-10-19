@@ -268,7 +268,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         likedSongsRepository.likedSongIds  // Manually liked IDs (covers legacy likes without metadata)
     ) { accountLiked, localSongs, manuallyLikedSongs, manuallyLikedIds ->
         val manuallyLikedLocalSongs = localSongs.filter { it.id in manuallyLikedIds }
-        (manuallyLikedSongs + accountLiked + manuallyLikedLocalSongs).distinctBy { it.id }
+        (manuallyLikedSongs + accountLiked + manuallyLikedLocalSongs)
+            .distinctBy { it.id }
+            .sortedByDescending { it.dateAdded ?: 0L }
     }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000), emptyList())
 
     // YouTube playlists
@@ -3225,6 +3227,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             val likedLocalSongs = _songs.value.filter { it.id in likedIds }
             return (manuallyLiked + accountLikedSongs.songs.value + likedLocalSongs)
                 .distinctBy { it.id }
+                .sortedByDescending { it.dateAdded ?: 0L }
         }
 
         // Check local first
@@ -3436,7 +3439,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     _savedAlbums.value = youtubeRepository.getSavedAlbums()
                     _followedArtists.value = youtubeRepository.getFollowedArtists()
                     accountLoadedAtMs = System.currentTimeMillis()
-                    syncLikedMusic()
+                    // Pull-to-refresh: the user asked for fresh data, so reconcile
+                    // removals too, not just additions.
+                    syncLikedMusic(forceFull = true)
                 } else if (_youtubeSongs.value.isNotEmpty()) {
                     // Logged-out YouTube mode: refresh the taste-based feed too.
                     // (Gated on a non-empty feed so local-only users don't pay

@@ -264,10 +264,15 @@ class AccountLikedSongsRepository(context: Context) {
                         // before it lowers ours, so a drop means something left
                         // that an incremental walk (which only ever adds) cannot
                         // see. Read the list whole to reconcile it.
-                        if (totalCount != null && totalCount < cached.songs.size && !full) {
+                        val firstCachedId = cached.songs.firstOrNull()?.id
+                        val topChanged = firstCachedId != null && firstCachedId !in page.songs.map { it.id }
+                        val countDropped = totalCount != null && totalCount < cached.songs.size
+                        val cacheIncomplete = totalCount != null && totalCount > cached.songs.size + 5
+                        if ((countDropped || topChanged || cacheIncomplete) && !full) {
                             KLog.w(
                                 TAG,
-                                "Liked Music count dropped (${cached.songs.size} -> $totalCount); walking it whole",
+                                "Liked Music changed (cached=${cached.songs.size}, server=$totalCount, " +
+                                    "topChanged=$topChanged); walking it whole",
                             )
                             full = true
                         }

@@ -168,12 +168,8 @@ internal class MusicPlaylists(
         try {
             val playlists = mutableListOf<PlaylistDisplayItem>()
 
-            // Likes has a real account browse id; mixes must come from the API.
-            playlists.add(PlaylistDisplayItem(
-                name = "Your Likes",
-                url = "https://music.youtube.com/playlist?list=LM",
-                uploaderName = "You"
-            ))
+            // "Your Likes" is already shown as the Liked Songs tile on the
+            // Library screen, so adding it here only duplicates it.
 
             // Fetch Library (Liked Playlists), following grid continuations so
             // large libraries come back in full rather than just the first page.
