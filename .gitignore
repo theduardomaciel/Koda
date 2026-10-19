@@ -14,8 +14,12 @@
 .cxx
 local.properties
 keystore/
+
 # Claude Code local artifacts
 .claude/
+
+# Command Code local artifacts
+.commandcode/
 
 # Local InnerTube probing session (contains live account cookies)
 .probe/
