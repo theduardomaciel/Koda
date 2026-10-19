@@ -35,13 +35,26 @@ internal class MusicLibrary(
      * fetch fails; distinct by browse id, in the order YouTube serves them
      * (most recently saved first).
      */
-    suspend fun getSavedAlbums(): List<PlaylistDisplayItem> = withContext(Dispatchers.IO) {
+    suspend fun getSavedAlbums(): List<PlaylistDisplayItem> =
+        getSavedAlbumsOrNull() ?: emptyList()
+
+    /**
+     * As [getSavedAlbums], but `null` means the first page could not be
+     * fetched. Callers holding a cached list use that to keep it rather than
+     * replacing it with an empty result; a genuinely empty page still answers
+     * `emptyList()`.
+     *
+     * A continuation failure after a good first page returns the partial list:
+     * the first page is what the screen needs, and a truncated list is closer
+     * to the truth than no list at all.
+     */
+    suspend fun getSavedAlbumsOrNull(): List<PlaylistDisplayItem>? = withContext(Dispatchers.IO) {
         if (!sessionManager.isLoggedIn()) return@withContext emptyList()
         try {
             val albums = mutableListOf<PlaylistDisplayItem>()
             val seenTokens = mutableSetOf<String>()
             var json = musicApi.browseMusic(SAVED_ALBUMS_BROWSE_ID)
-                ?: return@withContext emptyList()
+                ?: return@withContext null
             var pages = 0
             while (json.isNotBlank() && pages < MAX_PAGES) {
                 albums += parseSavedAlbums(json)
@@ -58,9 +71,11 @@ internal class MusicLibrary(
                 }
             }
             albums.distinctBy { it.id }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             KLog.e(YOUTUBE_TAG, "Error fetching saved albums", e)
-            emptyList()
+            null
         }
     }
 
@@ -68,13 +83,17 @@ internal class MusicLibrary(
      * The artists followed in YouTube. Empty signed out or when the fetch
      * fails.
      */
-    suspend fun getFollowedArtists(): List<ArtistItem> = withContext(Dispatchers.IO) {
+    suspend fun getFollowedArtists(): List<ArtistItem> =
+        getFollowedArtistsOrNull() ?: emptyList()
+
+    /** As [getFollowedArtists], with `null` meaning the first page failed. */
+    suspend fun getFollowedArtistsOrNull(): List<ArtistItem>? = withContext(Dispatchers.IO) {
         if (!sessionManager.isLoggedIn()) return@withContext emptyList()
         try {
             val artists = mutableListOf<ArtistItem>()
             val seenTokens = mutableSetOf<String>()
             var json = musicApi.browseMusic(FOLLOWED_ARTISTS_BROWSE_ID, FOLLOWED_ARTISTS_PARAMS)
-                ?: return@withContext emptyList()
+                ?: return@withContext null
             var pages = 0
             while (json.isNotBlank() && pages < MAX_PAGES) {
                 artists += parseFollowedArtists(json)
@@ -94,9 +113,11 @@ internal class MusicLibrary(
                 }
             }
             artists.distinctBy { it.id }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             KLog.e(YOUTUBE_TAG, "Error fetching followed artists", e)
-            emptyList()
+            null
         }
     }
 

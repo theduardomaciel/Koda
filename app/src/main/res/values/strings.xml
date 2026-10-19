@@ -1769,6 +1769,19 @@
     <string name="lib_no_saved_albums">No saved albums</string>
     <string name="lib_no_saved_albums_subtitle">Albums you save to your YouTube Music library will show up here</string>
     <string name="lib_unfollow">Unfollow</string>
+    <string name="lib_offline_banner">You\'re offline. Showing your saved library.</string>
+    <string name="lib_offline_no_saved_albums">No saved albums offline</string>
+    <string name="lib_offline_no_saved_albums_body">Saved albums appear here after the next sync. Albums you downloaded are still available.</string>
+    <string name="lib_offline_no_followed_artists">No followed artists offline</string>
+    <string name="lib_offline_no_followed_artists_body">Followed artists appear here after the next sync.</string>
+    <string name="lib_offline_tracks_only">Offline: showing downloaded tracks only.</string>
+    <string name="lib_offline_album_unavailable">Album not available offline</string>
+    <string name="lib_offline_album_unavailable_body">Download this album to listen without a connection.</string>
+    <string name="lib_offline_playlist_unavailable">Playlist not available offline</string>
+    <string name="lib_offline_playlist_unavailable_body">Download this playlist to listen without a connection.</string>
+    <string name="artist_offline_device_songs">Offline: showing songs on this device.</string>
+    <string name="artist_offline_unavailable">Artist not available offline</string>
+    <string name="artist_offline_unavailable_body">Check your connection to load this artist.</string>
 
     <!-- Search -->
     <string name="search_title">Search</string>

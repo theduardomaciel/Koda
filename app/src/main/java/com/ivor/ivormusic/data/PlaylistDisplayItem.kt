@@ -1,5 +1,8 @@
 package com.ivor.ivormusic.data
 
+import kotlinx.serialization.Serializable
+
+@Serializable
 data class PlaylistDisplayItem(
     val name: String,
     val url: String,

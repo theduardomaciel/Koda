@@ -23,7 +23,11 @@ import com.ivor.ivormusic.data.VideoPlaylist
 import com.ivor.ivormusic.data.YouTubeRepository
 import com.ivor.ivormusic.data.LikedSongsRepository
 import com.ivor.ivormusic.data.AccountLikedSongsRepository
+import com.ivor.ivormusic.data.LibraryCacheSnapshot
+import com.ivor.ivormusic.data.LibraryCacheStore
+import com.ivor.ivormusic.data.ProfileManager
 import com.ivor.ivormusic.data.mergeLikedSongsForDisplay
+import com.ivor.ivormusic.data.offlineAlbumTracks
 import com.ivor.ivormusic.data.HomeRecommendationCache
 import com.ivor.ivormusic.data.usableHomeRecommendations
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -251,6 +255,15 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
+    /**
+     * Whether the account's lists are being fetched for the first time since
+     * launch. Separate from [isLoading] because the Library's account tabs can
+     * be cached: they show the spinner only when there is nothing on disk to
+     * draw, never over a populated list.
+     */
+    private val _isAccountLibraryLoading = MutableStateFlow(false)
+    val isAccountLibraryLoading: StateFlow<Boolean> = _isAccountLibraryLoading.asStateFlow()
+
     // Combine YouTube liked songs with manually liked songs (local or YT)
     private val likedSongsRepository = LikedSongsRepository(application)
 
@@ -276,19 +289,36 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         )
     }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // The account's Library lists as of the last successful fetch. Hydrated
+    // before the first network call so a cold start offline draws the saved
+    // albums, followed artists and account playlists instead of three empty
+    // tabs. Signed out there is nothing account-scoped to keep.
+    private val libraryCacheStore = LibraryCacheStore(application)
+    private val initialLibraryCache = if (sessionManager.isLoggedIn()) {
+        libraryCacheStore.load(ProfileManager.requireActiveProfileId(application))
+    } else {
+        null
+    }
+
     // YouTube playlists
-    private val _youtubePlaylists = MutableStateFlow<List<com.ivor.ivormusic.data.PlaylistDisplayItem>>(emptyList())
+    private val _youtubePlaylists = MutableStateFlow<List<com.ivor.ivormusic.data.PlaylistDisplayItem>>(
+        initialLibraryCache?.playlists.orEmpty()
+    )
 
     // The account's YouTube Music library: the albums saved to it and the
     // artists followed on it. Both are account-scoped, so they are empty signed
     // out and the Library falls back to its device-derived groupings there.
     private val _savedAlbums =
-        MutableStateFlow<List<com.ivor.ivormusic.data.PlaylistDisplayItem>>(emptyList())
+        MutableStateFlow<List<com.ivor.ivormusic.data.PlaylistDisplayItem>>(
+            initialLibraryCache?.albums.orEmpty()
+        )
     val savedAlbums: StateFlow<List<com.ivor.ivormusic.data.PlaylistDisplayItem>> =
         _savedAlbums.asStateFlow()
 
     private val _followedArtists =
-        MutableStateFlow<List<com.ivor.ivormusic.data.ArtistItem>>(emptyList())
+        MutableStateFlow<List<com.ivor.ivormusic.data.ArtistItem>>(
+            initialLibraryCache?.artists.orEmpty()
+        )
     val followedArtists: StateFlow<List<com.ivor.ivormusic.data.ArtistItem>> =
         _followedArtists.asStateFlow()
     
@@ -666,6 +696,18 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         val target = !savedInAccount
         if (target) savedPlaylistsRepository.save(savedPlaylistOf(album, isAlbum = true))
         else savedPlaylistsRepository.remove(album.id)
+        // The account list is what the Albums tab draws, so it takes the tap
+        // now. Offline the write below cannot land; keeping the optimistic
+        // entry is the honest answer until the next successful sync.
+        if (sessionManager.isLoggedIn()) {
+            _savedAlbums.value = if (target) {
+                if (_savedAlbums.value.any { it.id == album.id }) _savedAlbums.value
+                else listOf(album) + _savedAlbums.value
+            } else {
+                _savedAlbums.value.filterNot { it.id == album.id }
+            }
+            persistLibraryCache()
+        }
         syncSavedToAccount(album.id, target)
         return target
     }
@@ -687,6 +729,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun removeSavedPlaylist(playlistId: String) {
         savedPlaylistsRepository.remove(playlistId)
+        if (sessionManager.isLoggedIn()) {
+            _savedAlbums.value = _savedAlbums.value.filterNot { it.id == playlistId }
+            persistLibraryCache()
+        }
         syncSavedToAccount(playlistId, false)
     }
 
@@ -704,8 +750,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 playlistId
             }
             if (target == null) {
+                // Offline (or an album page that would not resolve) leaves the
+                // optimistic entry as the only account state there is. Re-reading
+                // here would replace the list with the empty result of a failed
+                // fetch.
                 KLog.w("HomeViewModel", "No account target to save $playlistId against")
-                if (isAlbum) _savedAlbums.value = youtubeRepository.getSavedAlbums()
                 return@launch
             }
             if (!youtubeRepository.setPlaylistInLibrary(target, saved)) {
@@ -714,7 +763,12 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             // The Albums tab draws the account's own list, and the album's
             // saved state on its page reads from it, so both sides are re-read
             // rather than left showing a write that may not have landed.
-            if (isAlbum) _savedAlbums.value = youtubeRepository.getSavedAlbums()
+            if (isAlbum && hasNetworkConnection() && !themePreferences.isLocalOnlyModeEnabled()) {
+                youtubeRepository.getSavedAlbumsOrNull()?.let {
+                    _savedAlbums.value = it
+                    persistLibraryCache()
+                }
+            }
         }
     }
 
@@ -735,10 +789,16 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         } else {
             _followedArtists.value.filterNot { it.id == artist.id }
         }
+        persistLibraryCache()
         viewModelScope.launch {
             if (!youtubeRepository.setArtistFollowed(artist.id, follow)) {
                 KLog.w("HomeViewModel", "Artist ${if (follow) "follow" else "unfollow"} failed for ${artist.id}")
-                _followedArtists.value = youtubeRepository.getFollowedArtists()
+                // Null offline: keep the optimistic list rather than replacing
+                // it with the empty result of a failed fetch.
+                youtubeRepository.getFollowedArtistsOrNull()?.let {
+                    _followedArtists.value = it
+                    persistLibraryCache()
+                }
             }
         }
     }
@@ -1529,9 +1589,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
         _youtubeSongs.value = homeRecommendationCache.load()
         AccountLikedSongsRepository.reloadForActiveProfile(getApplication())
-        _youtubePlaylists.value = emptyList()
-        _savedAlbums.value = emptyList()
-        _followedArtists.value = emptyList()
+        hydrateAccountLibraryCache()
         _accountChannels.value = emptyList()
         _subscriptionFeed.value = emptyList()
         resetSubscriptionFeedPaging()
@@ -2986,34 +3044,127 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         if (force) accountLoadJob?.cancel()
         accountLoadJob = viewModelScope.launch {
             _isYouTubeConnected.value = sessionManager.isLoggedIn()
-            if (_isYouTubeConnected.value) {
-                if (!force && loadedRecently(accountLoadedAtMs)) {
-                    _userAvatar.value = sessionManager.getUserAvatar()
-                    _userName.value = sessionManager.getUserName()
-                    return@launch
-                }
-                youtubeRepository.fetchAccountInfo()
-                _userAvatar.value = sessionManager.getUserAvatar()
-                _userName.value = sessionManager.getUserName()
-                loadLibraryData()
+            if (!_isYouTubeConnected.value) {
+                // Signed out: the account tabs fall back to the device library,
+                // and the snapshot is this profile's account data, not this
+                // device's to keep showing.
+                clearAccountLibrary()
+                return@launch
             }
+            _userAvatar.value = sessionManager.getUserAvatar()
+            _userName.value = sessionManager.getUserName()
+            if (!force && loadedRecently(accountLoadedAtMs)) return@launch
+            // Offline the cached lists are the answer. Asking YouTube would
+            // fail page by page and only delay the screen.
+            if (!hasNetworkConnection() || themePreferences.isLocalOnlyModeEnabled()) return@launch
+            youtubeRepository.fetchAccountInfo()
+            _userAvatar.value = sessionManager.getUserAvatar()
+            _userName.value = sessionManager.getUserName()
+            loadLibraryData()
         }
     }
 
     private suspend fun loadLibraryData() {
+        if (!hasNetworkConnection() || themePreferences.isLocalOnlyModeEnabled()) return
+        refreshAccountLibrary()
+        // Last: the ordinary sync is one request, but the first one reads the
+        // list whole - 17 pages on the account this was measured against - and
+        // the rest of the library should not wait behind it.
         try {
-            _youtubePlaylists.value = youtubeRepository.getUserPlaylists()
-            _savedAlbums.value = youtubeRepository.getSavedAlbums()
-            _followedArtists.value = youtubeRepository.getFollowedArtists()
-            accountLoadedAtMs = System.currentTimeMillis()
-            // Last, and after the marker above: the ordinary sync is one
-            // request, but the first one reads the list whole - 17 pages on
-            // the account this was measured against - and the rest of the
-            // library should not wait behind it.
             syncLikedMusic()
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
-        } catch (e: Exception) { }
+        } catch (e: Exception) {
+            KLog.w("HomeViewModel", "Liked Music sync failed: ${e.message}")
+        }
+    }
+
+    /**
+     * Fetch the three account lists independently and apply only the answers
+     * that arrived.
+     *
+     * `null` from the repository means the request failed, not that the
+     * library is empty, so the cached list is left alone. A genuine empty
+     * answer does replace it, and one failed list never skips the other two.
+     */
+    private suspend fun refreshAccountLibrary() {
+        val nothingCached = _youtubePlaylists.value.isEmpty() &&
+            _savedAlbums.value.isEmpty() && _followedArtists.value.isEmpty()
+        // The spinner belongs to an empty library becoming populated, never to
+        // a refresh over content that is already on screen.
+        if (nothingCached) _isAccountLibraryLoading.value = true
+        try {
+            var loaded = false
+            try {
+                youtubeRepository.getUserPlaylistsOrNull()?.let {
+                    _youtubePlaylists.value = it
+                    loaded = true
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) { }
+            try {
+                youtubeRepository.getSavedAlbumsOrNull()?.let {
+                    _savedAlbums.value = it
+                    loaded = true
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) { }
+            try {
+                youtubeRepository.getFollowedArtistsOrNull()?.let {
+                    _followedArtists.value = it
+                    loaded = true
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) { }
+            if (loaded) {
+                accountLoadedAtMs = System.currentTimeMillis()
+                persistLibraryCache()
+            }
+        } finally {
+            _isAccountLibraryLoading.value = false
+        }
+    }
+
+    /**
+     * Write the three account lists as they now stand, for the next offline
+     * start. The snapshot is taken on the caller's thread and written on IO:
+     * a save or follow is a UI event and must not wait behind a file write.
+     */
+    private fun persistLibraryCache() {
+        if (!sessionManager.isLoggedIn()) return
+        val profileId = ProfileManager.requireActiveProfileId(getApplication())
+        val snapshot = LibraryCacheSnapshot(
+            savedAtMs = System.currentTimeMillis(),
+            playlists = _youtubePlaylists.value,
+            albums = _savedAlbums.value,
+            artists = _followedArtists.value,
+        )
+        viewModelScope.launch(Dispatchers.IO) {
+            // Re-check: a sign-out may have cleared the file while this write
+            // waited, and the snapshot must not bring it back.
+            if (sessionManager.isLoggedIn()) libraryCacheStore.save(profileId, snapshot)
+        }
+    }
+
+    /** Re-seed the three flows from the newly active profile's snapshot. */
+    private fun hydrateAccountLibraryCache() {
+        val cached = if (sessionManager.isLoggedIn()) {
+            libraryCacheStore.load(ProfileManager.requireActiveProfileId(getApplication()))
+        } else null
+        _youtubePlaylists.value = cached?.playlists.orEmpty()
+        _savedAlbums.value = cached?.albums.orEmpty()
+        _followedArtists.value = cached?.artists.orEmpty()
+    }
+
+    /** Sign-out: the account's lists are cleared from memory and from disk. */
+    private fun clearAccountLibrary() {
+        _youtubePlaylists.value = emptyList()
+        _savedAlbums.value = emptyList()
+        _followedArtists.value = emptyList()
+        libraryCacheStore.clear(ProfileManager.requireActiveProfileId(getApplication()))
     }
 
     /**
@@ -3205,12 +3356,22 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     suspend fun fetchPlaylistSongs(playlistId: String): List<Song> {
+        val online = hasNetworkConnection() && !themePreferences.isLocalOnlyModeEnabled()
         val downloadedPlaylist = downloadRepository.playlistStore.playlists.value.find { it.id == playlistId }
         val offlineSongs = downloadedPlaylist?.offlineSongs(downloadRepository.downloadedSongs.value).orEmpty()
-        if (downloadedPlaylist != null &&
-            (!hasNetworkConnection() || themePreferences.isLocalOnlyModeEnabled())) {
-            return offlineSongs
+        // Album downloads are individual tracks, not a downloaded-playlist
+        // snapshot, so an album page has nothing to look up by playlist id.
+        // Rebuild the downloaded half from the songs that name this album.
+        val offlineAlbum = if (playlistId.startsWith("MPRE")) {
+            offlineAlbumTracks(
+                playlistId = playlistId,
+                albumName = _savedAlbums.value.firstOrNull { it.id == playlistId }?.name,
+                downloads = downloadRepository.downloadedSongs.value,
+            )
+        } else {
+            emptyList()
         }
+        val offlineFallback = offlineSongs.ifEmpty { offlineAlbum }
         // "Liked Songs" is assembled locally so it works without a YouTube
         // login: stored metadata + the account's cached Liked Music + liked
         // local songs.
@@ -3248,13 +3409,18 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
         }
-        // Fallback to the explicit download snapshot when the live list is unavailable.
+        // Offline, the snapshot is the whole answer: a remote page cannot
+        // resolve, and the empty result is what the page draws as "not
+        // available offline".
+        if (!online) return offlineFallback
+        // Fallback to the explicit download snapshot (or the downloaded half
+        // of a saved album) when the live list is unavailable.
         return try {
-            youtubeRepository.getPlaylist(playlistId).ifEmpty { offlineSongs }
+            youtubeRepository.getPlaylist(playlistId).ifEmpty { offlineFallback }
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
-            offlineSongs
+            offlineFallback
         }
 
     }
@@ -3402,9 +3568,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         clearSearchCaches()
         _youtubeSongs.value = emptyList()
         accountLikedSongs.clear()
-        _youtubePlaylists.value = emptyList()
-        _savedAlbums.value = emptyList()
-        _followedArtists.value = emptyList()
+        clearAccountLibrary()
         forgetHomeLoadTimes()
         accountLoadJob?.cancel()
         clearSubscriptionMix()
@@ -3423,45 +3587,78 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                _isYouTubeConnected.value = sessionManager.isLoggedIn()
-                if (_isYouTubeConnected.value) {
-                    // Fetch account info and avatar sync
-                    youtubeRepository.fetchAccountInfo()
-                    _userAvatar.value = sessionManager.getUserAvatar()
-                    
-                    // Personalized recommendations, led by songs that have
-                    // not led yet: YouTube answers a refresh with the same
-                    // list, and the same three covers read as nothing having
-                    // happened.
-                    if (publishHomeRecommendations(youtubeRepository.getRecommendations(), rotate = true)) {
-                        recommendationsLoadedAtMs = System.currentTimeMillis()
-                    }
+                try {
+                    _isYouTubeConnected.value = sessionManager.isLoggedIn()
+                    val online = hasNetworkConnection() && !themePreferences.isLocalOnlyModeEnabled()
+                    if (_isYouTubeConnected.value && online) {
+                        // Fetch account info and avatar sync
+                        try {
+                            youtubeRepository.fetchAccountInfo()
+                            _userAvatar.value = sessionManager.getUserAvatar()
+                            _userName.value = sessionManager.getUserName()
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
+                        } catch (e: Exception) { }
 
-                    // Update library data
-                    _youtubePlaylists.value = youtubeRepository.getUserPlaylists()
-                    _savedAlbums.value = youtubeRepository.getSavedAlbums()
-                    _followedArtists.value = youtubeRepository.getFollowedArtists()
-                    accountLoadedAtMs = System.currentTimeMillis()
-                    // The liked-music walk can take several seconds when something
-                    // changed (a full 17-page walk). Run it in the background so
-                    // the pull-to-refresh spinner stops once the rest of the
-                    // library is refreshed; its pages publish as they arrive.
-                    viewModelScope.launch { syncLikedMusic(bypassStale = true) }
-                } else if (_youtubeSongs.value.isNotEmpty()) {
-                    // Logged-out YouTube mode: refresh the taste-based feed too.
-                    // (Gated on a non-empty feed so local-only users don't pay
-                    // for network searches on every pull-to-refresh.)
-                    publishHomeRecommendations(
-                        recommendationEngine.getHomeRecommendations(
-                        limit = com.ivor.ivormusic.data.HOME_RECOMMENDATION_POOL
-                    ), rotate = true
-                    )
+                        // Personalized recommendations, led by songs that have
+                        // not led yet: YouTube answers a refresh with the same
+                        // list, and the same three covers read as nothing having
+                        // happened.
+                        try {
+                            if (publishHomeRecommendations(
+                                    youtubeRepository.getRecommendations(),
+                                    rotate = true
+                                )
+                            ) {
+                                recommendationsLoadedAtMs = System.currentTimeMillis()
+                            }
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
+                        } catch (e: Exception) { }
+
+                        // Update library data. A failed list keeps its cache.
+                        refreshAccountLibrary()
+                        // The liked-music walk can take several seconds when
+                        // something changed (a full 17-page walk). Run it in the
+                        // background so the pull-to-refresh spinner stops once the
+                        // rest of the library is refreshed; its pages publish as
+                        // they arrive.
+                        viewModelScope.launch {
+                            try {
+                                syncLikedMusic(bypassStale = true)
+                            } catch (e: kotlinx.coroutines.CancellationException) {
+                                throw e
+                            } catch (e: Exception) { }
+                        }
+                    } else if (online && _youtubeSongs.value.isNotEmpty()) {
+                        // Logged-out YouTube mode: refresh the taste-based feed too.
+                        // (Gated on a non-empty feed so local-only users don't pay
+                        // for network searches on every pull-to-refresh.)
+                        try {
+                            publishHomeRecommendations(
+                                recommendationEngine.getHomeRecommendations(
+                                    limit = com.ivor.ivormusic.data.HOME_RECOMMENDATION_POOL
+                                ), rotate = true
+                            )
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
+                        } catch (e: Exception) { }
+                    }
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // Silently fail
                 }
-                // Reload local songs with exclusions and playlists
-                playlistRepository.refreshPlaylists()
-                _songs.value = localRepository.getSongs(excludedFolders, manualScan)
-            } catch (e: Exception) {
-                // Silently fail
+                // The device library is always local, so this runs after an
+                // offline refresh and after any failure in the network half.
+                try {
+                    playlistRepository.refreshPlaylists()
+                    _songs.value = localRepository.getSongs(excludedFolders, manualScan)
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // Silently fail
+                }
             } finally {
                 _isLoading.value = false
             }

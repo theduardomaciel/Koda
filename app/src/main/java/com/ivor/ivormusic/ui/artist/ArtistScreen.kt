@@ -359,8 +359,18 @@ fun ArtistScreen(
     }
     val scope = rememberCoroutineScope()
 
+    // Collected unconditionally, like the account flows below: a composable
+    // call behind a null check is the conditional composition that breaks when
+    // the check changes.
+    val noDownloads = remember {
+        kotlinx.coroutines.flow.MutableStateFlow(emptyList<Song>())
+    }
+    val noNetwork = remember { kotlinx.coroutines.flow.MutableStateFlow(true) }
+    val downloadedSongs by (viewModel?.downloadedSongs ?: noDownloads).collectAsState()
+    val isOnline by (viewModel?.isOnline ?: noNetwork).collectAsState()
+
     // Fetch songs - first check local files, then fetch from internet
-    LaunchedEffect(artistName, artistId, songs) {
+    LaunchedEffect(artistName, artistId, songs, downloadedSongs.isNotEmpty()) {
         isLoading = true
         visibleSongCount = 20
         artistSongs = emptyList()
@@ -370,10 +380,14 @@ fun ArtistScreen(
 
         // Only genuinely local files take the offline path. Liked/downloaded
         // YouTube songs shouldn't block fetching the full artist page.
-        val localArtistSongs = songs.filter {
+        //
+        // Downloads are merged here rather than trusted to the caller's list:
+        // in YouTube mode the Library hands this screen the recommendation
+        // feed, which contains none of them.
+        val localArtistSongs = (songs + downloadedSongs).filter {
             it.artist.equals(artistName, ignoreCase = true) &&
                     it.source == SongSource.LOCAL
-        }
+        }.distinctBy { it.id }
 
         channelHeader = null
         resolvedChannelId = null
@@ -734,6 +748,23 @@ fun ArtistScreen(
                             }
                         }
 
+                        // Offline the page is the device's files, not the
+                        // artist's full discography. Say so rather than
+                        // letting the shorter list read as everything there is.
+                        if (!isOnline && hasLocalSongs && artistSongs.isNotEmpty()) {
+                            item(key = "offline_device_note") {
+                                Text(
+                                    text = stringResource(R.string.artist_offline_device_songs),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = secondaryTextColor,
+                                    modifier = Modifier.padding(
+                                        horizontal = ARTIST_GUTTER,
+                                        vertical = 4.dp
+                                    )
+                                )
+                            }
+                        }
+
                         // ========== POPULAR SONGS ==========
                         // The top of the discography, open rows as the
                         // reference draws them. "See all" opens the whole list
@@ -985,11 +1016,31 @@ fun ArtistScreen(
                                         .height(200.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Text(
-                                        stringResource(R.string.ar_no_songs),
-                                        color = secondaryTextColor,
-                                        style = MaterialTheme.typography.bodyLarge
-                                    )
+                                    if (!isOnline) {
+                                        Column(
+                                            modifier = Modifier.padding(horizontal = ARTIST_GUTTER),
+                                            horizontalAlignment = Alignment.CenterHorizontally
+                                        ) {
+                                            Text(
+                                                stringResource(R.string.artist_offline_unavailable),
+                                                color = textColor,
+                                                style = MaterialTheme.typography.titleMedium
+                                            )
+                                            Spacer(Modifier.height(4.dp))
+                                            Text(
+                                                stringResource(R.string.artist_offline_unavailable_body),
+                                                color = secondaryTextColor,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                textAlign = TextAlign.Center
+                                            )
+                                        }
+                                    } else {
+                                        Text(
+                                            stringResource(R.string.ar_no_songs),
+                                            color = secondaryTextColor,
+                                            style = MaterialTheme.typography.bodyLarge
+                                        )
+                                    }
                                 }
                             }
                         }

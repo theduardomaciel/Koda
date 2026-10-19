@@ -179,6 +179,9 @@ class AccountSwitcher(context: Context) {
      */
     fun signOut(profileId: String) {
         profileManager.replaceWithFreshLocal(profileId)
+        // The profile id is unchanged, so clear its derived library snapshot
+        // here rather than waiting for the next account check to notice.
+        LibraryCacheStore(appContext).clear(profileId)
         if (profileManager.activeProfileId.value == profileId) invalidateForProfileChange()
     }
 
@@ -186,6 +189,9 @@ class AccountSwitcher(context: Context) {
     fun remove(profileId: String): Boolean {
         val wasActive = profileManager.activeProfileId.value == profileId
         if (!profileManager.remove(profileId) { prepareForActiveProfile(appContext) }) return false
+        // The library snapshot is derived and per profile; the profile's copy
+        // goes with it rather than lingering as an orphaned file.
+        LibraryCacheStore(appContext).clear(profileId)
         if (wasActive) sessionManager.refreshExpiredFromProfile()
         return true
     }

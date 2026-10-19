@@ -162,7 +162,19 @@ internal class MusicPlaylists(
      * Get the user's playlists.
      * Uses Internal YTM API with Cookies.
      */
-    suspend fun getUserPlaylists(): List<PlaylistDisplayItem> = withContext(Dispatchers.IO) {
+    suspend fun getUserPlaylists(): List<PlaylistDisplayItem> =
+        getUserPlaylistsOrNull() ?: emptyList()
+
+    /**
+     * As [getUserPlaylists], with `null` meaning the first page failed.
+     *
+     * Callers holding a cached list use that to keep it rather than replacing
+     * it with an empty result. A successful fetch can legitimately be empty
+     * (an account with no saved playlists), so the first page's response body
+     * is the signal: `fetchInternalApi` answers `""` when the request never
+     * arrived, while a parsed page is the account's real answer.
+     */
+    suspend fun getUserPlaylistsOrNull(): List<PlaylistDisplayItem>? = withContext(Dispatchers.IO) {
         if (!sessionManager.isLoggedIn()) return@withContext emptyList()
         
         try {
@@ -175,6 +187,7 @@ internal class MusicPlaylists(
             // large libraries come back in full rather than just the first page.
             // Note: FEmusic_liked_playlists gets playlists you've saved/liked
             var json = musicApi.fetchInternalApi("FEmusic_liked_playlists")
+            if (json.isEmpty()) return@withContext null
             var pageCount = 0
             val maxPages = 20
             while (json.isNotEmpty() && pageCount < maxPages) {
@@ -187,11 +200,14 @@ internal class MusicPlaylists(
                 json = musicApi.fetchContinuation(token)
             }
 
-            // The library grid can include "Your Likes" (VLLM) which we already synthesized
+            // The library grid can include "Your Likes" (VLLM), which the
+            // Library draws separately as the Liked Songs tile.
             playlists.distinctBy { it.id }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             KLog.e(YOUTUBE_TAG, "Error fetching user playlists", e)
-            emptyList()
+            null
         }
     }
 

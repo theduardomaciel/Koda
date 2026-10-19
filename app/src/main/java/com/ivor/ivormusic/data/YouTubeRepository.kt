@@ -295,11 +295,20 @@ class YouTubeRepository(private val context: Context) {
 
     suspend fun getUserPlaylists(): List<PlaylistDisplayItem> = musicPlaylists.getUserPlaylists()
 
+    suspend fun getUserPlaylistsOrNull(): List<PlaylistDisplayItem>? =
+        musicPlaylists.getUserPlaylistsOrNull()
+
     // --- The account's music library (MusicLibrary) ---
 
     suspend fun getSavedAlbums(): List<PlaylistDisplayItem> = musicLibrary.getSavedAlbums()
 
+    suspend fun getSavedAlbumsOrNull(): List<PlaylistDisplayItem>? =
+        musicLibrary.getSavedAlbumsOrNull()
+
     suspend fun getFollowedArtists(): List<ArtistItem> = musicLibrary.getFollowedArtists()
+
+    suspend fun getFollowedArtistsOrNull(): List<ArtistItem>? =
+        musicLibrary.getFollowedArtistsOrNull()
 
     suspend fun getAlbumAudioPlaylistId(browseId: String): String? =
         musicLibrary.getAlbumAudioPlaylistId(browseId)

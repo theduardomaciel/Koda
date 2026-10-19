@@ -2113,7 +2113,14 @@ fun HomeScreen(
     // stored sessions, switching is instant and needs no network at all.
     if (showAccountSheet) {
         com.ivor.ivormusic.ui.account.AccountSwitcherSheet(
-            onDismiss = { showAccountSheet = false },
+            onDismiss = {
+                showAccountSheet = false
+                // Signing out the last profile keeps its id, so the active
+                // profile flow does not fire. Re-read the session here, or the
+                // Library would keep drawing the account it was just
+                // disconnected from.
+                viewModel.checkYouTubeConnection(force = true)
+            },
             onAddYouTubeAccount = {
                 // Google's login page auto-continues as whoever the WebView jar
                 // already holds, so adding a second account without clearing it

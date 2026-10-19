@@ -1,8 +1,11 @@
 package com.ivor.ivormusic.data
 
+import kotlinx.serialization.Serializable
+
 /**
  * Represents an Artist or Channel from YouTube Music search results.
  */
+@Serializable
 data class ArtistItem(
     val id: String, // Channel ID / Browse ID
     val name: String,

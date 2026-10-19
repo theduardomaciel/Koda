@@ -825,6 +825,8 @@ fun LibraryMainScreen(
     val playCounts by viewModel.playCounts.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val isYouTubeConnected by viewModel.isYouTubeConnected.collectAsState()
+    val isAccountLibraryLoading by viewModel.isAccountLibraryLoading.collectAsState()
+    val isOnline by viewModel.isOnline.collectAsState()
     // The account's own library. Signed in these are what the Artists and
     // Albums tabs show; signed out they are empty and the tabs fall back to
     // grouping the device's songs and the follows kept on it.
@@ -857,6 +859,12 @@ fun LibraryMainScreen(
 
     LaunchedEffect(Unit) {
         viewModel.refreshRecentlyPlayed()
+    }
+
+    // Coming back from a dead network is the one moment the cached lists can
+    // be replaced by the account's real ones without a manual refresh.
+    LaunchedEffect(isOnline) {
+        if (isOnline) viewModel.checkYouTubeConnection()
     }
 
     // The library is what the user OWNS or SAVED — never the recommendation
@@ -985,6 +993,17 @@ fun LibraryMainScreen(
             }
         }
 
+        // Signed out the device library is already local, so the banner only
+        // means something when an account is what is being drawn from cache.
+        if (isYouTubeConnected && !isOnline) {
+            LibraryOfflineBanner(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 8.dp)
+            )
+        }
+
         // --- Main Content ---
         ExpressivePullToRefresh(
             // Unlike the video screens this one never doubled up, because the
@@ -1107,7 +1126,8 @@ fun LibraryMainScreen(
                                     viewModel.setArtistFollowed(artist, follow = false)
                                 },
                                 contentPadding = contentPadding,
-                                isLoading = isLoading
+                                isLoading = isAccountLibraryLoading,
+                                offline = !isOnline
                             )
                         } else {
                             val artistSort by themePreferences.libraryArtistSort.collectAsState()
@@ -1138,7 +1158,8 @@ fun LibraryMainScreen(
                                 onAlbumClick = onNavigateToPlaylist,
                                 onRemoveSaved = { album -> viewModel.removeSavedPlaylist(album.id) },
                                 contentPadding = contentPadding,
-                                isLoading = isLoading
+                                isLoading = isAccountLibraryLoading,
+                                offline = !isOnline
                             )
                         } else {
                             val albumSort by themePreferences.libraryAlbumSort.collectAsState()
@@ -2167,17 +2188,25 @@ fun AccountArtistsGrid(
     onArtistClick: (com.ivor.ivormusic.data.ArtistItem) -> Unit,
     contentPadding: PaddingValues,
     isLoading: Boolean = false,
+    /** Offline with nothing cached: the empty list is not the account's answer. */
+    offline: Boolean = false,
     /** Unfollow on the account. Null where there is no account to write to. */
     onUnfollow: ((com.ivor.ivormusic.data.ArtistItem) -> Unit)? = null
 ) {
     if (artists.isEmpty()) {
-        // "Still loading" and "follows nobody" are different answers, and
-        // drawing the second while the first is true tells the user something
-        // false about their account.
+        // "Still loading", "follows nobody" and "cannot reach the account"
+        // are different answers, and drawing the wrong one tells the user
+        // something false about their library.
         if (isLoading) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
+        } else if (offline) {
+            EmptyLibraryState(
+                icon = Icons.Rounded.CloudOff,
+                title = stringResource(R.string.lib_offline_no_followed_artists),
+                subtitle = stringResource(R.string.lib_offline_no_followed_artists_body)
+            )
         } else {
             EmptyLibraryState(
                 icon = Icons.Rounded.Person,
@@ -2286,6 +2315,8 @@ fun AccountAlbumsGrid(
     onAlbumClick: (PlaylistDisplayItem) -> Unit,
     contentPadding: PaddingValues,
     isLoading: Boolean = false,
+    /** Offline with nothing cached: the empty list is not the account's answer. */
+    offline: Boolean = false,
     /** Remove from the account's library. Null where there is no account. */
     onRemoveSaved: ((PlaylistDisplayItem) -> Unit)? = null
 ) {
@@ -2294,6 +2325,12 @@ fun AccountAlbumsGrid(
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
+        } else if (offline) {
+            EmptyLibraryState(
+                icon = Icons.Rounded.CloudOff,
+                title = stringResource(R.string.lib_offline_no_saved_albums),
+                subtitle = stringResource(R.string.lib_offline_no_saved_albums_body)
+            )
         } else {
             EmptyLibraryState(
                 icon = Icons.Rounded.Album,
@@ -2896,6 +2933,37 @@ private fun ManageModeToolbar(
             style = MaterialTheme.typography.labelLarge,
             modifier = Modifier.padding(horizontal = 12.dp)
         )
+    }
+}
+
+/**
+ * The Library's offline state, above the tabs rather than instead of them.
+ * Signed in, the account lists are drawn from the last successful sync; this
+ * says why they may be older than the account and why a track will not play.
+ */
+@Composable
+private fun LibraryOfflineBanner(modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.CloudOff,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp)
+            )
+            Text(
+                text = stringResource(R.string.lib_offline_banner),
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
     }
 }
 
@@ -3516,6 +3584,7 @@ fun PlaylistDetailScreen(
     // album the account already has. Signed out the device reference is all
     // there is, and this is false.
     val isYouTubeConnected by viewModel.isYouTubeConnected.collectAsState()
+    val isOnline by viewModel.isOnline.collectAsState()
     val accountAlbums by viewModel.savedAlbums.collectAsState()
     val isYouTubeAlbum = playlist.id.startsWith("MPRE")
     val savedInAccount = isYouTubeAlbum &&
@@ -4705,6 +4774,21 @@ fun PlaylistDetailScreen(
             }
 
             if (showTracks) {
+            // A remote page that resolved to its downloaded half says so: the
+            // count below is the downloaded count, not the album's or the
+            // playlist's real one.
+            if (!isOnline && !isLocalPlaylist && !isVideoModePlaylist &&
+                songs.isNotEmpty() && !isSearchActive
+            ) {
+                item(key = "offline_tracks_note") {
+                    Text(
+                        text = stringResource(R.string.lib_offline_tracks_only),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = playlistOnGround().copy(alpha = 0.78f),
+                        modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 4.dp)
+                    )
+                }
+            }
             // Track section header. Hidden while searching - the search field
             // already labels what the list below it is.
             if (!isSearchActive && !isFetching.value && songs.isNotEmpty()) {
@@ -4745,6 +4829,23 @@ fun PlaylistDetailScreen(
                         icon = Icons.Rounded.SearchOff,
                         title = stringResource(R.string.search_no_results),
                         subtitle = "Nothing in this ${if (isAlbum) "album" else "playlist"} matches \"$searchQuery\""
+                    )
+                }
+
+                songs.isEmpty() && loadAttempted && !isOnline &&
+                    !isLocalPlaylist && !isAlbum -> item {
+                    // Offline with nothing downloaded: a Retry cannot help, so
+                    // the page explains what would make it available instead.
+                    EmptyLibraryState(
+                        icon = Icons.Rounded.CloudOff,
+                        title = stringResource(
+                            if (isYouTubeAlbum) R.string.lib_offline_album_unavailable
+                            else R.string.lib_offline_playlist_unavailable
+                        ),
+                        subtitle = stringResource(
+                            if (isYouTubeAlbum) R.string.lib_offline_album_unavailable_body
+                            else R.string.lib_offline_playlist_unavailable_body
+                        )
                     )
                 }
 
