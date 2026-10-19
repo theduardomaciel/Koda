@@ -350,7 +350,7 @@ internal fun extractPlaylistContinuationToken(json: String): String? = try {
  * writes.
  *
  * `playlistItemData.voteSortValue` is the entry's add time in seconds and is
- * strictly decreasing down page one [verified October 2026: 100 rows a page,
+ * non-increasing down page one [verified October 2026: 100 rows a page,
  * liking a song prepends it and unliking it leaves the rest in order]. It
  * becomes [Song.dateAdded], and the ordering is what makes the incremental
  * sync's early stop sound; [LikedMusicPage.recentFirst] is false when a page
@@ -389,12 +389,41 @@ internal fun parseLikedMusicPage(json: String): LikedMusicPage? {
     return LikedMusicPage(
         songs = songs.distinctBy { it.id },
         nextCursor = extractPlaylistContinuationToken(json),
-        // The page states no total. A signed-in page that parsed and holds no
-        // rows is an account with no likes, which is a total of zero the sync
-        // can believe rather than a page that failed.
-        totalCount = if (songs.isEmpty() && root.has("contents")) 0 else null,
-        recentFirst = votes.size < 2 || votes.zipWithNext().all { (a, b) -> a > b },
+        // Page one's header states how many songs the account holds ("1,661
+        // songs"); a page with no header - a later page, or a sign-in shell -
+        // carries no total. An empty first page is an account with no likes,
+        // reported as zero so the sync can believe it rather than treat it as a
+        // page that failed to arrive.
+        totalCount = parseLikedMusicTotalCount(root, songs.isEmpty()),
+        // The walk's early stop is only sound if the page is served newest
+        // first. voteSortValue is the add time in seconds; a tie is expected
+        // for songs liked in one burst, so non-increasing rather than strictly.
+        // A page with no add times carries no evidence, and a single row is
+        // trivially in order; otherwise the add times must not go up.
+        recentFirst = votes.isNotEmpty() && votes.zipWithNext().all { (a, b) -> a >= b },
     )
+}
+
+/**
+ * The account's own count of Liked Music, from page one's header ("1,661
+ * songs"). A page with no header - a later page, or a sign-in shell - carries
+ * no total, so the answer is null rather than a guess. An empty first page is
+ * reported as zero, the one reading of an account with no likes.
+ */
+internal fun parseLikedMusicTotalCount(root: JSONObject, emptyList: Boolean): Int? {
+    val headers = mutableListOf<JSONObject>()
+    findObjectsByKey(root, "musicResponsiveHeaderRenderer", headers)
+    val countRegex = Regex("""(\d[\d.,]*)\s+songs?\b""", RegexOption.IGNORE_CASE)
+    for (header in headers) {
+        for (key in listOf("secondSubtitle", "subtitle", "title")) {
+            val text = getRunText(header.optJSONObject(key)) ?: continue
+            val match = countRegex.find(text) ?: continue
+            val digits = match.groupValues[1].replace(Regex("[.,]"), "")
+            val value = digits.toIntOrNull() ?: continue
+            return value
+        }
+    }
+    return if (emptyList) 0 else null
 }
 
 // ---------------------------------------------------------------------------

@@ -66,9 +66,17 @@ class YouTubeRepository(private val context: Context) {
     private val newPipeGateway = NewPipeGateway(http, sessionManager)
 
     // --- YouTube Music ---
-    private val musicSearch = MusicSearch(musicApi, newPipeGateway)
-    private val musicPlaylists = MusicPlaylists(musicApi, sessionManager)
+    // The account's Liked Music cache is constructed first: the pieces below
+    // only hold lambdas that read it, which resolve at call time, but keeping
+    // it above them avoids an init-order surprise (see the PlayerViewModel
+    // note about songLikeActions).
     private val accountLikedSongs = AccountLikedSongsRepository(context)
+    private val musicSearch = MusicSearch(musicApi, newPipeGateway)
+    private val musicPlaylists = MusicPlaylists(
+        musicApi,
+        sessionManager,
+        likedSongs = { accountLikedSongs.songs.value },
+    )
     private val musicBrowse = MusicBrowse(
         http, musicApi, musicSearch, musicPlaylists, sessionManager,
         likedSongsPreview = { accountLikedSongs.songs.value },
@@ -280,8 +288,6 @@ class YouTubeRepository(private val context: Context) {
     suspend fun getPlaylist(playlistId: String): List<Song> = musicPlaylists.getPlaylist(playlistId)
 
     suspend fun getAlbumSongs(browseId: String): List<Song> = musicPlaylists.getAlbumSongs(browseId)
-
-    suspend fun getLikedMusic(): List<Song> = musicPlaylists.getLikedMusic()
 
     /** One page of the account's Liked Music (cached; see [AccountLikedSongsRepository]). */
     suspend fun getLikedMusicPage(cursor: String?): LikedMusicPage? =

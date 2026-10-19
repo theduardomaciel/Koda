@@ -3208,10 +3208,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    suspend fun getLikedMusic(): List<Song> {
-        return accountLikedSongs.songs.value
-    }
-
     suspend fun getUserPlaylists(): List<com.ivor.ivormusic.data.PlaylistDisplayItem> {
         return userPlaylists.value
     }
@@ -3227,11 +3223,16 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         // login: stored metadata + the account's cached Liked Music + liked
         // local songs.
         if (playlistId == "LM" || playlistId == "VLLM") {
-            // Opening the list asks the cache to catch up. When the walk is
-            // already running this returns at once and the pages it has
-            // published so far are what is on screen; the rest arrives as it
-            // is read.
-            if (sessionManager.isLoggedIn()) syncLikedMusic()
+            // The list is the cache. A warm cache draws at once and the sync
+            // runs behind the screen; a cold one (first sign-in, before the
+            // first walk) waits, because an empty screen is worse than a wait.
+            if (sessionManager.isLoggedIn()) {
+                if (accountLikedSongs.songs.value.isEmpty()) {
+                    syncLikedMusic()
+                } else {
+                    viewModelScope.launch { syncLikedMusic() }
+                }
+            }
             val manuallyLiked = likedSongsRepository.likedSongs.value
             val likedIds = likedSongsRepository.getAllLikedSongIds()
             val likedLocalSongs = _songs.value.filter { it.id in likedIds }

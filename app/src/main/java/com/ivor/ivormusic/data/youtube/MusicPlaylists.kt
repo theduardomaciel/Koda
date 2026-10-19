@@ -28,10 +28,22 @@ import org.schabi.newpipe.extractor.stream.StreamInfoItem
 internal class MusicPlaylists(
     private val musicApi: MusicApi,
     private val sessionManager: SessionManager,
+    /**
+     * The cached Liked Music, used when a caller asks for the whole list by
+     * the `LM`/`VLLM` id (Android Auto, a queue built from the Liked Songs
+     * tile). Reading `LM` directly walks the whole list, so the cache is
+     * preferred and the walk is the fallback for a cold cache.
+     */
+    private val likedSongs: () -> List<Song> = { emptyList() },
 ) {
     suspend fun getPlaylist(playlistId: String): List<Song> = withContext(Dispatchers.IO) {
-        // For "Your Likes" playlist, use getLikedMusic which handles pagination
+        // For "Your Likes" playlist, serve the cache when it has anything -
+        // the account's list, not a fresh walk of LM, which costs 17 pages.
+        // A cold cache (first sign-in, before the first sync) still walks.
         if (playlistId == "LM" || playlistId == "VLLM") {
+            if (!sessionManager.isLoggedIn()) return@withContext getPlaylistInternal("LM")
+            val cached = likedSongs()
+            if (cached.isNotEmpty()) return@withContext cached
             return@withContext getLikedMusic()
         }
 

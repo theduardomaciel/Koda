@@ -158,6 +158,12 @@ internal fun likedMusicCacheBelongsToAccount(storedKey: String?, currentKey: Str
  * here, or a walk that reached the end of the account's list and did not find
  * it.
  *
+ * **Not backed up**, like [HomeRecommendationCache] and [ArtistPhotoCache]: the
+ * source of truth is the account, so a cache lost in a restore is rebuilt by
+ * the next sync rather than carried. Profile copies and profile switches are
+ * handled, though - the file travels with the profile, and a mismatched
+ * account key on load drops it.
+ *
  * **Process-wide, like [LikedSongsRepository] and for the same reason**: a like
  * tapped in the player is written through a `SongLikeActions` built by
  * `MusicService` or a `PlayerViewModel`, and has to be visible to the

@@ -54,7 +54,15 @@ class SongLikeActions(
      * the device knows.
      */
     fun toggleLike(song: Song): Boolean {
-        val isNowLiked = likedSongs.toggleLike(song)
+        // The heart and the list answer from the union of the device store and
+        // the account cache, so the tap's verdict must be the union's too - a
+        // song liked only on another device would otherwise need two taps to
+        // unlike. The device store is only flipped when it disagrees with that
+        // verdict, which is what keeps a tap from adding a second metadata
+        // entry for a song that is already on the device.
+        val isNowLiked = !isLiked(song.id)
+        val deviceLiked = likedSongs.isLiked(song.id)
+        if (deviceLiked != isNowLiked) likedSongs.toggleLike(song)
         if (sessionManager.isLoggedIn() && song.source == SongSource.YOUTUBE) {
             // The account's cache is what the Liked Songs list draws from, so
             // the tap lands there before the request does; the write below

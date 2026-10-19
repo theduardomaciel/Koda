@@ -30,3 +30,5 @@ keystore/
 /design-ideas/
 .idea/deploymentTargetSelector.xml
 .idea/deviceManager.xml
+/.idea/.name
+/.idea/codeStyles/  
