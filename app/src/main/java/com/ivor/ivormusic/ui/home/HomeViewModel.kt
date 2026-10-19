@@ -3439,7 +3439,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     _savedAlbums.value = youtubeRepository.getSavedAlbums()
                     _followedArtists.value = youtubeRepository.getFollowedArtists()
                     accountLoadedAtMs = System.currentTimeMillis()
-                    syncLikedMusic()
+                    // The liked-music walk can take several seconds when something
+                    // changed (a full 17-page walk). Run it in the background so
+                    // the pull-to-refresh spinner stops once the rest of the
+                    // library is refreshed; its pages publish as they arrive.
+                    viewModelScope.launch { syncLikedMusic() }
                 } else if (_youtubeSongs.value.isNotEmpty()) {
                     // Logged-out YouTube mode: refresh the taste-based feed too.
                     // (Gated on a non-empty feed so local-only users don't pay
