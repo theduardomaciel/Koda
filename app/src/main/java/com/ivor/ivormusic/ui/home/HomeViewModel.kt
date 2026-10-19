@@ -3024,19 +3024,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Read the account's Liked Music whole, now.
-     *
-     * The only thing that notices a song unliked on another device, which an
-     * incremental walk cannot see; the weekly resync does it on its own, and
-     * this is the user-asked-for version. It costs one request per 100 songs,
-     * so it is a deliberate action rather than something a pull triggers.
-     */
-    fun resyncLikedSongs() {
-        if (!sessionManager.isLoggedIn()) return
-        viewModelScope.launch { syncLikedMusic(forceFull = true) }
-    }
-
-    /**
      * Put a fetched Home list on screen and in the cache. A refresh the user
      * asked for [rotate]s it first, so it leads with songs that have not led
      * this session; an ordinary load keeps YouTube's order. Either way the

@@ -292,8 +292,6 @@
     <!-- Settings detail pages -->
     <string name="settings_section_youtube_music">YouTube Music</string>
     <string name="sp_save_watch_history">Save Watch History</string>
-    <string name="sp_resync_liked_songs">Re-sync Liked Songs</string>
-    <string name="sp_resync_liked_songs_sub">Reads Liked Music again to pick up songs unliked on another device</string>
     <string name="sp_replace_session_cookies">Replace Session Cookies</string>
     <string name="sp_replace_session_cookies_sub">Paste a fresh cookie header if your session goes stale</string>
     <string name="sp_sign_out_sub">Disconnect your YouTube account</string>

@@ -38,7 +38,6 @@ import androidx.compose.material.icons.rounded.PhoneAndroid
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.SmartDisplay
 import androidx.compose.material.icons.rounded.Subscriptions
-import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material.icons.rounded.VideoLibrary
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.ButtonDefaults
@@ -113,8 +112,6 @@ internal fun AccountSettingsPage(
     onAddYouTubeAccount: () -> Unit,
     /** Sign the active profile back in, keeping it the same profile. */
     onReconnectProfile: () -> Unit,
-    /** Read the account's Liked Music whole, picking up unlikes made elsewhere. */
-    onResyncLikedSongs: () -> Unit,
     onOpenPage: (SettingsPage) -> Unit,
     onBack: () -> Unit
 ) {
@@ -254,13 +251,6 @@ internal fun AccountSettingsPage(
             SettingsSection(title = stringResource(R.string.settings_section_youtube_music)) {
                 SettingsCard {
                     if (signedIn) {
-                        SettingsRow(
-                            icon = Icons.Rounded.Sync,
-                            title = stringResource(R.string.sp_resync_liked_songs),
-                            subtitle = stringResource(R.string.sp_resync_liked_songs_sub),
-                            onClick = onResyncLikedSongs,
-                            showChevron = true
-                        )
                         SettingsRow(
                             icon = Icons.Rounded.Cookie,
                             title = stringResource(R.string.sp_replace_session_cookies),

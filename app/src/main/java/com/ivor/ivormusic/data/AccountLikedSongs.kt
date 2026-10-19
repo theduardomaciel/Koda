@@ -260,6 +260,17 @@ class AccountLikedSongsRepository(context: Context) {
                             KLog.w(TAG, "Liked Music did not come back newest-first; walking it whole")
                             full = true
                         }
+                        // A removal on another device lowers the account's count
+                        // before it lowers ours, so a drop means something left
+                        // that an incremental walk (which only ever adds) cannot
+                        // see. Read the list whole to reconcile it.
+                        if (totalCount != null && totalCount < cached.songs.size && !full) {
+                            KLog.w(
+                                TAG,
+                                "Liked Music count dropped (${cached.songs.size} -> $totalCount); walking it whole",
+                            )
+                            full = true
+                        }
                     }
                     for (song in page.songs) {
                         if (!full && stopsLikedMusicWalk(song.id, cachedIds)) {
