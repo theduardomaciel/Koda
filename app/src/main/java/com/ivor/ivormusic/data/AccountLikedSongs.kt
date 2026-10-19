@@ -84,6 +84,9 @@ internal const val LIKED_MUSIC_STALE_WINDOW_MS = 5L * 60 * 1000
  */
 internal const val LIKED_MUSIC_MAX_PAGES = 25
 
+/** Rows the music host serves per Liked Music page, for the walk's log line. */
+internal const val LIKED_MUSIC_PAGE_SIZE = 100
+
 /**
  * A walk of Liked Music stops at this row: it is one the cache already holds,
  * so everything above it is what has been added since the last sync.
@@ -122,6 +125,62 @@ internal fun mergeLikedMusicProgress(scanned: List<Song>, cached: List<Song>): L
  */
 internal fun reconcileLikedMusic(walked: List<Song>): List<Song> =
     walked.distinctBy { it.id }
+
+/**
+ * The Liked Songs list as the screens draw it: the device's own likes, the
+ * account's cached `LM`, and liked local files, newest first.
+ *
+ * `manuallyLikedSongs` is filtered by `manuallyLikedIds` on purpose. The id set
+ * is the device store's record of what is liked; its metadata file can outlive
+ * an id removal, and drawing that orphan is exactly how a song removed from
+ * `LM` came back to the list. An id with no metadata still appears here when
+ * it names a local file, which is what the set covers for legacy likes.
+ */
+internal fun mergeLikedSongsForDisplay(
+    accountLiked: List<Song>,
+    manuallyLikedSongs: List<Song>,
+    manuallyLikedIds: Set<String>,
+    localSongs: List<Song>,
+): List<Song> {
+    val manual = manuallyLikedSongs.filter { it.id in manuallyLikedIds }
+    val manualLocal = localSongs.filter { it.id in manuallyLikedIds }
+    return (manual + accountLiked + manualLocal)
+        .distinctBy { it.id }
+        .sortedByDescending { it.dateAdded ?: 0L }
+}
+
+/**
+ * The part of the device's Liked Songs store a sync may write: read one id,
+ * remove one id. Removal is idempotent - an id the store never held stays
+ * absent.
+ */
+internal interface DeviceLikedSongsStore {
+    fun isLiked(songId: String): Boolean
+    fun remove(songId: String)
+}
+
+/** What [removeLikedSongsFromDevice] found and left behind, for the log. */
+internal data class DeviceStoreRemoval(
+    val hadBefore: Set<String>,
+    val stillLiked: Set<String>,
+)
+
+/**
+ * Remove ids the account's list no longer holds from the device mirror.
+ *
+ * Calling `unlikeSong` for every id (rather than toggling) is the whole point:
+ * a song liked only on the web was never in the device store, so a toggle
+ * would *add* it there. Removing an absent id is a no-op.
+ */
+internal fun removeLikedSongsFromDevice(
+    store: DeviceLikedSongsStore,
+    ids: Set<String>,
+): DeviceStoreRemoval {
+    val hadBefore = ids.filterTo(LinkedHashSet()) { store.isLiked(it) }
+    ids.forEach { store.remove(it) }
+    val stillLiked = ids.filterTo(LinkedHashSet()) { store.isLiked(it) }
+    return DeviceStoreRemoval(hadBefore, stillLiked)
+}
 
 /**
  * Whether this sync reads the whole list rather than just the new prefix: the
@@ -240,7 +299,16 @@ internal fun shouldStopFullWalkEarly(
 class AccountLikedSongsRepository(context: Context) {
 
     private val appContext = context.applicationContext
-    private val deviceLikedSongs = LikedSongsRepository(appContext)
+
+    /**
+     * The device store, written only through [DeviceLikedSongsStore.remove] so
+     * a sync can never flip an absent id on.
+     */
+    private val deviceLikedSongs: DeviceLikedSongsStore = object : DeviceLikedSongsStore {
+        private val store = LikedSongsRepository(appContext)
+        override fun isLiked(songId: String): Boolean = store.isLiked(songId)
+        override fun remove(songId: String) = store.unlikeSong(songId)
+    }
 
     /** The account's liked songs, newest first. Empty signed out. */
     val songs: StateFlow<List<Song>> = _songs.asStateFlow()
@@ -269,10 +337,10 @@ class AccountLikedSongsRepository(context: Context) {
      * never empty while the walk runs and never taken away and put back.
      *
      * It reads the list whole when the cache is empty, when the server's count
-     * is not what the stored count plus the new items predicts - which is how a
-     * removal shows up, since an incremental walk only ever adds - when the
-     * cache's newest entry left page one, when the last full walk is
-     * [LIKED_MUSIC_FULL_RESYNC_INTERVAL_MS] old, or when [forceFull] is set.
+     * is not what the stored count plus the new items minus the removals
+     * visible in page 1 predicts - a removal deeper than page 1 needs the
+     * whole list - when the page is not recent-first, when the last full walk
+     * is [LIKED_MUSIC_FULL_RESYNC_INTERVAL_MS] old, or when [forceFull] is set.
      * A whole walk that reached the end *replaces* the cache, which is what
      * reconciles a song unliked elsewhere; one that failed part way through
      * adds what it read and leaves the rest, since a prefix of the list is not
@@ -286,7 +354,6 @@ class AccountLikedSongsRepository(context: Context) {
         loader: suspend (cursor: String?) -> LikedMusicPage?,
     ) {
         if (!syncLock.tryLock()) return
-        var pages = 0
         try {
             // The merges, dedupes and the snapshot are per-song work over up
             // to 2,500 rows. The loader already requests on IO; this keeps the
@@ -324,279 +391,111 @@ class AccountLikedSongsRepository(context: Context) {
                 val accountKey = synchronized(LOCK) {
                     if (loadedFor == profileId) loadedAccountKey else null
                 }
-                // A tap that lands while this walk is in flight must win over
-                // the page it was read from, which was fetched before it.
-                synchronized(LOCK) {
-                    unlikedDuringWalk.clear()
+                // The snapshot and the start of the tap window are one step. A
+                // tap before this is already in `cached`; only one that lands
+                // during the walk needs protecting from the pages it predates.
+                val cached = synchronized(LOCK) {
+                    pendingTaps.beginWalk()
+                    state
                 }
-                val cached = snapshot()
-                val cachedIds = cached.songs.mapTo(HashSet(cached.songs.size)) { it.id }
-
-                // Phase 1: the incremental walk. Read page 1 onwards and stop at
-                // the first id the cache already holds. `newItems` holds the
-                // items found before that point; N is their count. `fullItems`
-                // holds everything read so far (all of pages 1..k), so a later
-                // full walk only fetches from page k+1 instead of re-reading
-                // page 1.
-                val newItems = LinkedHashMap<String, Song>()
-                val fullItems = LinkedHashMap<String, Song>()
-                var cursor: String? = null
-                var complete = false
-                var stopped = false
-                var totalCount: Int? = null
-                var recentFirst = true
-                var topChanged = false
-                val countedForN = mutableSetOf<String>()
-                var incrementalN = 0
-                var lastPageMs = 0L
-                var page1Ids: List<String> = emptyList()
-                var lastKnownPage1CacheIndex = -1
-
-                while (pages < LIKED_MUSIC_MAX_PAGES) {
-                    val pageStart = System.currentTimeMillis()
-                    val page = loader(cursor) ?: break
-                    lastPageMs = System.currentTimeMillis() - pageStart
-                    pages++
-                    if (pages == 1) {
-                        totalCount = page.totalCount
-                        recentFirst = page.recentFirst
-                        // topChanged is false when liking on the web: the new
-                        // song is prepended, pushing the old first entry to
-                        // position 1, but it is still in page 1. It fires only
-                        // when the first cached id is gone entirely - a removal
-                        // at the very top.
-                        val firstCachedId = cached.songs.firstOrNull()?.id
-                        topChanged = firstCachedId != null &&
-                            firstCachedId !in page.songs.map { it.id }
-                        page1Ids = page.songs.map { it.id }
-                        // Last cached id in page 1 (by page-1 position).
-                        val knownInPage1 = page1Ids.filter { it in cachedIds }
-                        val lastKnownId = knownInPage1.lastOrNull()
-                        lastKnownPage1CacheIndex = if (lastKnownId != null)
-                            cached.songs.indexOfFirst { it.id == lastKnownId }
-                        else -1
-                    }
-                    var hitKnown = false
-                    for (song in page.songs) {
-                        fullItems.putIfAbsent(song.id, song)
-                        if (hitKnown) continue
-                        if (stopsLikedMusicWalk(song.id, cachedIds)) {
-                            hitKnown = true
-                        } else {
-                            newItems.putIfAbsent(song.id, song)
-                            if (countedForN.add(song.id)) {
-                                incrementalN++
-                            }
-                        }
-                    }
-                    publish(
-                        profileId,
-                        accountKey,
-                        mergeLikedMusicProgress(newItems.values.toList(), cached.songs),
-                    )
-                    val next = page.nextCursor
-                    cursor = next
-                    if (hitKnown) {
-                        stopped = true
-                        break
-                    }
-                    if (next == null) {
-                        complete = true
-                        break
-                    }
-                }
-
-                val N = incrementalN
-                // R = cached ids positioned above the last page-1 id that's
-                // known in the cache (cache index j), that are absent from
-                // page 1. These are removals visible in the scanned window.
-                val removedCount = if (lastKnownPage1CacheIndex > 0) {
-                    cached.songs.take(lastKnownPage1CacheIndex).count { it.id !in page1Ids }
-                } else 0
-                val readWholeList = complete && !stopped
-                val needFull = planLikedMusicSync(
+                val outcome = walkLikedMusic(
+                    cached = cached,
                     forceFull = forceFull,
-                    cacheEmpty = cached.songs.isEmpty(),
-                    readWholeList = readWholeList,
-                    recentFirst = recentFirst,
-                    dueForFullResync = needsFullLikedMusicSync(
-                        lastFullSyncMs = cached.lastFullSyncMs,
-                        nowMs = System.currentTimeMillis(),
-                        cachedCount = cached.songs.size,
-                        force = false,
-                    ),
-                    storedCount = cached.totalCount,
-                    serverCount = totalCount,
-                    newCount = N,
-                    removedCount = removedCount,
-                )
-
-                if (!needFull) {
-                    // Incremental: merge the N new items, persist, and the
-                    // server's count becomes the stored count.
-                    // Apply R removals: remove the removedCount items from the
-                    // cache. The removed items are cached ids above the last
-                    // known page-1 id that are absent from page 1.
-                    val removedIds = if (lastKnownPage1CacheIndex > 0) {
-                        cached.songs.take(lastKnownPage1CacheIndex)
-                            .map { it.id }
-                            .filter { it !in page1Ids }
-                            .toSet()
-                    } else emptySet()
-                    val afterRemovals = cached.songs.filterNot { it.id in removedIds }
-                    val result = mergeLikedMusicProgress(newItems.values.toList(), afterRemovals)
-                    // Also remove from device store so the merged likedSongs flow
-                    // doesn't resurrect them.
-                    removedIds.forEach { deviceLikedSongs.toggleLike(it) }
-                    apply(
-                        profileId = profileId,
-                        accountKey = accountKey,
-                        songs = result,
-                        totalCount = totalCount ?: cached.totalCount,
-                        countDelta = synchronized(LOCK) { state.totalCount - cached.totalCount },
-                        lastFullSyncMs = cached.lastFullSyncMs,
-                        lastSyncMs = System.currentTimeMillis(),
-                    )
-                    KLog.d(
-                        TAG,
-                        "Liked Music incremental: N=$N, R=$removedCount, removedIds=$removedIds, stored=" + cached.totalCount +
-                            ", server=" + (totalCount ?: "unknown") + ", result=" + result.size +
-                            ", lastPageMs=$lastPageMs",
-                    )
-                    return@withContext
+                    nowMs = System.currentTimeMillis(),
+                    loadPage = loader,
+                ) { progress ->
+                    publish(profileId, accountKey, progress)
                 }
 
-                KLog.w(
-                    TAG,
-                    "Liked Music full: stored=" + cached.totalCount + ", N=$N, R=$removedCount, " +
-                        "server=" + (totalCount ?: "unknown") + ", " +
-                        "readWholeList=$readWholeList; walking it whole",
-                )
+                // A removal from the account's list is a removal from the
+                // device mirror too. removeLikedSongsFromDevice is idempotent:
+                // an id the device never held stays absent instead of being
+                // toggled on.
+                removeFromDeviceStore(outcome.removedIds, outcome.path)
 
-                // Phase 2: the whole list with early-exit. fullItems already holds
-                // pages 1..k (everything the incremental walk read); continue from
-                // the cursor of the last page fetched, so no page is re-read.
-                val walked = LinkedHashMap<String, Song>(fullItems)
-                var fullPagesRead = pages
-                var stoppedEarly = false
-                while (pages < LIKED_MUSIC_MAX_PAGES && cursor != null) {
-                    val page = loader(cursor) ?: break
-                    pages++
-                    fullPagesRead++
-                    for (song in page.songs) {
-                        walked.putIfAbsent(song.id, song)
-                    }
-                    publish(
-                        profileId,
-                        accountKey,
-                        mergeLikedMusicProgress(walked.values.toList(), cached.songs),
-                    )
-                    // After each page, recompute N and R over pages read so far.
-                    // N = items in walked but not in cached (additions)
-                    // R = items in cached but not in walked (removals)
-                    val newIds = walked.keys.toSet() - cachedIds
-                    val removedIds = cachedIds - walked.keys
-                    val N = newIds.size
-                    val R = removedIds.size
-                    val server = totalCount ?: (cached.totalCount + N - removedIds.size)
-                    // Early exit: if server count balances with additions/removals
-                    // seen so far, we have reconciled everything. Remaining pages
-                    // add no new information.
-                    if (shouldStopFullWalkEarly(
-                            storedCount = cached.totalCount,
-                            serverCount = totalCount,
-                            newCount = N,
-                            removedCount = R,
-                        )) {
-                        KLog.d(
-                            TAG,
-                            "Liked Music full walk: stopped early at page " + fullPagesRead +
-                                " of ~" + LIKED_MUSIC_MAX_PAGES + " (N=$N, R=" + removedIds.size + ", server=$server)",
-                        )
-                        // Apply additions and removals without replacing the cache
-                        // from a partial fullItems - keep items beyond the walk.
-                        val added = newIds.mapNotNull { walked[it] }
-                        val afterRemovals = cached.songs.filterNot { it.id in removedIds }
-                        val result = mergeLikedMusicProgress(newItems.values.toList() + added, afterRemovals)
-                        // Also remove from device store so the merged likedSongs flow
-                        // doesn't resurrect them.
-                        removedIds.forEach { deviceLikedSongs.toggleLike(it) }
-                        apply(
-                            profileId = profileId,
-                            accountKey = accountKey,
-                            songs = result,
-                            totalCount = server,
-                            countDelta = synchronized(LOCK) { state.totalCount - cached.totalCount },
-                            lastFullSyncMs = System.currentTimeMillis(),
-                            lastSyncMs = System.currentTimeMillis(),
-                        )
-                        KLog.d(
-                            TAG,
-                            "Liked Music full: pages=$pages, N=$N, R=" + removedIds.size +
-                                ", stored=" + cached.totalCount + ", server=" + server +
-                                ", result=" + result.size + ", stoppedEarly=true",
-                        )
-                        return@withContext
-                    }
-                    val next = page.nextCursor
-                    if (next == null) {
-                        complete = true
-                        break
-                    }
-                    cursor = next
-                }
-
-                val list = walked.values.toList()
-                // An end reached with nothing read is either an account with no
-                // likes - which the header states as a total of zero - or a
-                // page that answered a shell. Only the first is a list to
-                // believe, so an empty walk with no total leaves the cache
-                // alone.
-                val believe = complete && (list.isNotEmpty() || totalCount == 0)
-                // Final count check: if a like/unlike arrived mid-walk, the
-                // count at the end may differ from what we started with. Log it
-                // so the next sync can reconcile; the walk itself is not retried
-                // here to avoid an unbounded loop.
-                if (complete && totalCount != null) {
-                    KLog.d(
-                        TAG,
-                        "Liked Music full-walk final count: walked=" + list.size +
-                            " (unique), server=" + totalCount,
-                    )
-                }
-                // Items that disappeared from the server (not in walked) should
-                // also be removed from the device store.
-                val walkedIds = walked.keys.toSet()
-                val fullWalkRemovedIds = cachedIds - walkedIds
-                if (fullWalkRemovedIds.isNotEmpty()) {
-                    fullWalkRemovedIds.forEach { deviceLikedSongs.toggleLike(it) }
-                }
-                val result = if (believe) reconcileLikedMusic(list)
-                else mergeLikedMusicProgress(list, cached.songs)
-                val countDelta = synchronized(LOCK) { state.totalCount - cached.totalCount }
                 apply(
                     profileId = profileId,
                     accountKey = accountKey,
-                    songs = result,
-                    totalCount = totalCount ?: cached.totalCount,
-                    countDelta = countDelta,
-                    lastFullSyncMs = if (complete) System.currentTimeMillis()
-                    else cached.lastFullSyncMs,
+                    songs = outcome.songs,
+                    totalCount = outcome.totalCount,
+                    countDelta = synchronized(LOCK) { state.totalCount - cached.totalCount },
+                    lastFullSyncMs = outcome.lastFullSyncMs,
                     lastSyncMs = System.currentTimeMillis(),
                 )
-                KLog.d(
-                    TAG,
-                    "Liked Music full: pages=$fullPagesRead/~" + LIKED_MUSIC_MAX_PAGES + ", N=$N, R=$removedCount, " +
-                        "stored=" + cached.totalCount + ", server=" + (totalCount ?: "unknown") +
-                        ", result=" + result.size + ", believe=$believe, stoppedEarly=$stoppedEarly",
-                )
+                logOutcome(outcome, cached)
             }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            KLog.e(TAG, "Liked Music sync failed after $pages pages", e)
+            KLog.e(TAG, "Liked Music sync failed", e)
         } finally {
+            synchronized(LOCK) { pendingTaps.finishWalk() }
             syncLock.unlock()
+        }
+    }
+
+    /**
+     * Remove the ids the walk proved are gone from `LM` from the device store.
+     * Logging both sides is deliberate: it is what distinguishes "the walk
+     * never found the removal" from "the walk found it and another surface put
+     * it back".
+     */
+    private fun removeFromDeviceStore(ids: Set<String>, path: LikedMusicSyncPath) {
+        if (ids.isEmpty()) return
+        val removal = removeLikedSongsFromDevice(deviceLikedSongs, ids)
+        KLog.d(
+            TAG,
+            "Liked Music ${path.name} removals: ids=$ids, " +
+                "deviceHadBefore=${removal.hadBefore}, deviceStillLiked=${removal.stillLiked}",
+        )
+    }
+
+    private fun logOutcome(outcome: LikedMusicSyncOutcome, cached: StoredAccountLikes) {
+        val stored = cached.totalCount
+        val server = outcome.serverCount ?: "unknown"
+        when (outcome.path) {
+            LikedMusicSyncPath.INCREMENTAL ->
+                KLog.d(
+                    TAG,
+                    "Liked Music incremental: N=${outcome.newCount}, R=${outcome.removedIds.size}, " +
+                        "removedIds=${outcome.removedIds}, stored=$stored, server=$server, " +
+                        "result=${outcome.songs.size}, lastPageMs=${outcome.lastPageMs}",
+                )
+            LikedMusicSyncPath.FULL_EARLY_EXIT -> {
+                val estimatedPages = outcome.serverCount
+                    ?.let { (it + LIKED_MUSIC_PAGE_SIZE - 1) / LIKED_MUSIC_PAGE_SIZE }
+                    ?.toString()
+                    ?: "~$LIKED_MUSIC_MAX_PAGES"
+                KLog.d(
+                    TAG,
+                    "Liked Music full walk: stopped early at page ${outcome.pagesRead} of " +
+                        "$estimatedPages (N=${outcome.newCount}, R=${outcome.removedIds.size}, " +
+                        "server=$server)",
+                )
+                KLog.d(
+                    TAG,
+                    "Liked Music full: pages=${outcome.pagesRead}, N=${outcome.newCount}, " +
+                        "R=${outcome.removedIds.size}, stored=$stored, server=$server, " +
+                        "result=${outcome.songs.size}, stoppedEarly=true",
+                )
+            }
+            LikedMusicSyncPath.FULL_COMPLETE,
+            LikedMusicSyncPath.FULL_PARTIAL -> {
+                if (outcome.path == LikedMusicSyncPath.FULL_COMPLETE && outcome.serverCount != null) {
+                    KLog.d(
+                        TAG,
+                        "Liked Music full-walk final count: walked=${outcome.songs.size} " +
+                            "(unique), server=${outcome.serverCount}",
+                    )
+                }
+                KLog.d(
+                    TAG,
+                    "Liked Music full: pages=${outcome.pagesRead}/~$LIKED_MUSIC_MAX_PAGES, " +
+                        "N=${outcome.newCount}, R=${outcome.removedIds.size}, stored=$stored, " +
+                        "server=$server, result=${outcome.songs.size}, believe=${outcome.believe}, " +
+                        "stoppedEarly=false",
+                )
+            }
         }
     }
 
@@ -604,6 +503,12 @@ class AccountLikedSongsRepository(context: Context) {
      * A song liked in this app: the same thing the account's `like/like` is
      * adding, so the cache takes it at the top straight away rather than
      * waiting for a walk to find it.
+     *
+     * This is an optimistic account write, so the next successful sync is the
+     * verdict: if `LM` does not hold the id, the sync removes it from this
+     * cache and from the device store. A like that never entered this cache -
+     * made signed out, or lost before it was persisted - is not the sync's to
+     * remove and stays a device-only, pending like.
      */
     fun markLiked(song: Song) {
         val profileId = ensureLoaded()
@@ -615,8 +520,10 @@ class AccountLikedSongsRepository(context: Context) {
                 return@synchronized
             }
             val entry = song.copy(dateAdded = System.currentTimeMillis())
-            likedDuringWalk[song.id] = entry
-            unlikedDuringWalk.remove(song.id)
+            // Only a tap that lands during a walk is protected from that walk's
+            // pages. A like from before it is already in the snapshot, and if
+            // `LM` no longer holds it the walk is right to remove it.
+            pendingTaps.markLiked(entry)
             // The like will land in LM, so the server count goes up by one.
             // Tracking it here keeps the next sync from seeing a spurious
             // count change and doing an unnecessary full walk.
@@ -633,8 +540,7 @@ class AccountLikedSongsRepository(context: Context) {
     fun markUnliked(songId: String) {
         val profileId = ensureLoaded()
         val changed = synchronized(LOCK) {
-            likedDuringWalk.remove(songId)
-            unlikedDuringWalk += songId
+            pendingTaps.markUnliked(songId)
             if (state.songs.none { it.id == songId }) return@synchronized false
             publishLocked(state.songs.filterNot { it.id == songId })
             // The unlike will land in LM, so the server count goes down by one.
@@ -653,8 +559,7 @@ class AccountLikedSongsRepository(context: Context) {
      */
     fun clear() {
         synchronized(LOCK) {
-            likedDuringWalk.clear()
-            unlikedDuringWalk.clear()
+            pendingTaps.finishWalk()
             state = StoredAccountLikes()
             publishLocked(emptyList())
             // Reload on the way back in: the file still holds this account's
@@ -722,11 +627,7 @@ class AccountLikedSongsRepository(context: Context) {
     private fun publish(profileId: String, accountKey: String?, songs: List<Song>) {
         synchronized(LOCK) {
             if (loadedFor != profileId || loadedAccountKey != accountKey) return
-            publishLocked(
-                (likedDuringWalk.values.toList() + songs)
-                    .filterNot { it.id in unlikedDuringWalk }
-                    .distinctBy { it.id }
-            )
+            publishLocked(pendingTaps.merge(songs))
         }
     }
 
@@ -742,9 +643,7 @@ class AccountLikedSongsRepository(context: Context) {
         var applied = false
         synchronized(LOCK) {
             if (loadedFor != profileId || loadedAccountKey != accountKey) return@synchronized
-            val result = (likedDuringWalk.values.toList() + songs)
-                .filterNot { it.id in unlikedDuringWalk }
-                .distinctBy { it.id }
+            val result = pendingTaps.merge(songs)
             // Preserve count changes from markLiked/markUnliked that ran
             // during the walk: sync holds syncLock but markLiked/markUnliked
             // hold LOCK, so they can interleave between snapshot and apply.
@@ -758,8 +657,7 @@ class AccountLikedSongsRepository(context: Context) {
                 songs = result,
             )
             publishLocked(result)
-            likedDuringWalk.clear()
-            unlikedDuringWalk.clear()
+            pendingTaps.finishWalk()
             applied = true
         }
         if (applied) persist(profileId)
@@ -810,11 +708,12 @@ class AccountLikedSongsRepository(context: Context) {
         @Volatile
         private var likedIds: Set<String> = emptySet()
 
-        /** A song liked while a walk runs; its result cannot drop it. [LOCK]. */
-        private val likedDuringWalk = LinkedHashMap<String, Song>()
-
-        /** A song unliked while a walk runs; its result cannot revive it. [LOCK]. */
-        private val unlikedDuringWalk = HashSet<String>()
+        /**
+         * Taps that land while a walk is in flight. They are cleared at the
+         * start and end of every walk, so a like from before it cannot be
+         * resurrected by a result that deliberately removed that id. [LOCK].
+         */
+        private val pendingTaps = LikedMusicPendingTaps()
 
         /** One walk at a time. */
         private val syncLock = Mutex()

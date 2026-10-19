@@ -23,6 +23,7 @@ import com.ivor.ivormusic.data.VideoPlaylist
 import com.ivor.ivormusic.data.YouTubeRepository
 import com.ivor.ivormusic.data.LikedSongsRepository
 import com.ivor.ivormusic.data.AccountLikedSongsRepository
+import com.ivor.ivormusic.data.mergeLikedSongsForDisplay
 import com.ivor.ivormusic.data.HomeRecommendationCache
 import com.ivor.ivormusic.data.usableHomeRecommendations
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -267,10 +268,12 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         likedSongsRepository.likedSongs,   // Manually liked, with metadata (newest first)
         likedSongsRepository.likedSongIds  // Manually liked IDs (covers legacy likes without metadata)
     ) { accountLiked, localSongs, manuallyLikedSongs, manuallyLikedIds ->
-        val manuallyLikedLocalSongs = localSongs.filter { it.id in manuallyLikedIds }
-        (manuallyLikedSongs + accountLiked + manuallyLikedLocalSongs)
-            .distinctBy { it.id }
-            .sortedByDescending { it.dateAdded ?: 0L }
+        mergeLikedSongsForDisplay(
+            accountLiked = accountLiked,
+            manuallyLikedSongs = manuallyLikedSongs,
+            manuallyLikedIds = manuallyLikedIds,
+            localSongs = localSongs,
+        )
     }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000), emptyList())
 
     // YouTube playlists
@@ -3021,8 +3024,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
      * counts read, so the walk publishes each page as it arrives and the list
      * fills in rather than appearing at the end.
      */
-    private suspend fun syncLikedMusic(forceFull: Boolean = false) {
-        accountLikedSongs.sync(forceFull) { cursor -> youtubeRepository.getLikedMusicPage(cursor) }
+    private suspend fun syncLikedMusic(forceFull: Boolean = false, bypassStale: Boolean = false) {
+        accountLikedSongs.sync(forceFull, bypassStale) { cursor -> youtubeRepository.getLikedMusicPage(cursor) }
     }
 
     /**
@@ -3222,12 +3225,12 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     viewModelScope.launch { syncLikedMusic() }
                 }
             }
-            val manuallyLiked = likedSongsRepository.likedSongs.value
-            val likedIds = likedSongsRepository.getAllLikedSongIds()
-            val likedLocalSongs = _songs.value.filter { it.id in likedIds }
-            return (manuallyLiked + accountLikedSongs.songs.value + likedLocalSongs)
-                .distinctBy { it.id }
-                .sortedByDescending { it.dateAdded ?: 0L }
+            return mergeLikedSongsForDisplay(
+                accountLiked = accountLikedSongs.songs.value,
+                manuallyLikedSongs = likedSongsRepository.likedSongs.value,
+                manuallyLikedIds = likedSongsRepository.getAllLikedSongIds(),
+                localSongs = _songs.value,
+            )
         }
 
         // Check local first
@@ -3443,7 +3446,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     // changed (a full 17-page walk). Run it in the background so
                     // the pull-to-refresh spinner stops once the rest of the
                     // library is refreshed; its pages publish as they arrive.
-                    viewModelScope.launch { syncLikedMusic() }
+                    viewModelScope.launch { syncLikedMusic(bypassStale = true) }
                 } else if (_youtubeSongs.value.isNotEmpty()) {
                     // Logged-out YouTube mode: refresh the taste-based feed too.
                     // (Gated on a non-empty feed so local-only users don't pay
