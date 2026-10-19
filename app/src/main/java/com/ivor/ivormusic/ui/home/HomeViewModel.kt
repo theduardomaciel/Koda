@@ -22,6 +22,7 @@ import com.ivor.ivormusic.data.PlaylistPageInfo
 import com.ivor.ivormusic.data.VideoPlaylist
 import com.ivor.ivormusic.data.YouTubeRepository
 import com.ivor.ivormusic.data.LikedSongsRepository
+import com.ivor.ivormusic.data.AccountLikedSongsRepository
 import com.ivor.ivormusic.data.HomeRecommendationCache
 import com.ivor.ivormusic.data.usableHomeRecommendations
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -249,20 +250,25 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
-    private val _likedSongs = MutableStateFlow<List<Song>>(emptyList())
     // Combine YouTube liked songs with manually liked songs (local or YT)
     private val likedSongsRepository = LikedSongsRepository(application)
-    
+
+    // The account's Liked Music, cached and walked incrementally. Signed in it
+    // is the account's own list and the source of truth; signed out it is
+    // empty and the device store above fills the list on its own.
+    private val accountLikedSongs = AccountLikedSongsRepository(application)
+
     // Combined liked songs: manually liked (full metadata stored on like, so
-    // YouTube songs show without a login) + YT-account liked + liked local songs.
+    // YouTube songs show without a login) + the account's Liked Music + liked
+    // local songs.
     val likedSongs: StateFlow<List<Song>> = combine(
-        _likedSongs,                       // YouTube Liked (from API, requires login)
+        accountLikedSongs.songs,           // Account's Liked Music (cached)
         _songs,                            // Local Songs
         likedSongsRepository.likedSongs,   // Manually liked, with metadata (newest first)
         likedSongsRepository.likedSongIds  // Manually liked IDs (covers legacy likes without metadata)
-    ) { ytLiked, localSongs, manuallyLikedSongs, manuallyLikedIds ->
+    ) { accountLiked, localSongs, manuallyLikedSongs, manuallyLikedIds ->
         val manuallyLikedLocalSongs = localSongs.filter { it.id in manuallyLikedIds }
-        (manuallyLikedSongs + ytLiked + manuallyLikedLocalSongs).distinctBy { it.id }
+        (manuallyLikedSongs + accountLiked + manuallyLikedLocalSongs).distinctBy { it.id }
     }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000), emptyList())
 
     // YouTube playlists
@@ -1517,7 +1523,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         _isYouTubeConnected.value = sessionManager.isLoggedIn()
 
         _youtubeSongs.value = homeRecommendationCache.load()
-        _likedSongs.value = emptyList()
+        AccountLikedSongsRepository.reloadForActiveProfile(getApplication())
         _youtubePlaylists.value = emptyList()
         _savedAlbums.value = emptyList()
         _followedArtists.value = emptyList()
@@ -2991,14 +2997,43 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun loadLibraryData() {
         try {
-            _likedSongs.value = youtubeRepository.getLikedMusic()
             _youtubePlaylists.value = youtubeRepository.getUserPlaylists()
             _savedAlbums.value = youtubeRepository.getSavedAlbums()
             _followedArtists.value = youtubeRepository.getFollowedArtists()
             accountLoadedAtMs = System.currentTimeMillis()
+            // Last, and after the marker above: the ordinary sync is one
+            // request, but the first one reads the list whole - 17 pages on
+            // the account this was measured against - and the rest of the
+            // library should not wait behind it.
+            syncLikedMusic()
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) { }
+    }
+
+    /**
+     * Bring the account's Liked Music cache up to date.
+     *
+     * One walk at a time, owned by the repository: a second caller while one
+     * runs returns immediately. The cache is what the Liked Songs list and the
+     * counts read, so the walk publishes each page as it arrives and the list
+     * fills in rather than appearing at the end.
+     */
+    private suspend fun syncLikedMusic(forceFull: Boolean = false) {
+        accountLikedSongs.sync(forceFull) { cursor -> youtubeRepository.getLikedMusicPage(cursor) }
+    }
+
+    /**
+     * Read the account's Liked Music whole, now.
+     *
+     * The only thing that notices a song unliked on another device, which an
+     * incremental walk cannot see; the weekly resync does it on its own, and
+     * this is the user-asked-for version. It costs one request per 100 songs,
+     * so it is a deliberate action rather than something a pull triggers.
+     */
+    fun resyncLikedSongs() {
+        if (!sessionManager.isLoggedIn()) return
+        viewModelScope.launch { syncLikedMusic(forceFull = true) }
     }
 
     /**
@@ -3174,7 +3209,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     suspend fun getLikedMusic(): List<Song> {
-        return _likedSongs.value
+        return accountLikedSongs.songs.value
     }
 
     suspend fun getUserPlaylists(): List<com.ivor.ivormusic.data.PlaylistDisplayItem> {
@@ -3189,17 +3224,19 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             return offlineSongs
         }
         // "Liked Songs" is assembled locally so it works without a YouTube
-        // login: stored metadata + YT-account likes + liked local songs.
+        // login: stored metadata + the account's cached Liked Music + liked
+        // local songs.
         if (playlistId == "LM" || playlistId == "VLLM") {
+            // Opening the list asks the cache to catch up. When the walk is
+            // already running this returns at once and the pages it has
+            // published so far are what is on screen; the rest arrives as it
+            // is read.
+            if (sessionManager.isLoggedIn()) syncLikedMusic()
             val manuallyLiked = likedSongsRepository.likedSongs.value
             val likedIds = likedSongsRepository.getAllLikedSongIds()
             val likedLocalSongs = _songs.value.filter { it.id in likedIds }
-            val ytLiked = _likedSongs.value.ifEmpty {
-                if (sessionManager.isLoggedIn()) {
-                    try { youtubeRepository.getLikedMusic() } catch (e: Exception) { emptyList() }
-                } else emptyList()
-            }
-            return (manuallyLiked + ytLiked + likedLocalSongs).distinctBy { it.id }
+            return (manuallyLiked + accountLikedSongs.songs.value + likedLocalSongs)
+                .distinctBy { it.id }
         }
 
         // Check local first
@@ -3370,7 +3407,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         // must not survive it.
         clearSearchCaches()
         _youtubeSongs.value = emptyList()
-        _likedSongs.value = emptyList()
+        accountLikedSongs.clear()
         _youtubePlaylists.value = emptyList()
         _savedAlbums.value = emptyList()
         _followedArtists.value = emptyList()
@@ -3407,11 +3444,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     }
 
                     // Update library data
-                    _likedSongs.value = youtubeRepository.getLikedMusic()
                     _youtubePlaylists.value = youtubeRepository.getUserPlaylists()
                     _savedAlbums.value = youtubeRepository.getSavedAlbums()
                     _followedArtists.value = youtubeRepository.getFollowedArtists()
                     accountLoadedAtMs = System.currentTimeMillis()
+                    syncLikedMusic()
                 } else if (_youtubeSongs.value.isNotEmpty()) {
                     // Logged-out YouTube mode: refresh the taste-based feed too.
                     // (Gated on a non-empty feed so local-only users don't pay

@@ -807,6 +807,7 @@ fun SettingsScreen(
                     showAuthDialog = true
                 }
             },
+            onResyncLikedSongs = { homeViewModel.resyncLikedSongs() },
             onOpenPage = { page = it },
             onBack = { page = SettingsPage.HUB }
         )

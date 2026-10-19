@@ -38,6 +38,13 @@ internal class MusicBrowse(
     private val musicSearch: MusicSearch,
     private val musicPlaylists: MusicPlaylists,
     private val sessionManager: SessionManager,
+    /**
+     * The cached Liked Music preview, used only to fill a Home feed that
+     * arrived with fewer than three usable songs. Reading `LM` through
+     * [MusicPlaylists.getLikedMusic] instead would walk the whole list - 17
+     * requests on the account this was measured against - on a fallback path.
+     */
+    private val likedSongsPreview: () -> List<Song>,
 ) {
     /**
      * Get personalized recommendations (Quick Picks / Home).
@@ -84,9 +91,7 @@ internal class MusicBrowse(
 
         KLog.d(YOUTUBE_TAG, "Home has ${primary.size} usable songs; filling from library")
         val liked = try {
-            musicPlaylists.getLikedMusic()
-        } catch (cancelled: CancellationException) {
-            throw cancelled
+            likedSongsPreview()
         } catch (e: Exception) {
             KLog.w(YOUTUBE_TAG, "Could not use liked songs as Home fallback", e)
             emptyList()

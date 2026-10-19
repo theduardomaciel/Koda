@@ -215,6 +215,9 @@ class AccountSwitcher(context: Context) {
             VideoHistoryRepository.reloadForActiveProfile(appContext)
             UploadCheckRepository.reloadForActiveProfile(appContext)
             LikedSongsRepository.reloadForActiveProfile(appContext)
+            // The file records its account, so a profile connected to another
+            // one rejects it and the next sync reads the list whole.
+            AccountLikedSongsRepository.reloadForActiveProfile(appContext)
             TasteProfileStore.reloadForActiveProfile(appContext)
         }
 
@@ -235,6 +238,7 @@ class AccountSwitcher(context: Context) {
             StatsRepository.copyProfileData(appContext, fromProfileId, toProfileId)
             SearchHistoryRepository.copyProfileData(appContext, fromProfileId, toProfileId)
             LikedSongsRepository.copyProfileData(appContext, fromProfileId, toProfileId)
+            AccountLikedSongsRepository.copyProfileData(appContext, fromProfileId, toProfileId)
             VideoHistoryRepository.copyProfileData(appContext, fromProfileId, toProfileId)
             LocalSubscriptionsRepository.copyProfileData(appContext, fromProfileId, toProfileId)
             NotInterestedRepository.copyProfileData(appContext, fromProfileId, toProfileId)

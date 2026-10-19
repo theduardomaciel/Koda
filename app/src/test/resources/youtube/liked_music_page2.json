@@ -1,0 +1,52 @@
+{
+  "onResponseReceivedActions": [
+    {
+      "appendContinuationItemsAction": {
+        "continuationItems": [
+          {
+            "musicResponsiveListItemRenderer": {
+              "playlistItemData": {
+                "playlistSetVideoId": "A3",
+                "videoId": "ccccccccccc",
+                "voteSortValue": 1791958792
+              },
+              "flexColumns": [
+                {
+                  "musicResponsiveListItemFlexColumnRenderer": {
+                    "text": {
+                      "runs": [
+                        { "text": "Oldest song" }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "musicResponsiveListItemFlexColumnRenderer": {
+                    "text": {
+                      "runs": [
+                        { "text": "Third Artist" },
+                        { "text": " • " },
+                        { "text": "Third Album" },
+                        { "text": " • " },
+                        { "text": "2:30" }
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "continuationItemRenderer": {
+              "continuationEndpoint": {
+                "continuationCommand": {
+                  "token": "page-three"
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

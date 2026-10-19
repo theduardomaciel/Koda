@@ -1,6 +1,7 @@
 package com.ivor.ivormusic.data.youtube
 
 import com.ivor.ivormusic.data.ArtistItem
+import com.ivor.ivormusic.data.LikedMusicPage
 import com.ivor.ivormusic.data.MusicMetadata
 import com.ivor.ivormusic.data.PlaylistDisplayItem
 import com.ivor.ivormusic.data.Song
@@ -342,6 +343,58 @@ internal fun extractPlaylistContinuationToken(json: String): String? = try {
     }.firstOrNull()
 } catch (e: Exception) {
     null
+}
+
+/**
+ * One page of the account's Liked Music (`VLLM`), the list `like/like`
+ * writes.
+ *
+ * `playlistItemData.voteSortValue` is the entry's add time in seconds and is
+ * strictly decreasing down page one [verified October 2026: 100 rows a page,
+ * liking a song prepends it and unliking it leaves the rest in order]. It
+ * becomes [Song.dateAdded], and the ordering is what makes the incremental
+ * sync's early stop sound; [LikedMusicPage.recentFirst] is false when a page
+ * breaks it, which makes the caller read the list whole instead.
+ *
+ * Returns null when the response is not a page at all - a sign-in shell, an
+ * error object, a malformed body - so a failed request is never mistaken for
+ * the end of the list.
+ */
+internal fun parseLikedMusicPage(json: String): LikedMusicPage? {
+    val root = try {
+        JSONObject(json)
+    } catch (e: Exception) {
+        KLog.e(YOUTUBE_TAG, "Could not read a Liked Music page", e)
+        return null
+    }
+    val contents = findRootContents(root) ?: return null
+    val songs = mutableListOf<Song>()
+    val votes = mutableListOf<Long>()
+    for (i in 0 until contents.length()) {
+        val wrapper = contents.optJSONObject(i) ?: continue
+        for (item in parseItemsFromShelf(wrapper)) {
+            val row = item.optJSONObject("musicResponsiveListItemRenderer") ?: continue
+            val data = row.optJSONObject("playlistItemData") ?: continue
+            if (data.optString("videoId").isBlank()) continue
+            val song = MusicMetadata.song(row) ?: continue
+            val vote = data.optLong("voteSortValue", 0L)
+            if (vote > 0L) {
+                votes += vote
+                songs += song.copy(dateAdded = vote * 1000L)
+            } else {
+                songs += song
+            }
+        }
+    }
+    return LikedMusicPage(
+        songs = songs.distinctBy { it.id },
+        nextCursor = extractPlaylistContinuationToken(json),
+        // The page states no total. A signed-in page that parsed and holds no
+        // rows is an account with no likes, which is a total of zero the sync
+        // can believe rather than a page that failed.
+        totalCount = if (songs.isEmpty() && root.has("contents")) 0 else null,
+        recentFirst = votes.size < 2 || votes.zipWithNext().all { (a, b) -> a > b },
+    )
 }
 
 // ---------------------------------------------------------------------------

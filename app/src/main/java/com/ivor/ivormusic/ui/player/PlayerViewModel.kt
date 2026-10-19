@@ -1679,7 +1679,7 @@ class PlayerViewModel(private val context: Context) : ViewModel() {
      * Check if a specific song is liked.
      */
     fun isSongLiked(songId: String): Boolean {
-        return likedSongsRepository.isLiked(songId)
+        return songLikeActions.isLiked(songId)
     }
 
     /**
@@ -1702,7 +1702,7 @@ class PlayerViewModel(private val context: Context) : ViewModel() {
     private fun updateCurrentSongLikedStatus() {
         val songId = _currentSong.value?.id
         _isCurrentSongLiked.value = if (songId != null) {
-            likedSongsRepository.isLiked(songId)
+            songLikeActions.isLiked(songId)
         } else {
             false
         }

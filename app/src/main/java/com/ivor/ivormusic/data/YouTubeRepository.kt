@@ -68,7 +68,11 @@ class YouTubeRepository(private val context: Context) {
     // --- YouTube Music ---
     private val musicSearch = MusicSearch(musicApi, newPipeGateway)
     private val musicPlaylists = MusicPlaylists(musicApi, sessionManager)
-    private val musicBrowse = MusicBrowse(http, musicApi, musicSearch, musicPlaylists, sessionManager)
+    private val accountLikedSongs = AccountLikedSongsRepository(context)
+    private val musicBrowse = MusicBrowse(
+        http, musicApi, musicSearch, musicPlaylists, sessionManager,
+        likedSongsPreview = { accountLikedSongs.songs.value },
+    )
     private val musicLibrary = MusicLibrary(musicApi, sessionManager)
 
     // --- YouTube ---
@@ -278,6 +282,10 @@ class YouTubeRepository(private val context: Context) {
     suspend fun getAlbumSongs(browseId: String): List<Song> = musicPlaylists.getAlbumSongs(browseId)
 
     suspend fun getLikedMusic(): List<Song> = musicPlaylists.getLikedMusic()
+
+    /** One page of the account's Liked Music (cached; see [AccountLikedSongsRepository]). */
+    suspend fun getLikedMusicPage(cursor: String?): LikedMusicPage? =
+        musicPlaylists.getLikedMusicPage(cursor)
 
     suspend fun getUserPlaylists(): List<PlaylistDisplayItem> = musicPlaylists.getUserPlaylists()
 

@@ -1,0 +1,94 @@
+{
+  "contents": {
+    "twoColumnBrowseResultsRenderer": {
+      "secondaryContents": {
+        "sectionListRenderer": {
+          "contents": [
+            {
+              "musicPlaylistShelfRenderer": {
+                "playlistId": "LM",
+                "contents": [
+                  {
+                    "musicResponsiveListItemRenderer": {
+                      "playlistItemData": {
+                        "playlistSetVideoId": "A1",
+                        "videoId": "aaaaaaaaaaa",
+                        "voteSortValue": 1792160033
+                      },
+                      "flexColumns": [
+                        {
+                          "musicResponsiveListItemFlexColumnRenderer": {
+                            "text": {
+                              "runs": [
+                                { "text": "Newest song" }
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "musicResponsiveListItemFlexColumnRenderer": {
+                            "text": {
+                              "runs": [
+                                { "text": "First Artist" },
+                                { "text": " • " },
+                                { "text": "First Album" },
+                                { "text": " • " },
+                                { "text": "3:00" }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "musicResponsiveListItemRenderer": {
+                      "playlistItemData": {
+                        "playlistSetVideoId": "A2",
+                        "videoId": "bbbbbbbbbbb",
+                        "voteSortValue": 1792049921
+                      },
+                      "flexColumns": [
+                        {
+                          "musicResponsiveListItemFlexColumnRenderer": {
+                            "text": {
+                              "runs": [
+                                { "text": "Older song" }
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "musicResponsiveListItemFlexColumnRenderer": {
+                            "text": {
+                              "runs": [
+                                { "text": "Second Artist" },
+                                { "text": " • " },
+                                { "text": "Second Album" },
+                                { "text": " • " },
+                                { "text": "4:20" }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "continuationItemRenderer": {
+                      "continuationEndpoint": {
+                        "continuationCommand": {
+                          "token": "page-two"
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

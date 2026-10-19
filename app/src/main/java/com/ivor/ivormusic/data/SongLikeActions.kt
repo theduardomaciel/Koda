@@ -20,11 +20,12 @@ import kotlinx.coroutines.launch
  *   caller draws. It is the store the Liked Songs list reads, and it is what
  *   fills the heart on the frame it was tapped; making the UI wait for a round
  *   trip would make every like feel dropped.
- * - **Signed in, the same tap is mirrored to the account's Liked Music.** That
- *   write is best-effort and off the UI's path: a like that did not reach
- *   YouTube is a like that is still on the device, which is the honest failure
- *   the user can see reversed, and a network error must never undo a local
- *   like.
+ * - **Signed in, the same tap is mirrored to the account's Liked Music.** The
+ *   cached copy of that list takes it immediately, so the list and the counts
+ *   agree with the heart before the request lands. That write is best-effort
+ *   and off the UI's path: a like that did not reach YouTube is a like that is
+ *   still on the device, which is the honest failure the user can see
+ *   reversed, and a network error must never undo a local like.
  * - **Signed out, nothing is mirrored.** There is no account to write to.
  */
 class SongLikeActions(
@@ -34,9 +35,16 @@ class SongLikeActions(
 ) {
     private val appContext = context.applicationContext
     private val likedSongs = LikedSongsRepository(appContext)
+    private val accountLikedSongs = AccountLikedSongsRepository(appContext)
     private val sessionManager = SessionManager(appContext)
 
-    fun isLiked(songId: String): Boolean = likedSongs.isLiked(songId)
+    /**
+     * Liked on this device, or on the account the cache has read. The second
+     * half is what keeps a song liked on another device from drawing an empty
+     * heart once the sync has found it.
+     */
+    fun isLiked(songId: String): Boolean =
+        likedSongs.isLiked(songId) || accountLikedSongs.isLiked(songId)
 
     /**
      * Toggle the song's like, returning whether it is liked now.
@@ -47,6 +55,14 @@ class SongLikeActions(
      */
     fun toggleLike(song: Song): Boolean {
         val isNowLiked = likedSongs.toggleLike(song)
+        if (sessionManager.isLoggedIn() && song.source == SongSource.YOUTUBE) {
+            // The account's cache is what the Liked Songs list draws from, so
+            // the tap lands there before the request does; the write below
+            // only confirms it. A device file has nothing to add to the
+            // account's list.
+            if (isNowLiked) accountLikedSongs.markLiked(song)
+            else accountLikedSongs.markUnliked(song.id)
+        }
         mirrorToAccount(song.id, isNowLiked)
         return isNowLiked
     }

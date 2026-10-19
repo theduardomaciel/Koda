@@ -46,6 +46,7 @@ import com.ivor.ivormusic.data.NotificationArtworkLoader
 import com.ivor.ivormusic.data.AudioProfileStore
 import com.ivor.ivormusic.data.AudioProfiler
 import com.ivor.ivormusic.data.TrackLoudnessStore
+import com.ivor.ivormusic.data.AccountLikedSongsRepository
 import com.ivor.ivormusic.data.LikedSongsRepository
 import com.ivor.ivormusic.data.PlaylistDisplayItem
 import com.ivor.ivormusic.data.MusicQueueItem
@@ -126,6 +127,7 @@ class MusicService : MediaLibraryService() {
     private lateinit var themePreferences: ThemePreferences
     private lateinit var audioProfileStore: AudioProfileStore
     private val likedSongsRepository by lazy { LikedSongsRepository(this) }
+    private val accountLikedSongsRepository by lazy { AccountLikedSongsRepository(this) }
 
     /**
      * The like toggle, and the one place the account write is decided. Built
@@ -921,7 +923,8 @@ class MusicService : MediaLibraryService() {
         val session = mediaLibrarySession ?: return
         val player = session.player
         val songId = player.currentMediaItem?.mediaId
-        val liked = songId != null && likedSongsRepository.isLiked(songId)
+        val liked = songId != null &&
+            (likedSongsRepository.isLiked(songId) || accountLikedSongsRepository.isLiked(songId))
         val state = player.repeatMode to liked
         if (state == mediaButtonsState) return
         mediaButtonsState = state

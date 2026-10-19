@@ -1,5 +1,6 @@
 package com.ivor.ivormusic.data.youtube
 
+import com.ivor.ivormusic.data.LikedMusicPage
 import com.ivor.ivormusic.data.MusicMetadata
 import com.ivor.ivormusic.data.PlaylistDisplayItem
 import com.ivor.ivormusic.data.SessionManager
@@ -68,18 +69,42 @@ internal class MusicPlaylists(
     }
 
     /**
-     * Get liked music with pagination support.
-     * YouTube Music API returns paginated results, so we need to fetch all pages.
+     * One page of the account's Liked Music - `LM`, browsed as `VLLM` - for
+     * `AccountLikedSongsRepository`'s walk. [cursor] null requests page one.
      *
-     * Signed in this reads `FEmusic_liked_videos`, the account's liked
-     * *videos*, which is not the list `like/like` writes to: that is `LM`, and
-     * the two share no video id. Reading `LM` here instead is the right answer
-     * but is not a one-line change - the account's Liked Music is 1,612 songs
-     * across 17 pages, so doing it on the library load would make every open
-     * walk the whole list. It needs a preview at the root and demand paging on
-     * Liked Songs, and the counts and heart ticks that read this list to know
-     * they are looking at a preview. `docs/youtube-data.md` carries the
-     * measurement and the shape.
+     * Null signed out or when the page did not arrive, which the caller reads
+     * as "this page failed", never as the end of the list.
+     */
+    suspend fun getLikedMusicPage(cursor: String?): LikedMusicPage? = withContext(Dispatchers.IO) {
+        if (!sessionManager.isLoggedIn()) return@withContext null
+        try {
+            val json = if (cursor == null) {
+                musicApi.browseMusic(LIKED_MUSIC_BROWSE_ID)
+            } else {
+                musicApi.fetchContinuation(cursor)
+            }
+            if (json.isNullOrBlank()) {
+                KLog.w(YOUTUBE_TAG, "Liked Music page failed (cursor=${cursor != null})")
+                return@withContext null
+            }
+            parseLikedMusicPage(json)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            KLog.e(YOUTUBE_TAG, "Error fetching a Liked Music page", e)
+            null
+        }
+    }
+
+    /**
+     * The account's Liked Music, read whole. Signed in this walks `LM` -
+     * `like/like`'s own list, not `FEmusic_liked_videos` - through
+     * [getLikedMusicPage], which is what the cache uses a page at a time;
+     * this whole-list variant is for callers that have no cache to read.
+     *
+     * It costs one request per 100 songs - 17 on the account this was measured
+     * against - so the app's own lists go through
+     * `AccountLikedSongsRepository` instead.
      */
     suspend fun getLikedMusic(): List<Song> = withContext(Dispatchers.IO) {
         if (!sessionManager.isLoggedIn()) {
@@ -88,37 +113,35 @@ internal class MusicPlaylists(
         
         try {
             val allSongs = mutableListOf<Song>()
-            var continuationToken: String? = null
+            val seenTokens = mutableSetOf<String>()
+            var cursor: String? = null
             var pageCount = 0
-            val maxPages = 500 // Increased limit to fetch all liked songs
-            
-            do {
-                val json = if (continuationToken == null) {
-                    musicApi.fetchInternalApi("FEmusic_liked_videos")
-                } else {
-                    musicApi.fetchContinuation(continuationToken)
-                }
-                
-                if (json.isEmpty()) break
-                
-                val songs = parseSongsFromInternalJson(json)
-                allSongs.addAll(songs)
-                
-                // Extract continuation token for next page
-                continuationToken = extractContinuationToken(json)
+
+            while (pageCount < com.ivor.ivormusic.data.LIKED_MUSIC_MAX_PAGES) {
+                val page = getLikedMusicPage(cursor) ?: break
                 pageCount++
-                
-                KLog.d(YOUTUBE_TAG, "Liked songs page $pageCount: ${songs.size} songs, total: ${allSongs.size}")
-                
-            } while (continuationToken != null && pageCount < maxPages)
-            
+                allSongs += page.songs
+                KLog.d(
+                    YOUTUBE_TAG,
+                    "Liked Music page $pageCount: ${page.songs.size} songs, total: ${allSongs.size}"
+                )
+                val next = page.nextCursor ?: return@withContext allSongs.distinctBy { it.id }
+                if (!seenTokens.add(next)) {
+                    KLog.w(YOUTUBE_TAG, "Repeated Liked Music continuation")
+                    break
+                }
+                cursor = next
+            }
+
             if (allSongs.isNotEmpty()) {
                 return@withContext allSongs.distinctBy { it.id }
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             KLog.e(YOUTUBE_TAG, "Error fetching liked music", e)
         }
-        
+
         // Fallback to NewPipe method
         getPlaylistInternal("LM")
     }
@@ -277,5 +300,10 @@ internal class MusicPlaylists(
                 return PlaylistLoadResult(allSongs, complete = false)
             }
         }
+    }
+
+    private companion object {
+        /** `LM` (Liked Music) as a browse id; the playlist page is `VLLM`. */
+        const val LIKED_MUSIC_BROWSE_ID = "VLLM"
     }
 }
