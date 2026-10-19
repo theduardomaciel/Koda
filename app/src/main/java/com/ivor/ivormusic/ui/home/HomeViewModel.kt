@@ -3439,9 +3439,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     _savedAlbums.value = youtubeRepository.getSavedAlbums()
                     _followedArtists.value = youtubeRepository.getFollowedArtists()
                     accountLoadedAtMs = System.currentTimeMillis()
-                    // Pull-to-refresh: the user asked for fresh data, so reconcile
-                    // removals too, not just additions.
-                    syncLikedMusic(forceFull = true)
+                    syncLikedMusic()
                 } else if (_youtubeSongs.value.isNotEmpty()) {
                     // Logged-out YouTube mode: refresh the taste-based feed too.
                     // (Gated on a non-empty feed so local-only users don't pay

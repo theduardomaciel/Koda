@@ -200,9 +200,10 @@ class AccountLikedSongsRepository(context: Context) {
      * cache, and each page is published as it arrives; the list on screen is
      * never empty while the walk runs and never taken away and put back.
      *
-     * It reads the list whole when the cache is empty, when the last full walk
-     * is [LIKED_MUSIC_FULL_RESYNC_INTERVAL_MS] old, when [forceFull] is set, or
-     * when page one did not come back newest-first. A whole walk that reached
+     * It reads the list whole when the cache is empty, when the server's count
+     * changed since the last sync, when the cache's newest entry left page one,
+     * when the last full walk is [LIKED_MUSIC_FULL_RESYNC_INTERVAL_MS] old, or
+     * when [forceFull] is set. A whole walk that reached
      * the end *replaces* the cache, which is what reconciles a song unliked
      * elsewhere; one that failed part way through adds what it read and leaves
      * the rest, since a prefix of the list is not evidence about its tail.
@@ -264,14 +265,19 @@ class AccountLikedSongsRepository(context: Context) {
                         // before it lowers ours, so a drop means something left
                         // that an incremental walk (which only ever adds) cannot
                         // see. Read the list whole to reconcile it.
+                        // The count is the server's own, compared to what it said
+                        // last time: a change means something was added or removed.
+                        // (It is not compared to the cache size, because the
+                        // header over-counts - duplicates and liked videos - so
+                        // the two never agree.) topChanged catches a removal at
+                        // the top that left the count unchanged (add+remove).
+                        val countChanged = totalCount != null && totalCount != cached.totalCount
                         val firstCachedId = cached.songs.firstOrNull()?.id
                         val topChanged = firstCachedId != null && firstCachedId !in page.songs.map { it.id }
-                        val countDropped = totalCount != null && totalCount < cached.songs.size
-                        val cacheIncomplete = totalCount != null && totalCount > cached.songs.size + 5
-                        if ((countDropped || topChanged || cacheIncomplete) && !full) {
+                        if ((countChanged || topChanged) && !full) {
                             KLog.w(
                                 TAG,
-                                "Liked Music changed (cached=${cached.songs.size}, server=$totalCount, " +
+                                "Liked Music changed (stored=${cached.totalCount}, server=$totalCount, " +
                                     "topChanged=$topChanged); walking it whole",
                             )
                             full = true
