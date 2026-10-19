@@ -268,9 +268,14 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         likedSongsRepository.likedSongIds  // Manually liked IDs (covers legacy likes without metadata)
     ) { accountLiked, localSongs, manuallyLikedSongs, manuallyLikedIds ->
         val manuallyLikedLocalSongs = localSongs.filter { it.id in manuallyLikedIds }
-        (manuallyLikedSongs + accountLiked + manuallyLikedLocalSongs)
-            .distinctBy { it.id }
-            .sortedByDescending { it.dateAdded ?: 0L }
+        // The account cache is already in LM's order (newest first). Keep it
+        // as the backbone and append device-only likes after it, so a song
+        // liked on the web stays where LM puts it instead of being reordered
+        // by a device clock that may disagree with the server's.
+        val accountIds = accountLiked.mapTo(HashSet(accountLiked.size)) { it.id }
+        val deviceOnly = (manuallyLikedSongs + manuallyLikedLocalSongs)
+            .filter { it.id !in accountIds }
+        (accountLiked + deviceOnly).distinctBy { it.id }
     }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000), emptyList())
 
     // YouTube playlists
@@ -3225,9 +3230,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             val manuallyLiked = likedSongsRepository.likedSongs.value
             val likedIds = likedSongsRepository.getAllLikedSongIds()
             val likedLocalSongs = _songs.value.filter { it.id in likedIds }
-            return (manuallyLiked + accountLikedSongs.songs.value + likedLocalSongs)
-                .distinctBy { it.id }
-                .sortedByDescending { it.dateAdded ?: 0L }
+            val accountLiked = accountLikedSongs.songs.value
+            val accountIds = accountLiked.mapTo(HashSet(accountLiked.size)) { it.id }
+            val deviceOnly = (manuallyLiked + likedLocalSongs).filter { it.id !in accountIds }
+            return (accountLiked + deviceOnly).distinctBy { it.id }
         }
 
         // Check local first
