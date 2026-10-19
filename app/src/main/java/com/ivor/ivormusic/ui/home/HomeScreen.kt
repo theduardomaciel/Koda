@@ -1276,16 +1276,20 @@ fun HomeScreen(
                                             val classicDownloads by viewModel.downloadedSongs.collectAsState()
                                             // Offline the count describes what can play,
                                             // matching the Liked Songs page itself.
+                                            val classicOfflineIds = remember(
+                                                classicDownloads, classicReadyOffline
+                                            ) {
+                                                (classicDownloads + classicReadyOffline.songs)
+                                                    .mapTo(HashSet()) { it.id }
+                                            }
                                             val classicLikedVisible = remember(
-                                                classicLiked, classicDownloads, classicOnline
+                                                classicLiked, classicOnline, classicOfflineIds
                                             ) {
                                                 if (classicOnline) {
                                                     classicLiked
                                                 } else {
-                                                    val downloadedIds =
-                                                        classicDownloads.mapTo(HashSet()) { it.id }
                                                     classicLiked.filter {
-                                                        it.isPlayableOffline(downloadedIds)
+                                                        it.isPlayableOffline(classicOfflineIds)
                                                     }
                                                 }
                                             }
