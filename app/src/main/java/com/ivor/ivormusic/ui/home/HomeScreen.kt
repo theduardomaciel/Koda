@@ -172,6 +172,7 @@ import com.ivor.ivormusic.R
 import androidx.compose.ui.res.stringResource
 import com.ivor.ivormusic.data.UpdateRepository
 import com.ivor.ivormusic.data.UpdateResult
+import com.ivor.ivormusic.data.isPlayableOffline
 import com.ivor.ivormusic.data.isUnknownArtist
 import com.ivor.ivormusic.data.isUnknownTitle
 
@@ -1273,6 +1274,21 @@ fun HomeScreen(
                                             val classicOnline by viewModel.isOnline.collectAsState()
                                             val classicReadyOffline by viewModel.readyOffline.collectAsState()
                                             val classicDownloads by viewModel.downloadedSongs.collectAsState()
+                                            // Offline the count describes what can play,
+                                            // matching the Liked Songs page itself.
+                                            val classicLikedVisible = remember(
+                                                classicLiked, classicDownloads, classicOnline
+                                            ) {
+                                                if (classicOnline) {
+                                                    classicLiked
+                                                } else {
+                                                    val downloadedIds =
+                                                        classicDownloads.mapTo(HashSet()) { it.id }
+                                                    classicLiked.filter {
+                                                        it.isPlayableOffline(downloadedIds)
+                                                    }
+                                                }
+                                            }
                                             // The cache changes as a side effect of
                                             // listening, so it is re-read each time the
                                             // connection goes, not held from earlier.
@@ -1283,13 +1299,13 @@ fun HomeScreen(
                                                 (classicDownloads + classicReadyOffline.songs).distinctBy { it.id }
                                             }
                                             YourMixContent(
-                                                likedCount = classicLiked.size,
+                                                likedCount = classicLikedVisible.size,
                                                 // Straight onto the likes, as the Library's
                                                 // own Liked row opens them.
                                                 onLikedClick = {
                                                     noteLibraryReturn()
                                                     viewedPlaylistFromHome = com.ivor.ivormusic.data.PlaylistDisplayItem(
-                                                        context.getString(R.string.liked_songs), "LM", "You", classicLiked.size, null
+                                                        context.getString(R.string.liked_songs), "LM", "You", classicLikedVisible.size, null
                                                     )
                                                     selectedTab = 2
                                                 },

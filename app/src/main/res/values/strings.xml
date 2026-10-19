@@ -1775,6 +1775,9 @@
     <string name="lib_offline_no_followed_artists">No followed artists offline</string>
     <string name="lib_offline_no_followed_artists_body">Followed artists appear here after the next sync.</string>
     <string name="lib_offline_tracks_only">Offline: showing downloaded tracks only.</string>
+    <string name="lib_offline_liked_note">Offline: showing liked songs available on this device.</string>
+    <string name="lib_offline_liked_unavailable">No liked songs available offline</string>
+    <string name="lib_offline_liked_unavailable_body">Download liked songs, or like songs on this device, to listen without a connection.</string>
     <string name="lib_offline_album_unavailable">Album not available offline</string>
     <string name="lib_offline_album_unavailable_body">Download this album to listen without a connection.</string>
     <string name="lib_offline_playlist_unavailable">Playlist not available offline</string>

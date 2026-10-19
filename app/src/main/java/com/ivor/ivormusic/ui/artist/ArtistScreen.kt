@@ -370,7 +370,7 @@ fun ArtistScreen(
     val isOnline by (viewModel?.isOnline ?: noNetwork).collectAsState()
 
     // Fetch songs - first check local files, then fetch from internet
-    LaunchedEffect(artistName, artistId, songs, downloadedSongs.isNotEmpty()) {
+    LaunchedEffect(artistName, artistId, songs, downloadedSongs.isNotEmpty(), isOnline) {
         isLoading = true
         visibleSongCount = 20
         artistSongs = emptyList()

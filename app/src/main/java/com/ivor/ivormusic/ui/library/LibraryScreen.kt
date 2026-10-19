@@ -98,6 +98,7 @@ import com.ivor.ivormusic.data.albumArtistLabel
 import com.ivor.ivormusic.data.googleImageAtSize
 import com.ivor.ivormusic.data.groupSongsByAlbum
 import com.ivor.ivormusic.data.groupSongsByArtist
+import com.ivor.ivormusic.data.isPlayableOffline
 import com.ivor.ivormusic.data.isUnknownAlbum
 import com.ivor.ivormusic.data.isUnknownArtist
 import com.ivor.ivormusic.data.sortedInAlbumOrder
@@ -827,6 +828,17 @@ fun LibraryMainScreen(
     val isYouTubeConnected by viewModel.isYouTubeConnected.collectAsState()
     val isAccountLibraryLoading by viewModel.isAccountLibraryLoading.collectAsState()
     val isOnline by viewModel.isOnline.collectAsState()
+    // Offline the Library only lists what can play. Liked Songs is assembled
+    // from the two like stores, so the downloaded half has to be applied here
+    // as well as on the Liked Songs page itself.
+    val likedSongsVisible = remember(likedSongs, downloadedSongs, isOnline) {
+        if (isOnline) {
+            likedSongs
+        } else {
+            val downloadedIds = downloadedSongs.mapTo(HashSet()) { it.id }
+            likedSongs.filter { it.isPlayableOffline(downloadedIds) }
+        }
+    }
     // The account's own library. Signed in these are what the Artists and
     // Albums tabs show; signed out they are empty and the tabs fall back to
     // grouping the device's songs and the follows kept on it.
@@ -870,11 +882,11 @@ fun LibraryMainScreen(
     // The library is what the user OWNS or SAVED — never the recommendation
     // feed. Local mode: device songs + downloads. YouTube mode: downloads +
     // liked songs (the `songs` param carries home recommendations there).
-    val librarySongs = remember(songs, downloadedSongs, likedSongs, isLocalLibrary) {
+    val librarySongs = remember(songs, downloadedSongs, likedSongsVisible, isLocalLibrary) {
         if (isLocalLibrary) {
             (songs + downloadedSongs).distinctBy { it.id }
         } else {
-            (downloadedSongs + likedSongs).distinctBy { it.id }
+            (downloadedSongs + likedSongsVisible).distinctBy { it.id }
         }
     }
 
@@ -1043,7 +1055,7 @@ fun LibraryMainScreen(
                     } else {
                         AllSongsList(
                             songs = sortedSongs,
-                            likedSongs = likedSongs,
+                            likedSongs = likedSongsVisible,
                             downloadedSongs = downloadedSongs,
                             recentlyPlayed = recentlyPlayed,
                             playCounts = playCounts,
@@ -1054,7 +1066,7 @@ fun LibraryMainScreen(
                             onShuffleQueue = onShuffleQueue,
                             onDownloadsClick = onDownloadsClick,
                             onLikedSongsClick = {
-                                onNavigateToPlaylist(PlaylistDisplayItem("Liked Songs", "LM", "You", likedSongs.size, null))
+                                onNavigateToPlaylist(PlaylistDisplayItem("Liked Songs", "LM", "You", likedSongsVisible.size, null))
                             },
                             onNavigateToHistory = onNavigateToHistory,
                             readyOfflineCount = readyOfflineCount,
@@ -1072,7 +1084,7 @@ fun LibraryMainScreen(
                             playlists = userPlaylists,
                             localPlaylistIds = localPlaylistIds,
                             savedPlaylistIds = savedPlaylistIds,
-                            likedSongs = likedSongs,
+                            likedSongs = likedSongsVisible,
                             onPlaylistClick = onNavigateToPlaylist,
                             onRemoveSavedPlaylist = { playlist ->
                                 viewModel.removeSavedPlaylist(playlist.id)
@@ -1092,7 +1104,7 @@ fun LibraryMainScreen(
                                 }
                             },
                             onLikedSongsClick = {
-                                onNavigateToPlaylist(PlaylistDisplayItem("Liked Songs", "LM", "You", likedSongs.size, null))
+                                onNavigateToPlaylist(PlaylistDisplayItem("Liked Songs", "LM", "You", likedSongsVisible.size, null))
                             },
                             hiddenPlaylists = hiddenPlaylists,
                             onHidePlaylist = { playlist -> viewModel.hidePlaylist(playlist) },
@@ -3587,6 +3599,7 @@ fun PlaylistDetailScreen(
     val isOnline by viewModel.isOnline.collectAsState()
     val accountAlbums by viewModel.savedAlbums.collectAsState()
     val isYouTubeAlbum = playlist.id.startsWith("MPRE")
+    val isLikedSongs = resolvedPlaylist.id == "LM" || resolvedPlaylist.id == "VLLM"
     val savedInAccount = isYouTubeAlbum &&
         remember(accountAlbums, playlist.id) { accountAlbums.any { it.id == playlist.id } }
     val isSaved = isSavedPlaylist || savedInAccount
@@ -3745,7 +3758,7 @@ fun PlaylistDetailScreen(
         }
     }
 
-    LaunchedEffect(resolvedPlaylist.id) {
+    LaunchedEffect(resolvedPlaylist.id, isOnline) {
         if (preloadedSongs == null) {
             isFetching.value = true
             songRows = playlistSongRows(
@@ -4782,7 +4795,10 @@ fun PlaylistDetailScreen(
             ) {
                 item(key = "offline_tracks_note") {
                     Text(
-                        text = stringResource(R.string.lib_offline_tracks_only),
+                        text = stringResource(
+                            if (isLikedSongs) R.string.lib_offline_liked_note
+                            else R.string.lib_offline_tracks_only
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = playlistOnGround().copy(alpha = 0.78f),
                         modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 4.dp)
@@ -4839,12 +4855,18 @@ fun PlaylistDetailScreen(
                     EmptyLibraryState(
                         icon = Icons.Rounded.CloudOff,
                         title = stringResource(
-                            if (isYouTubeAlbum) R.string.lib_offline_album_unavailable
-                            else R.string.lib_offline_playlist_unavailable
+                            when {
+                                isLikedSongs -> R.string.lib_offline_liked_unavailable
+                                isYouTubeAlbum -> R.string.lib_offline_album_unavailable
+                                else -> R.string.lib_offline_playlist_unavailable
+                            }
                         ),
                         subtitle = stringResource(
-                            if (isYouTubeAlbum) R.string.lib_offline_album_unavailable_body
-                            else R.string.lib_offline_playlist_unavailable_body
+                            when {
+                                isLikedSongs -> R.string.lib_offline_liked_unavailable_body
+                                isYouTubeAlbum -> R.string.lib_offline_album_unavailable_body
+                                else -> R.string.lib_offline_playlist_unavailable_body
+                            }
                         )
                     )
                 }

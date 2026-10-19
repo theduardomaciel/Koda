@@ -28,6 +28,7 @@ import com.ivor.ivormusic.data.LibraryCacheStore
 import com.ivor.ivormusic.data.ProfileManager
 import com.ivor.ivormusic.data.hasValidatedInternet
 import com.ivor.ivormusic.data.hasValidatedNetwork
+import com.ivor.ivormusic.data.isPlayableOffline
 import com.ivor.ivormusic.data.mergeLikedSongsForDisplay
 import com.ivor.ivormusic.data.offlineAlbumTracks
 import com.ivor.ivormusic.data.HomeRecommendationCache
@@ -3375,19 +3376,26 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             // The list is the cache. A warm cache draws at once and the sync
             // runs behind the screen; a cold one (first sign-in, before the
             // first walk) waits, because an empty screen is worse than a wait.
-            if (sessionManager.isLoggedIn()) {
+            if (online && sessionManager.isLoggedIn()) {
                 if (accountLikedSongs.songs.value.isEmpty()) {
                     syncLikedMusic()
                 } else {
                     viewModelScope.launch { syncLikedMusic() }
                 }
             }
-            return mergeLikedSongsForDisplay(
+            val liked = mergeLikedSongsForDisplay(
                 accountLiked = accountLikedSongs.songs.value,
                 manuallyLikedSongs = likedSongsRepository.likedSongs.value,
                 manuallyLikedIds = likedSongsRepository.getAllLikedSongIds(),
                 localSongs = _songs.value,
             )
+            // Other remote pages draw their downloaded half offline; Liked
+            // Songs is assembled locally, so it has to apply the same rule
+            // itself rather than listing songs that cannot play.
+            if (online) return liked
+            val downloadedIds = downloadRepository.downloadedSongs.value
+                .mapTo(HashSet()) { it.id }
+            return liked.filter { it.isPlayableOffline(downloadedIds) }
         }
 
         // Check local first
