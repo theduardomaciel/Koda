@@ -1,6 +1,8 @@
 package com.ivor.ivormusic.data
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import com.ivor.ivormusic.util.KLog
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -148,6 +150,13 @@ internal fun needsFullLikedMusicSync(
 internal fun likedMusicCacheBelongsToAccount(storedKey: String?, currentKey: String?): Boolean =
     !currentKey.isNullOrBlank() && storedKey == currentKey
 
+internal fun isNetworkAvailable(context: Context): Boolean {
+    val connectivity = context.getSystemService(ConnectivityManager::class.java) ?: return false
+    val capabilities = connectivity.getNetworkCapabilities(connectivity.activeNetwork) ?: return false
+    return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+        capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+}
+
 /**
  * Whether a sync has to read the whole list, or the incremental result is
  * already the truth.
@@ -266,6 +275,13 @@ class AccountLikedSongsRepository(context: Context) {
             // rest off the caller's dispatcher, which is the main one.
             withContext(Dispatchers.IO) {
                 val profileId = ensureLoaded()
+                // Don't walk while offline: the loader would just fail page by
+                // page and the cache stays as it is. The next online open
+                // retries.
+                if (!isNetworkAvailable(appContext)) {
+                    KLog.d(TAG, "Liked Music sync skipped: offline")
+                    return@withContext
+                }
                 // Skip the network entirely if the last sync was recent enough:
                 // quick reopens serve the cache. Pull-to-refresh passes
                 // bypassStale = true.
@@ -314,11 +330,14 @@ class AccountLikedSongsRepository(context: Context) {
                 var topChanged = false
                 val countedForN = mutableSetOf<String>()
                 var incrementalN = 0
+                var lastPageMs = 0L
                 var page1Ids: List<String> = emptyList()
                 var lastKnownPage1CacheIndex = -1
 
                 while (pages < LIKED_MUSIC_MAX_PAGES) {
+                    val pageStart = System.currentTimeMillis()
                     val page = loader(cursor) ?: break
+                    lastPageMs = System.currentTimeMillis() - pageStart
                     pages++
                     if (pages == 1) {
                         totalCount = page.totalCount
@@ -421,7 +440,8 @@ class AccountLikedSongsRepository(context: Context) {
                     KLog.d(
                         TAG,
                         "Liked Music incremental: N=$N, R=$removedCount, stored=" + cached.totalCount +
-                            ", server=" + (totalCount ?: "unknown") + ", result=" + result.size,
+                            ", server=" + (totalCount ?: "unknown") + ", result=" + result.size +
+                            ", lastPageMs=$lastPageMs",
                     )
                     return@withContext
                 }
