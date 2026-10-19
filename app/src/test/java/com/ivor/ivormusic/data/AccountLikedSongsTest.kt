@@ -94,14 +94,12 @@ class AccountLikedSongsTest {
         cacheEmpty: Boolean = false,
         readWholeList: Boolean = false,
         recentFirst: Boolean = true,
-        topChanged: Boolean = false,
         dueForFullResync: Boolean = false,
     ): Boolean = planLikedMusicSync(
         forceFull = forceFull,
         cacheEmpty = cacheEmpty,
         readWholeList = readWholeList,
         recentFirst = recentFirst,
-        topChanged = topChanged,
         dueForFullResync = dueForFullResync,
         storedCount = storedCount,
         serverCount = serverCount,
@@ -148,6 +146,19 @@ class AccountLikedSongsTest {
     }
 
     @Test
+    fun unlikeOfTopItemIsIncremental() {
+        // N=0, R=1 (top removal visible in page 1), server = stored-1.
+        // expected = 1665 + 0 - 1 = 1664 = server -> incremental.
+        assertFalse(plan(storedCount = 1665, serverCount = 1664, newCount = 0, removedCount = 1))
+    }
+
+    @Test
+    fun unlikeOfTopItemPlusAnotherLikeIsIncremental() {
+        // N=1, R=1, server = stored. expected = 1665 + 1 - 1 = 1665 = server -> incremental.
+        assertFalse(plan(storedCount = 1665, serverCount = 1665, newCount = 1, removedCount = 1))
+    }
+
+    @Test
     fun offByOneAtPage1BoundaryAfterRemovalNeedsTheWholeList() {
         // Removal at the page-1/page-2 boundary: R=0 (not visible in page 1),
         // server = stored-1. Full walk needed.
@@ -167,7 +178,6 @@ class AccountLikedSongsTest {
         assertTrue(plan(storedCount = 0, serverCount = 1665, newCount = 0, cacheEmpty = true))
         assertTrue(plan(storedCount = 1665, serverCount = 1665, newCount = 0, readWholeList = true))
         assertTrue(plan(storedCount = 1665, serverCount = 1665, newCount = 0, recentFirst = false))
-        assertTrue(plan(storedCount = 1665, serverCount = 1665, newCount = 0, topChanged = true))
         assertTrue(plan(storedCount = 1665, serverCount = 1665, newCount = 0, dueForFullResync = true))
     }
 

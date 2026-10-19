@@ -162,18 +162,18 @@ internal fun isNetworkAvailable(context: Context): Boolean {
  * already the truth.
  *
  * The server count is compared with what the stored count plus the new items
- * predicts. A match means only additions happened, so nothing was removed and
- * the incremental result stands. A mismatch means something left the list,
- * which an incremental walk cannot see - it stops before the tail - and only a
- * walk of the whole list can find it. A like and an unlike between two syncs
- * land on the same count and are caught here: the prediction is one too high.
+ * minus the removals visible in page 1 predicts. A match means nothing was
+ * removed (or the removals are accounted for), so the incremental result
+ * stands. A mismatch means something left the list that the incremental walk
+ * cannot see, and only a walk of the whole list can find it. A like and an
+ * unlike between two syncs land on the same count and are caught here: the
+ * prediction is one too high.
  */
 internal fun planLikedMusicSync(
     forceFull: Boolean,
     cacheEmpty: Boolean,
     readWholeList: Boolean,
     recentFirst: Boolean,
-    topChanged: Boolean,
     dueForFullResync: Boolean,
     storedCount: Int,
     serverCount: Int?,
@@ -184,7 +184,6 @@ internal fun planLikedMusicSync(
     if (cacheEmpty) return true
     if (readWholeList) return true
     if (!recentFirst) return true
-    if (topChanged) return true
     if (dueForFullResync) return true
     val server = serverCount ?: return true
     return server != storedCount + newCount - removedCount
@@ -401,7 +400,6 @@ class AccountLikedSongsRepository(context: Context) {
                     cacheEmpty = cached.songs.isEmpty(),
                     readWholeList = readWholeList,
                     recentFirst = recentFirst,
-                    topChanged = topChanged,
                     dueForFullResync = needsFullLikedMusicSync(
                         lastFullSyncMs = cached.lastFullSyncMs,
                         nowMs = System.currentTimeMillis(),
@@ -448,8 +446,8 @@ class AccountLikedSongsRepository(context: Context) {
 
                 KLog.w(
                     TAG,
-                    "Liked Music full: stored=" + cached.totalCount + ", N=$N, server=" +
-                        (totalCount ?: "unknown") + ", topChanged=$topChanged, " +
+                    "Liked Music full: stored=" + cached.totalCount + ", N=$N, R=$removedCount, " +
+                        "server=" + (totalCount ?: "unknown") + ", " +
                         "readWholeList=$readWholeList; walking it whole",
                 )
 
@@ -509,7 +507,7 @@ class AccountLikedSongsRepository(context: Context) {
                 )
                 KLog.d(
                     TAG,
-                    "Liked Music full: pages=$pages, N=$N, stored=" + cached.totalCount +
+                    "Liked Music full: pages=$pages, N=$N, R=$removedCount, stored=" + cached.totalCount +
                         ", server=" + (totalCount ?: "unknown") + ", result=" + result.size +
                         ", believe=$believe",
                 )
