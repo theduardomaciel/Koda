@@ -272,6 +272,12 @@ class AccountLikedSongsRepository(context: Context) {
                         // the two never agree.) topChanged catches a removal at
                         // the top that left the count unchanged (add+remove).
                         val countChanged = totalCount != null && totalCount != cached.totalCount
+                        // topChanged is false when liking on the web: the new
+                        // song is prepended, pushing the old first entry to
+                        // position 1, but it is still in page 1. topChanged
+                        // only fires when the first cached id is gone entirely
+                        // (a removal at the very top). Additions are detected
+                        // by the count change, not by topChanged.
                         val firstCachedId = cached.songs.firstOrNull()?.id
                         val topChanged = firstCachedId != null && firstCachedId !in page.songs.map { it.id }
                         if ((countChanged || topChanged) && !full) {
@@ -325,7 +331,8 @@ class AccountLikedSongsRepository(context: Context) {
                 KLog.d(
                     TAG,
                     "Liked Music sync: pages=$pages full=$full complete=$complete stopped=$stopped " +
-                        "cached=${cached.songs.size} -> ${result.size} of ${totalCount ?: "unknown"}"
+                        "N=${scanned.size} stored=${cached.totalCount} server=${totalCount ?: "unknown"} " +
+                        "cached=${cached.songs.size} -> ${result.size}",
                 )
             }
         } catch (e: CancellationException) {
@@ -348,7 +355,11 @@ class AccountLikedSongsRepository(context: Context) {
             val entry = song.copy(dateAdded = System.currentTimeMillis())
             likedDuringWalk[song.id] = entry
             unlikedDuringWalk.remove(song.id)
+            // The like will land in LM, so the server count goes up by one.
+            // Tracking it here keeps the next sync from seeing a spurious
+            // count change and doing an unnecessary full walk.
             publishLocked(mergeLikedMusicProgress(listOf(entry), state.songs))
+            state = state.copy(totalCount = state.totalCount + 1)
         }
         persist(profileId)
     }
@@ -364,6 +375,8 @@ class AccountLikedSongsRepository(context: Context) {
             unlikedDuringWalk += songId
             if (state.songs.none { it.id == songId }) return@synchronized false
             publishLocked(state.songs.filterNot { it.id == songId })
+            // The unlike will land in LM, so the server count goes down by one.
+            state = state.copy(totalCount = (state.totalCount - 1).coerceAtLeast(0))
             true
         }
         if (changed) persist(profileId)
