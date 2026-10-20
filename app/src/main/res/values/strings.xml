@@ -1770,6 +1770,8 @@
     <string name="lib_no_saved_albums_subtitle">Albums you save to your YouTube Music library will show up here</string>
     <string name="lib_unfollow">Unfollow</string>
     <string name="lib_offline_banner">You\'re offline. Showing your saved library.</string>
+    <string name="lib_offline_collapse">Collapse offline notice</string>
+    <string name="lib_offline_expand">Show offline notice</string>
     <string name="lib_offline_no_saved_albums">No saved albums offline</string>
     <string name="lib_offline_no_saved_albums_body">Saved albums appear here after the next sync. Albums you downloaded are still available.</string>
     <string name="lib_offline_no_followed_artists">No followed artists offline</string>

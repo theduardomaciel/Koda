@@ -1529,6 +1529,9 @@ fun HomeScreen(
                                     if (playNext) playerViewModel.playNext(song)
                                     else playerViewModel.addToQueue(song)
                                 },
+                                bottomOverlayInset = bottomOverlayInset,
+                                floatingToolbarState = floatingToolbarState,
+                                floatingOverlayFollowOffsetPx = miniPlayerFollowOffsetPx,
                                 allSongsListState = musicLibraryScrollState
                             )
                         }

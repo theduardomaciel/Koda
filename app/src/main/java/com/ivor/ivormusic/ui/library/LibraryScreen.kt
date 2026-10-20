@@ -68,6 +68,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -215,6 +216,24 @@ fun LibraryContent(
      */
     onEnqueueSong: ((Song, Boolean) -> Unit)? = null,
     /**
+     * The top of the bottom overlays (mini player, video mini bar, navigation)
+     * in screen coordinates. The offline panel sits one mini-player gap above
+     * it, rather than in the page's flow.
+     */
+    bottomOverlayInset: Dp = 0.dp,
+    /**
+     * The Home shell's scroll state, so the offline panel closes and opens on
+     * the same gesture as the mini player. Null leaves only the manual
+     * controls.
+     */
+    floatingToolbarState: androidx.compose.material3.FloatingToolbarState? = null,
+    /**
+     * How far the bottom overlays have followed the toolbar down, in pixels.
+     * Read in layout by the offline panel so it moves with the mini player
+     * instead of standing over the gap it leaves.
+     */
+    floatingOverlayFollowOffsetPx: () -> Float = { 0f },
+    /**
      * Hoisted by HomeScreen for the main route's All tab, which is the one the
      * tab opens on. The other sub-tabs and the playlist/artist/album routes keep
      * their own states, since each is a different list and sharing one would
@@ -230,6 +249,8 @@ fun LibraryContent(
     // being played and leave by being evicted, so a value collected once at
     // first composition would be stale by the time anyone looked at it again.
     val readyOffline by viewModel.readyOffline.collectAsState()
+    val isOnline by viewModel.isOnline.collectAsState()
+    val isYouTubeConnected by viewModel.isYouTubeConnected.collectAsState()
     LaunchedEffect(currentRoute) {
         if (currentRoute == LibraryRoute.Main) viewModel.refreshReadyOffline()
     }
@@ -650,6 +671,27 @@ fun LibraryContent(
         routeContent(route)
     }
     }
+
+    // Floating rather than in the header: the offline state is not part of the
+    // page's content, and a full-width strip above the tabs cost every Library
+    // screen a row of scrolling. It sits above the bottom overlays and closes
+    // into a bubble the same way the mini player does.
+    val immersiveRoute = when (currentRoute) {
+        LibraryRoute.CreatePlaylist, LibraryRoute.ImportSongs,
+        LibraryRoute.AddSongs, LibraryRoute.SpotifyImport -> true
+        else -> false
+    }
+    if (isYouTubeConnected && !isOnline && !immersiveRoute) {
+        LibraryOfflinePanel(
+            floatingToolbarState = floatingToolbarState,
+            resetKey = currentRoute,
+            followOffsetPx = floatingOverlayFollowOffsetPx,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(horizontal = 16.dp)
+                .padding(bottom = bottomOverlayInset + OFFLINE_PANEL_GAP)
+        )
+    }
     }
 }
 
@@ -1003,17 +1045,6 @@ fun LibraryMainScreen(
                     }
                 }
             }
-        }
-
-        // Signed out the device library is already local, so the banner only
-        // means something when an account is what is being drawn from cache.
-        if (isYouTubeConnected && !isOnline) {
-            LibraryOfflineBanner(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .padding(bottom = 8.dp)
-            )
         }
 
         // --- Main Content ---
@@ -2948,33 +2979,149 @@ private fun ManageModeToolbar(
     }
 }
 
+/** Same distance as the mini player's bubble latch. */
+private val OFFLINE_PANEL_COLLAPSE_SCROLL = 56.dp
+
+/** One mini-player gap above the bottom overlays. */
+private val OFFLINE_PANEL_GAP = 12.dp
+
 /**
- * The Library's offline state, above the tabs rather than instead of them.
- * Signed in, the account lists are drawn from the last successful sync; this
- * says why they may be older than the account and why a track will not play.
+ * The Library's offline state as a floating panel above the bottom overlays.
+ *
+ * Scrolling down closes it into a circle at the end. Unlike the mini player,
+ * scrolling back up does not reopen it: the message stays out of the way until
+ * the user taps the circle (or, while open, its chevron). Nothing here is part
+ * of the page flow, so it costs no scrolling room.
  */
 @Composable
-private fun LibraryOfflineBanner(modifier: Modifier = Modifier) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+private fun LibraryOfflinePanel(
+    floatingToolbarState: androidx.compose.material3.FloatingToolbarState?,
+    resetKey: Any?,
+    followOffsetPx: () -> Float,
+    modifier: Modifier = Modifier
+) {
+    var expanded by rememberSaveable { mutableStateOf(true) }
+    val haptics = com.ivor.ivormusic.util.rememberKodaHaptics()
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val collapsePx = with(density) { OFFLINE_PANEL_COLLAPSE_SCROLL.toPx() }
+    val panelHeight = 68.dp
+    val bubbleSizePx = with(density) { panelHeight.toPx() }
+    val panelShape = RoundedCornerShape(panelHeight / 2)
+    // Bumped by a manual open, so the scroll latch starts measuring again from
+    // where the list is now rather than from before the panel closed.
+    var latchGeneration by remember { mutableStateOf(0) }
+
+    LaunchedEffect(floatingToolbarState, resetKey, latchGeneration) {
+        expanded = true
+        val state = floatingToolbarState ?: return@LaunchedEffect
+        // Down closes it; nothing here opens it again. Reopening is the user's
+        // decision, through the circle or the chevron.
+        var turn = state.contentOffset
+        snapshotFlow { state.contentOffset }.collect { offset ->
+            if (!expanded) return@collect
+            if (offset > turn) turn = offset
+            if (turn - offset >= collapsePx) expanded = false
+        }
+    }
+
+    val collapseFraction by animateFloatAsState(
+        targetValue = if (expanded) 0f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMediumLow
+        ),
+        label = "offlinePanelCollapse"
+    )
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .offset { IntOffset(0, followOffsetPx().roundToInt()) },
+        contentAlignment = Alignment.CenterEnd
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Surface(
+            modifier = Modifier
+                .height(panelHeight)
+                // Width is interpolated in layout, like the mini player's
+                // bubble: the content is measured at the width it will have,
+                // so a shrinking panel never lays out wider than its shape.
+                .layout { measurable, constraints ->
+                    val fraction = collapseFraction.coerceIn(0f, 1f)
+                    val width = androidx.compose.ui.util.lerp(
+                        constraints.maxWidth.toFloat(), bubbleSizePx, fraction
+                    ).roundToInt().coerceAtMost(constraints.maxWidth)
+                    val placeable = measurable.measure(
+                        androidx.compose.ui.unit.Constraints.fixed(
+                            width, constraints.maxHeight
+                        )
+                    )
+                    layout(width, constraints.maxHeight) { placeable.placeRelative(0, 0) }
+                },
+            shape = panelShape,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            tonalElevation = 3.dp,
+            shadowElevation = 8.dp
         ) {
-            Icon(
-                imageVector = Icons.Rounded.CloudOff,
-                contentDescription = null,
-                modifier = Modifier.size(20.dp)
-            )
-            Text(
-                text = stringResource(R.string.lib_offline_banner),
-                style = MaterialTheme.typography.bodyMedium
-            )
+            Box(Modifier.fillMaxSize().clip(panelShape)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(start = 16.dp, end = 4.dp)
+                        .graphicsLayer { alpha = (1f - collapseFraction).coerceIn(0f, 1f) },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.CloudOff,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = stringResource(R.string.lib_offline_banner),
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(
+                        enabled = expanded,
+                        onClick = {
+                            expanded = false
+                            haptics.subtle()
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.KeyboardArrowDown,
+                            contentDescription = stringResource(R.string.lib_offline_collapse),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer { alpha = collapseFraction.coerceIn(0f, 1f) }
+                        .then(
+                            if (!expanded) {
+                                Modifier.clickable(
+                                    onClickLabel = stringResource(R.string.lib_offline_expand)
+                                ) {
+                                    expanded = true
+                                    latchGeneration++
+                                    haptics.subtle()
+                                }
+                            } else Modifier
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.CloudOff,
+                        contentDescription = stringResource(R.string.lib_offline_expand),
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
         }
     }
 }
