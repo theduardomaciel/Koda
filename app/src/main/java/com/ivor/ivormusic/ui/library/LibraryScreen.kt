@@ -1283,103 +1283,68 @@ fun LibraryMainScreen(
                                 )
                         }
 
-                        Column(modifier = Modifier.fillMaxSize()) {
-                            // The header is outside both grids on purpose: the
-                            // chip has to survive the mode switch, or it is
-                            // composed already selected and never animates.
-                            if (showHeader) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(
-                                            start = 16.dp,
-                                            top = 8.dp,
-                                            end = 16.dp,
-                                            // The grids open with 8dp of their
-                                            // own; this restores the 24dp the
-                                            // header had as their first item.
-                                            bottom = 16.dp
-                                        )
-                                ) {
-                                    GroupSortHeader(
-                                        countLabel = countLabel,
-                                        sort = if (showAccount) followingSort else derivedSort,
-                                        onSortChange = { sort ->
-                                            if (showAccount) {
-                                                themePreferences.setLibraryFollowingArtistSort(sort.name)
-                                            } else {
-                                                themePreferences.setLibraryArtistSort(sort.name)
-                                            }
-                                        },
-                                        sortOptions = if (showAccount) {
-                                            listOf(
-                                                LibraryGroupSort.Name,
-                                                LibraryGroupSort.RecentlyAdded
-                                            )
-                                        } else {
-                                            listOf(
-                                                LibraryGroupSort.Name,
-                                                LibraryGroupSort.MostSongs,
-                                                LibraryGroupSort.MostPlayed
-                                            )
-                                        },
-                                        followingSelected = if (isYouTubeConnected) {
-                                            followingSelected
-                                        } else null,
-                                        onFollowingClick = if (isYouTubeConnected) {
-                                            {
-                                                tabHaptics.subtle()
-                                                themePreferences.setLibraryArtistsFollowing(
-                                                    !followingArtists
-                                                )
-                                            }
-                                        } else null
-                                    )
-                                }
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxWidth()
-                            ) {
+                        // One grid for both modes: the header stays its first
+                        // item, so it scrolls away with the list and the chip
+                        // keeps its identity across the switch.
+                        ArtistsLibraryGrid(
+                            countLabel = countLabel,
+                            sort = if (showAccount) followingSort else derivedSort,
+                            onSortChange = { sort ->
                                 if (showAccount) {
-                                    AccountArtistsGrid(
-                                        artists = accountArtists,
-                                        onArtistClick = { artist ->
-                                            onNavigateToFollowedArtist(
-                                                com.ivor.ivormusic.data.TasteArtist(
-                                                    id = artist.id,
-                                                    name = artist.name,
-                                                    thumbnailUrl = artist.thumbnailUrl
-                                                )
-                                            )
-                                        },
-                                        contentPadding = contentPadding,
-                                        isLoading = isAccountLibraryLoading,
-                                        offline = accountUnavailable,
-                                        sort = followingSort
-                                    )
+                                    themePreferences.setLibraryFollowingArtistSort(sort.name)
                                 } else {
-                                    ArtistsGrid(
-                                        songs = librarySongs,
-                                        // Signed in, the device's follows are
-                                        // no longer drawn: Following is the
-                                        // account's list. Signed out keeps the
-                                        // section.
-                                        followed = if (isYouTubeConnected) {
-                                            emptyList()
-                                        } else {
-                                            tasteProfile.artists
-                                        },
-                                        onFollowedClick = onNavigateToFollowedArtist,
-                                        onArtistClick = onNavigateToArtist,
-                                        contentPadding = contentPadding,
-                                        sort = derivedSort,
-                                        playCounts = playCounts
-                                    )
+                                    themePreferences.setLibraryArtistSort(sort.name)
                                 }
-                            }
-                        }
+                            },
+                            sortOptions = if (showAccount) {
+                                listOf(
+                                    LibraryGroupSort.Name,
+                                    LibraryGroupSort.RecentlyAdded
+                                )
+                            } else {
+                                listOf(
+                                    LibraryGroupSort.Name,
+                                    LibraryGroupSort.MostSongs,
+                                    LibraryGroupSort.MostPlayed
+                                )
+                            },
+                            followingSelected = if (isYouTubeConnected) {
+                                followingSelected
+                            } else null,
+                            onFollowingClick = if (isYouTubeConnected) {
+                                {
+                                    tabHaptics.subtle()
+                                    themePreferences.setLibraryArtistsFollowing(!followingArtists)
+                                }
+                            } else null,
+                            showHeader = showHeader,
+                            showAccount = showAccount,
+                            accountArtists = accountArtists,
+                            accountLoading = isAccountLibraryLoading,
+                            accountOffline = accountUnavailable,
+                            onAccountArtistClick = { artist ->
+                                onNavigateToFollowedArtist(
+                                    com.ivor.ivormusic.data.TasteArtist(
+                                        id = artist.id,
+                                        name = artist.name,
+                                        thumbnailUrl = artist.thumbnailUrl
+                                    )
+                                )
+                            },
+                            songs = librarySongs,
+                            // Signed in, the device's follows are no longer
+                            // drawn: Following is the account's list. Signed
+                            // out keeps the section.
+                            followed = if (isYouTubeConnected) {
+                                emptyList()
+                            } else {
+                                tasteProfile.artists
+                            },
+                            onFollowedClick = onNavigateToFollowedArtist,
+                            onArtistClick = onNavigateToArtist,
+                            playCounts = playCounts,
+                            contentPadding = contentPadding
+                        )
                     }
                     LibraryTab.Albums -> {
                         // Same rule as the Artists tab: signed in, this is the
@@ -2199,140 +2164,260 @@ private fun HiddenPlaylistsSheet(
     }
 }
 
+/**
+ * The Artists tab's single scroll container.
+ *
+ * The header is a grid item, so it scrolls away with the lists instead of
+ * holding a strip of the screen. It is still one composable across the
+ * Following switch - the item survives while the rows beneath it change -
+ * which is what lets the chip animate instead of being recreated.
+ */
 @Composable
-fun ArtistsGrid(
+fun ArtistsLibraryGrid(
+    countLabel: String,
+    sort: LibraryGroupSort,
+    onSortChange: (LibraryGroupSort) -> Unit,
+    sortOptions: List<LibraryGroupSort>,
+    followingSelected: Boolean?,
+    onFollowingClick: (() -> Unit)?,
+    showHeader: Boolean,
+    showAccount: Boolean,
+    accountArtists: List<com.ivor.ivormusic.data.ArtistItem>,
+    accountLoading: Boolean,
+    accountOffline: Boolean,
+    onAccountArtistClick: (com.ivor.ivormusic.data.ArtistItem) -> Unit,
     songs: List<Song>,
+    followed: List<com.ivor.ivormusic.data.TasteArtist>,
+    onFollowedClick: (com.ivor.ivormusic.data.TasteArtist) -> Unit,
     onArtistClick: (String) -> Unit,
-    contentPadding: PaddingValues,
-    sort: LibraryGroupSort = LibraryGroupSort.Name,
-    playCounts: Map<String, Int> = emptyMap(),
-    /** Artists followed on this device, shown above the ones the library's songs name. */
-    followed: List<com.ivor.ivormusic.data.TasteArtist> = emptyList(),
-    onFollowedClick: (com.ivor.ivormusic.data.TasteArtist) -> Unit = {}
+    playCounts: Map<String, Int>,
+    contentPadding: PaddingValues
 ) {
-    val artists = remember(songs, sort, playCounts) {
-        sort.apply(
+    val artists = remember(songs, sort, playCounts, showAccount) {
+        if (showAccount) emptyList()
+        else sort.apply(
             songs.filterNot { isUnknownArtist(it.artist) }.groupSongsByArtist()
         ) { song -> playCounts[song.id] ?: 0 }
     }
-
-    if (artists.isEmpty() && followed.isEmpty()) {
-        EmptyLibraryState(
-            icon = Icons.Rounded.Person,
-            title = stringResource(R.string.no_artists_yet),
-            subtitle = stringResource(R.string.no_artists_yet_subtitle)
-        )
-        return
+    // The account serves this list in its own subscription order and a follow
+    // made here is prepended to it, so Recently added is that order as served.
+    // The other sorts make no sense on these rows: they carry neither songs
+    // nor plays.
+    val sortedAccountArtists = remember(accountArtists, sort, showAccount) {
+        when {
+            !showAccount -> emptyList()
+            sort == LibraryGroupSort.RecentlyAdded -> accountArtists
+            else -> accountArtists.sortedBy { it.name.lowercase() }
+        }
     }
 
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 140.dp), // Slightly smaller for artists
-        contentPadding = PaddingValues(
-            top = 8.dp,
-            bottom = contentPadding.calculateBottomPadding() + 16.dp,
-            start = 16.dp,
-            end = 16.dp
-        ),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp),
-        modifier = Modifier.fillMaxSize()
-    ) {
-        // Following first: these are the artists the user chose by name,
-        // where the list below is whoever their songs happen to credit. An
-        // artist can be in both, and is: one says "I follow them", the other
-        // "I have their songs".
-        if (followed.isNotEmpty()) {
-            item(key = "followed_header", span = { GridItemSpan(maxLineSpan) }) {
-                Text(
-                    text = stringResource(R.string.lib_following_header),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
-                )
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        // Empty states live inside the lazy grid so the header stays item 0;
+        // this gives them the viewport height they would have had as siblings.
+        val emptyHeight = maxHeight
+
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = 140.dp), // Slightly smaller for artists
+            contentPadding = PaddingValues(
+                top = 8.dp,
+                bottom = contentPadding.calculateBottomPadding() + 16.dp,
+                start = 16.dp,
+                end = 16.dp
+            ),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            // Signed out, the device's own follows lead, as upstream. Signed in
+            // this is empty and the header is the first item.
+            if (followed.isNotEmpty()) {
+                item(key = "followed_header", span = { GridItemSpan(maxLineSpan) }) {
+                    Text(
+                        text = stringResource(R.string.lib_following_header),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
+                    )
+                }
+                items(followed, key = { "followed_" + it.key }) { artist ->
+                    FollowedArtistCard(artist = artist, onClick = { onFollowedClick(artist) })
+                }
             }
-            items(followed, key = { "followed_" + it.key }) { artist ->
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .clickable { onFollowedClick(artist) }
-                ) {
-                    Surface(
-                        shape = CircleShape,
-                        modifier = Modifier.size(140.dp),
-                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        shadowElevation = 6.dp,
-                        border = libraryOpenBorder(LocalLibraryOpenItem.current?.artistName == artist.name)
-                    ) {
-                        if (!artist.thumbnailUrl.isNullOrBlank()) {
-                            AsyncImage(
-                                model = artist.thumbnailUrl,
-                                contentDescription = null,
-                                contentScale = ContentScale.Crop
-                            )
-                        } else {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    Icons.Rounded.Person,
-                                    null,
-                                    modifier = Modifier.size(48.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+            if (showHeader) {
+                item(key = "artists_header", span = { GridItemSpan(maxLineSpan) }) {
+                    GroupSortHeader(
+                        countLabel = countLabel,
+                        sort = sort,
+                        onSortChange = onSortChange,
+                        sortOptions = sortOptions,
+                        followingSelected = followingSelected,
+                        onFollowingClick = onFollowingClick
+                    )
+                }
+            }
+            if (showAccount) {
+                if (accountArtists.isEmpty()) {
+                    // "Still loading", "follows nobody" and "cannot reach the
+                    // account" are different answers, and drawing the wrong one
+                    // tells the user something false about their library.
+                    item(key = "account_status", span = { GridItemSpan(maxLineSpan) }) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(emptyHeight),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            when {
+                                accountLoading -> CircularProgressIndicator()
+                                accountOffline -> EmptyLibraryState(
+                                    icon = Icons.Rounded.CloudOff,
+                                    title = stringResource(R.string.lib_offline_no_followed_artists),
+                                    subtitle = stringResource(R.string.lib_offline_no_followed_artists_body)
+                                )
+                                else -> EmptyLibraryState(
+                                    icon = Icons.Rounded.Person,
+                                    title = stringResource(R.string.lib_no_followed_artists),
+                                    subtitle = stringResource(R.string.lib_no_followed_artists_subtitle)
                                 )
                             }
                         }
                     }
-                    Spacer(Modifier.height(12.dp))
-                    Text(
-                        artist.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        textAlign = TextAlign.Center,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        stringResource(R.string.artist_following),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary
+                } else {
+                    items(sortedAccountArtists, key = { "account_artist_" + it.id }) { artist ->
+                        AccountArtistCard(artist = artist, onClick = { onAccountArtistClick(artist) })
+                    }
+                }
+            } else {
+                if (artists.isEmpty() && followed.isEmpty()) {
+                    item(key = "artists_empty", span = { GridItemSpan(maxLineSpan) }) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(emptyHeight)
+                        ) {
+                            EmptyLibraryState(
+                                icon = Icons.Rounded.Person,
+                                title = stringResource(R.string.no_artists_yet),
+                                subtitle = stringResource(R.string.no_artists_yet_subtitle)
+                            )
+                        }
+                    }
+                }
+                items(artists, key = { (name, _) -> name }) { (artist, artistSongs) ->
+                    DerivedArtistCard(
+                        artist = artist,
+                        artistSongs = artistSongs,
+                        onClick = { onArtistClick(artist) }
                     )
                 }
             }
         }
-        items(artists, key = { (name, _) -> name }) { (artist, artistSongs) ->
-             Column(
-                 horizontalAlignment = Alignment.CenterHorizontally,
-                 modifier = Modifier
-                     .clip(RoundedCornerShape(20.dp))
-                     .clickable { onArtistClick(artist) }
-             ) {
-                 Surface(
-                     shape = CircleShape,
-                     modifier = Modifier.size(140.dp),
-                     color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                     shadowElevation = 6.dp,
-                     border = libraryOpenBorder(LocalLibraryOpenItem.current?.artistName == artist)
-                 ) {
-                     val art = artistSongs.firstOrNull { it.albumArtUri != null }?.albumArtUri
-                         ?: artistSongs.firstOrNull { it.thumbnailUrl != null }?.thumbnailUrl
-                     if (art != null) {
-                         AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop)
-                     } else {
-                         Box(contentAlignment = Alignment.Center) {
-                             Icon(Icons.Rounded.Person, null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                         }
-                     }
-                 }
-                 Spacer(Modifier.height(12.dp))
-                 Text(artist, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground, textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                 Text(
-                     if (artistSongs.size == 1) "1 song" else "${artistSongs.size} songs",
-                     style = MaterialTheme.typography.bodySmall,
-                     color = MaterialTheme.colorScheme.onSurfaceVariant
-                 )
-             }
+    }
+}
+
+@Composable
+private fun FollowedArtistCard(
+    artist: com.ivor.ivormusic.data.TasteArtist,
+    onClick: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .clickable(onClick = onClick)
+    ) {
+        Surface(
+            shape = CircleShape,
+            modifier = Modifier.size(140.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            shadowElevation = 6.dp,
+            border = libraryOpenBorder(LocalLibraryOpenItem.current?.artistName == artist.name)
+        ) {
+            if (!artist.thumbnailUrl.isNullOrBlank()) {
+                AsyncImage(
+                    model = artist.thumbnailUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Rounded.Person,
+                        null,
+                        modifier = Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
         }
+        Spacer(Modifier.height(12.dp))
+        Text(
+            artist.name,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onBackground,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            stringResource(R.string.artist_following),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.primary
+        )
+    }
+}
+
+@Composable
+private fun DerivedArtistCard(
+    artist: String,
+    artistSongs: List<Song>,
+    onClick: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .clickable(onClick = onClick)
+    ) {
+        Surface(
+            shape = CircleShape,
+            modifier = Modifier.size(140.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            shadowElevation = 6.dp,
+            border = libraryOpenBorder(LocalLibraryOpenItem.current?.artistName == artist)
+        ) {
+            val art = artistSongs.firstOrNull { it.albumArtUri != null }?.albumArtUri
+                ?: artistSongs.firstOrNull { it.thumbnailUrl != null }?.thumbnailUrl
+            if (art != null) {
+                AsyncImage(model = art, contentDescription = null, contentScale = ContentScale.Crop)
+            } else {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Rounded.Person,
+                        null,
+                        modifier = Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        Text(
+            artist,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onBackground,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            if (artistSongs.size == 1) "1 song" else "${artistSongs.size} songs",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
@@ -2400,121 +2485,66 @@ fun AlbumsGrid(
 }
 
 /**
- * The artists the signed-in account follows on YouTube Music, drawn when the
- * Artists tab's Following chip is on.
- *
- * The id is the `UC...` channel id YouTube served, which is what the artist
- * page opens on. This list carries subscriber counts; unfollowing stays on the
- * artist page, out of accidental thumb-reach of the grid.
+ * A followed artist on the account's list. The id is the `UC...` channel id
+ * YouTube served, which is what the artist page opens on. This card carries
+ * subscriber counts; unfollowing stays on the artist page, out of accidental
+ * thumb-reach of the grid.
  */
 @Composable
-fun AccountArtistsGrid(
-    artists: List<com.ivor.ivormusic.data.ArtistItem>,
-    onArtistClick: (com.ivor.ivormusic.data.ArtistItem) -> Unit,
-    contentPadding: PaddingValues,
-    isLoading: Boolean = false,
-    /** Offline with nothing cached: the empty list is not the account's answer. */
-    offline: Boolean = false,
-    sort: LibraryGroupSort = LibraryGroupSort.Name
+private fun AccountArtistCard(
+    artist: com.ivor.ivormusic.data.ArtistItem,
+    onClick: () -> Unit
 ) {
-    // The account serves this list in its own subscription order and a follow
-    // made here is prepended to it, so Recently added is that order kept as
-    // served. The other sorts make no sense on these rows: they carry neither
-    // songs nor plays.
-    val sortedArtists = remember(artists, sort) {
-        if (sort == LibraryGroupSort.RecentlyAdded) artists
-        else artists.sortedBy { it.name.lowercase() }
-    }
-
-    if (artists.isEmpty()) {
-        // "Still loading", "follows nobody" and "cannot reach the account"
-        // are different answers, and drawing the wrong one tells the user
-        // something false about their library.
-        if (isLoading) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
-        } else if (offline) {
-            EmptyLibraryState(
-                icon = Icons.Rounded.CloudOff,
-                title = stringResource(R.string.lib_offline_no_followed_artists),
-                subtitle = stringResource(R.string.lib_offline_no_followed_artists_body)
-            )
-        } else {
-            EmptyLibraryState(
-                icon = Icons.Rounded.Person,
-                title = stringResource(R.string.lib_no_followed_artists),
-                subtitle = stringResource(R.string.lib_no_followed_artists_subtitle)
-            )
-        }
-        return
-    }
-
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 140.dp),
-        contentPadding = PaddingValues(
-            top = 8.dp,
-            bottom = contentPadding.calculateBottomPadding() + 16.dp,
-            start = 16.dp,
-            end = 16.dp
-        ),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp),
-        modifier = Modifier.fillMaxSize()
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .clickable(onClick = onClick)
     ) {
-        items(sortedArtists, key = { "account_artist_" + it.id }) { artist ->
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .clickable { onArtistClick(artist) }
-            ) {
-                Surface(
-                    shape = CircleShape,
-                    modifier = Modifier.size(140.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    shadowElevation = 6.dp,
-                    border = libraryOpenBorder(
-                        LocalLibraryOpenItem.current?.artistName == artist.name
-                    )
-                ) {
-                    if (!artist.thumbnailUrl.isNullOrBlank()) {
-                        AsyncImage(
-                            model = artist.thumbnailUrl,
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop
-                        )
-                    } else {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                Icons.Rounded.Person,
-                                null,
-                                modifier = Modifier.size(48.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    artist.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+        Surface(
+            shape = CircleShape,
+            modifier = Modifier.size(140.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            shadowElevation = 6.dp,
+            border = libraryOpenBorder(
+                LocalLibraryOpenItem.current?.artistName == artist.name
+            )
+        ) {
+            if (!artist.thumbnailUrl.isNullOrBlank()) {
+                AsyncImage(
+                    model = artist.thumbnailUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop
                 )
-                artist.subscriberCount?.takeIf { it.isNotBlank() }?.let { count ->
-                    Text(
-                        count,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+            } else {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Rounded.Person,
+                        null,
+                        modifier = Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
+        }
+        Spacer(Modifier.height(12.dp))
+        Text(
+            artist.name,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onBackground,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        artist.subscriberCount?.takeIf { it.isNotBlank() }?.let { count ->
+            Text(
+                count,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
