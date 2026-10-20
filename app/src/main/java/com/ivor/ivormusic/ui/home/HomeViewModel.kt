@@ -846,17 +846,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
      * is shown.
      */
     fun refreshReadyOffline() {
-        viewModelScope.launch { loadReadyOffline() }
-    }
-
-    /**
-     * The suspend half, for a caller that needs the list before it can decide
-     * what is playable (the offline Liked Songs page).
-     */
-    private suspend fun loadReadyOffline() {
-        _readyOffline.value = readyOfflineRepository.load(
-            downloadedIds = downloadedSongs.value.map { it.id }.toSet()
-        )
+        viewModelScope.launch {
+            _readyOffline.value = readyOfflineRepository.load(
+                downloadedIds = downloadedSongs.value.map { it.id }.toSet()
+            )
+        }
     }
 
     // Albums behind the play history, for Classic Home's "Recent albums".
@@ -3379,10 +3373,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         // login: stored metadata + the account's cached Liked Music + liked
         // local songs.
         if (playlistId == "LM" || playlistId == "VLLM") {
-            // Offline the answer depends on which streams are cached in full,
-            // and that list is pulled rather than observed. Resolve it before
-            // filtering, or the first frame filters against an empty list.
-            if (!online) loadReadyOffline()
             // The list is the cache. A warm cache draws at once and the sync
             // runs behind the screen; a cold one (first sign-in, before the
             // first walk) waits, because an empty screen is worse than a wait.
@@ -3403,10 +3393,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             // Songs is assembled locally, so it has to apply the same rule
             // itself rather than listing songs that cannot play.
             if (online) return liked
-            val offlineIds = (
-                downloadRepository.downloadedSongs.value + _readyOffline.value.songs
-                ).mapTo(HashSet()) { it.id }
-            return liked.filter { it.isPlayableOffline(offlineIds) }
+            val downloadedIds = downloadRepository.downloadedSongs.value
+                .mapTo(HashSet()) { it.id }
+            return liked.filter { it.isPlayableOffline(downloadedIds) }
         }
 
         // Check local first

@@ -828,16 +828,16 @@ fun LibraryMainScreen(
     val isYouTubeConnected by viewModel.isYouTubeConnected.collectAsState()
     val isAccountLibraryLoading by viewModel.isAccountLibraryLoading.collectAsState()
     val isOnline by viewModel.isOnline.collectAsState()
-    val readyOffline by viewModel.readyOffline.collectAsState()
-    // Offline the Library only lists what can play. Likes and the device
-    // library are drawn from different stores, so one predicate covers a
-    // permanent download, a fully cached stream ("Ready offline") and a
-    // device file.
-    val offlineIds = remember(downloadedSongs, readyOffline) {
-        (downloadedSongs + readyOffline.songs).mapTo(HashSet()) { it.id }
-    }
-    val likedSongsVisible = remember(likedSongs, isOnline, offlineIds) {
-        if (isOnline) likedSongs else likedSongs.filter { it.isPlayableOffline(offlineIds) }
+    // Offline the Library only lists what can play. Liked Songs is assembled
+    // from the two like stores, so the downloaded half has to be applied here
+    // as well as on the Liked Songs page itself.
+    val likedSongsVisible = remember(likedSongs, downloadedSongs, isOnline) {
+        if (isOnline) {
+            likedSongs
+        } else {
+            val downloadedIds = downloadedSongs.mapTo(HashSet()) { it.id }
+            likedSongs.filter { it.isPlayableOffline(downloadedIds) }
+        }
     }
     // The account's own library. Signed in these are what the Artists and
     // Albums tabs show; signed out they are empty and the tabs fall back to
@@ -882,16 +882,11 @@ fun LibraryMainScreen(
     // The library is what the user OWNS or SAVED — never the recommendation
     // feed. Local mode: device songs + downloads. YouTube mode: downloads +
     // liked songs (the `songs` param carries home recommendations there).
-    // Offline, "Ready offline" streams are playable too, so they join the All
-    // tab as well as the Liked Songs page.
-    val offlineOnly = if (isOnline) emptyList() else readyOffline.songs
-    val librarySongs = remember(
-        songs, downloadedSongs, likedSongsVisible, offlineOnly, isLocalLibrary
-    ) {
+    val librarySongs = remember(songs, downloadedSongs, likedSongsVisible, isLocalLibrary) {
         if (isLocalLibrary) {
-            (songs + downloadedSongs + offlineOnly).distinctBy { it.id }
+            (songs + downloadedSongs).distinctBy { it.id }
         } else {
-            (downloadedSongs + likedSongsVisible + offlineOnly).distinctBy { it.id }
+            (downloadedSongs + likedSongsVisible).distinctBy { it.id }
         }
     }
 
@@ -3763,9 +3758,6 @@ fun PlaylistDetailScreen(
         }
     }
 
-    // The cached-stream list is what makes a liked song playable offline;
-    // fetchPlaylistSongs resolves it before filtering, so re-running on a
-    // connection change is enough.
     LaunchedEffect(resolvedPlaylist.id, isOnline) {
         if (preloadedSongs == null) {
             isFetching.value = true

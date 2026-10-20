@@ -7,10 +7,10 @@ import org.junit.Test
 class OfflinePlaybackTest {
 
     @Test
-    fun `an offline id is playable even without a local uri`() {
-        val song = song("cached", SongSource.YOUTUBE)
+    fun `a downloaded id is playable offline even without a local uri`() {
+        val song = song("downloaded", SongSource.YOUTUBE)
 
-        assertTrue(song.isPlayableOffline(setOf("cached")))
+        assertTrue(song.isPlayableOffline(setOf("downloaded")))
     }
 
     @Test
