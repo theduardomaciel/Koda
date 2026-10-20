@@ -734,13 +734,20 @@ enum class PlaylistSortAction(val label: Int) {
 enum class LibraryGroupSort(val label: Int, val icon: ImageVector) {
     Name(R.string.lib_group_sort_name, Icons.Rounded.SortByAlpha),
     MostSongs(R.string.lib_group_sort_songs, Icons.Rounded.LibraryMusic),
-    MostPlayed(R.string.lib_group_sort_played, Icons.Rounded.TrendingUp);
+    MostPlayed(R.string.lib_group_sort_played, Icons.Rounded.TrendingUp),
+
+    /**
+     * The order the account's followed-artists list arrives in. Only offered
+     * for that list: grouped songs carry no added date, so [apply] falls back
+     * to the name rather than inventing one.
+     */
+    RecentlyAdded(R.string.lib_group_sort_recent, Icons.Rounded.NewReleases);
 
     /** [groups] (a name and its songs) in this order; ties fall back to the name. */
     fun <T> apply(groups: List<Pair<String, List<T>>>, plays: (T) -> Int): List<Pair<String, List<T>>> {
         val byName = compareBy<Pair<String, List<T>>> { it.first.lowercase() }
         return when (this) {
-            Name -> groups.sortedWith(byName)
+            Name, RecentlyAdded -> groups.sortedWith(byName)
             MostSongs -> groups.sortedWith(compareByDescending<Pair<String, List<T>>> { it.second.size }.then(byName))
             MostPlayed -> groups.sortedWith(
                 compareByDescending<Pair<String, List<T>>> { g -> g.second.sumOf(plays) }.then(byName)
@@ -753,13 +760,27 @@ enum class LibraryGroupSort(val label: Int, val icon: ImageVector) {
     }
 }
 
-/** The count and sort button above the Artists and Albums grids. */
+/**
+ * The count, Following chip and sort button above the artists grids.
+ *
+ * [sortOptions] is per list: the account's followed artists can be kept in the
+ * order they arrived in, while grouped songs only have counts and plays to
+ * sort by. [followingSelected] is null where there is no Following mode to
+ * offer (signed out, albums), which hides the chip entirely.
+ */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun GroupSortHeader(
     countLabel: String,
     sort: LibraryGroupSort,
-    onSortChange: (LibraryGroupSort) -> Unit
+    onSortChange: (LibraryGroupSort) -> Unit,
+    sortOptions: List<LibraryGroupSort> = listOf(
+        LibraryGroupSort.Name,
+        LibraryGroupSort.MostSongs,
+        LibraryGroupSort.MostPlayed
+    ),
+    followingSelected: Boolean? = null,
+    onFollowingClick: (() -> Unit)? = null
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
@@ -770,50 +791,98 @@ private fun GroupSortHeader(
             countLabel,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground
+            color = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier.weight(1f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
-        Box {
-            var open by remember { mutableStateOf(false) }
-            val sortLabel = stringResource(sort.label)
-            FilledTonalIconButton(
-                onClick = { open = true },
-                modifier = Modifier.size(40.dp),
-                shapes = IconButtonDefaults.shapes()
-            ) {
-                Icon(
-                    Icons.Rounded.SwapVert,
-                    contentDescription = stringResource(R.string.lib_group_sort_cd, sortLabel),
-                    modifier = Modifier.size(20.dp)
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (followingSelected != null && onFollowingClick != null) {
+                FilterChip(
+                    selected = followingSelected,
+                    onClick = onFollowingClick,
+                    label = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            // The check lives inside the label rather than in
+                            // the leading-icon slot. The slot is measured at
+                            // the final size while the chip's own width
+                            // animates, so the Surface clipped the label's
+                            // right edge during the grow. Animating the
+                            // label's width makes the chip measure each frame
+                            // and grow without cropping.
+                            AnimatedVisibility(
+                                visible = followingSelected,
+                                enter = fadeIn() +
+                                    scaleIn(initialScale = 0.6f) +
+                                    expandHorizontally(),
+                                exit = fadeOut() +
+                                    scaleOut(targetScale = 0.6f) +
+                                    shrinkHorizontally()
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        Icons.Rounded.Check,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(FilterChipDefaults.IconSize)
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                }
+                            }
+                            Text(
+                                stringResource(R.string.lib_artist_source_following),
+                                style = MaterialTheme.typography.labelLarge,
+                                maxLines = 1
+                            )
+                        }
+                    }
                 )
             }
-            DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-                LibraryGroupSort.entries.forEach { option ->
-                    val selected = option == sort
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                stringResource(option.label),
-                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
-                            )
-                        },
-                        onClick = {
-                            onSortChange(option)
-                            open = false
-                        },
-                        leadingIcon = {
-                            Icon(
-                                option.icon,
-                                contentDescription = null,
-                                tint = if (selected) MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        },
-                        trailingIcon = {
-                            if (selected) {
-                                Icon(Icons.Rounded.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                            }
-                        }
+            Box {
+                var open by remember { mutableStateOf(false) }
+                val sortLabel = stringResource(sort.label)
+                FilledTonalIconButton(
+                    onClick = { open = true },
+                    modifier = Modifier.size(40.dp),
+                    shapes = IconButtonDefaults.shapes()
+                ) {
+                    Icon(
+                        Icons.Rounded.SwapVert,
+                        contentDescription = stringResource(R.string.lib_group_sort_cd, sortLabel),
+                        modifier = Modifier.size(20.dp)
                     )
+                }
+                DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                    sortOptions.forEach { option ->
+                        val selected = option == sort
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    stringResource(option.label),
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                                )
+                            },
+                            onClick = {
+                                onSortChange(option)
+                                open = false
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    option.icon,
+                                    contentDescription = null,
+                                    tint = if (selected) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            },
+                            trailingIcon = {
+                                if (selected) {
+                                    Icon(Icons.Rounded.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                }
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -910,6 +979,11 @@ fun LibraryMainScreen(
         LibrarySortOption.entries.firstOrNull { it.name == storedSortName }
             ?: LibrarySortOption.Title
     }
+
+    // Whether the Artists tab draws the account's follows. Off by default, so
+    // the tab opens on the artists the device's songs name.
+    val followingArtists by themePreferences.libraryArtistsFollowing.collectAsState()
+    val isFollowedArtistsUnavailable by viewModel.isFollowedArtistsUnavailable.collectAsState()
 
     LaunchedEffect(Unit) {
         viewModel.refreshRecentlyPlayed()
@@ -1148,47 +1222,163 @@ fun LibraryMainScreen(
                         )
                     }
                     LibraryTab.Artists -> {
-                        // Signed in, YouTube is the source of truth: this tab
-                        // lists who the account follows there. The device's own
-                        // follows and the artists its songs name are the
-                        // signed-out view and would otherwise disagree with what
-                        // the account says about the same artist.
-                        if (isYouTubeConnected) {
-                            AccountArtistsGrid(
-                                artists = accountArtists,
-                                onArtistClick = { artist ->
-                                    onNavigateToFollowedArtist(
-                                        com.ivor.ivormusic.data.TasteArtist(
-                                            id = artist.id,
-                                            name = artist.name,
-                                            thumbnailUrl = artist.thumbnailUrl
-                                        )
-                                    )
-                                },
-                                onUnfollow = { artist ->
-                                    viewModel.setArtistFollowed(artist, follow = false)
-                                },
-                                contentPadding = contentPadding,
-                                isLoading = isAccountLibraryLoading,
-                                offline = !isOnline
-                            )
-                        } else {
-                            val artistSort by themePreferences.libraryArtistSort.collectAsState()
-                            val tasteContext = LocalContext.current
-                            val tasteStore = remember(tasteContext) {
-                                com.ivor.ivormusic.data.TasteProfileStore(tasteContext)
+                        val artistSortName by themePreferences.libraryArtistSort.collectAsState()
+                        val followingSortName by themePreferences.libraryFollowingArtistSort.collectAsState()
+                        val tasteStore = remember(context) {
+                            com.ivor.ivormusic.data.TasteProfileStore(context)
+                        }
+                        val tasteProfile by tasteStore.profile.collectAsState()
+
+                        // Grouped songs sort by name, songs or plays; the
+                        // account list only has its own order and a name.
+                        val derivedSort = remember(artistSortName) {
+                            when (val stored = LibraryGroupSort.from(artistSortName)) {
+                                LibraryGroupSort.RecentlyAdded -> LibraryGroupSort.Name
+                                else -> stored
                             }
-                            val tasteProfile by tasteStore.profile.collectAsState()
-                            ArtistsGrid(
-                                songs = librarySongs,
-                                followed = tasteProfile.artists,
-                                onFollowedClick = onNavigateToFollowedArtist,
-                                onArtistClick = onNavigateToArtist,
-                                contentPadding = contentPadding,
-                                sort = LibraryGroupSort.from(artistSort),
-                                onSortChange = { themePreferences.setLibraryArtistSort(it.name) },
-                                playCounts = playCounts
+                        }
+                        val followingSort = remember(followingSortName) {
+                            when (val stored = LibraryGroupSort.from(followingSortName)) {
+                                LibraryGroupSort.Name,
+                                LibraryGroupSort.RecentlyAdded -> stored
+                                else -> LibraryGroupSort.Name
+                            }
+                        }
+
+                        // Following draws the account's list. If that list
+                        // cannot be read - offline with nothing cached, or the
+                        // fetch failed - the tab falls back to the derived
+                        // artists rather than an empty following screen.
+                        val accountUnavailable = !isOnline || isFollowedArtistsUnavailable
+                        val followingSelected = isYouTubeConnected && followingArtists
+                        val showAccount = followingSelected && (
+                            accountArtists.isNotEmpty() ||
+                                isAccountLibraryLoading ||
+                                !accountUnavailable
                             )
+                        // The count lives in the header, not in the grids, so
+                        // it is derived here. Cheap: one grouping per library
+                        // change, not per frame.
+                        val derivedArtistCount = remember(librarySongs) {
+                            librarySongs
+                                .filterNot { isUnknownArtist(it.artist) }
+                                .groupSongsByArtist()
+                                .size
+                        }
+                        val showHeader = isYouTubeConnected || derivedArtistCount > 0
+                        val countLabel = when {
+                            showAccount && isAccountLibraryLoading && accountArtists.isEmpty() ->
+                                stringResource(R.string.lib_following_header)
+                            showAccount ->
+                                pluralStringResource(
+                                    R.plurals.lib_following_count,
+                                    accountArtists.size,
+                                    accountArtists.size
+                                )
+                            else ->
+                                pluralStringResource(
+                                    R.plurals.lib_artist_count,
+                                    derivedArtistCount,
+                                    derivedArtistCount
+                                )
+                        }
+
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            // The header is outside both grids on purpose: the
+                            // chip has to survive the mode switch, or it is
+                            // composed already selected and never animates.
+                            if (showHeader) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(
+                                            start = 16.dp,
+                                            top = 8.dp,
+                                            end = 16.dp,
+                                            // The grids open with 8dp of their
+                                            // own; this restores the 24dp the
+                                            // header had as their first item.
+                                            bottom = 16.dp
+                                        )
+                                ) {
+                                    GroupSortHeader(
+                                        countLabel = countLabel,
+                                        sort = if (showAccount) followingSort else derivedSort,
+                                        onSortChange = { sort ->
+                                            if (showAccount) {
+                                                themePreferences.setLibraryFollowingArtistSort(sort.name)
+                                            } else {
+                                                themePreferences.setLibraryArtistSort(sort.name)
+                                            }
+                                        },
+                                        sortOptions = if (showAccount) {
+                                            listOf(
+                                                LibraryGroupSort.Name,
+                                                LibraryGroupSort.RecentlyAdded
+                                            )
+                                        } else {
+                                            listOf(
+                                                LibraryGroupSort.Name,
+                                                LibraryGroupSort.MostSongs,
+                                                LibraryGroupSort.MostPlayed
+                                            )
+                                        },
+                                        followingSelected = if (isYouTubeConnected) {
+                                            followingSelected
+                                        } else null,
+                                        onFollowingClick = if (isYouTubeConnected) {
+                                            {
+                                                tabHaptics.subtle()
+                                                themePreferences.setLibraryArtistsFollowing(
+                                                    !followingArtists
+                                                )
+                                            }
+                                        } else null
+                                    )
+                                }
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth()
+                            ) {
+                                if (showAccount) {
+                                    AccountArtistsGrid(
+                                        artists = accountArtists,
+                                        onArtistClick = { artist ->
+                                            onNavigateToFollowedArtist(
+                                                com.ivor.ivormusic.data.TasteArtist(
+                                                    id = artist.id,
+                                                    name = artist.name,
+                                                    thumbnailUrl = artist.thumbnailUrl
+                                                )
+                                            )
+                                        },
+                                        contentPadding = contentPadding,
+                                        isLoading = isAccountLibraryLoading,
+                                        offline = accountUnavailable,
+                                        sort = followingSort
+                                    )
+                                } else {
+                                    ArtistsGrid(
+                                        songs = librarySongs,
+                                        // Signed in, the device's follows are
+                                        // no longer drawn: Following is the
+                                        // account's list. Signed out keeps the
+                                        // section.
+                                        followed = if (isYouTubeConnected) {
+                                            emptyList()
+                                        } else {
+                                            tasteProfile.artists
+                                        },
+                                        onFollowedClick = onNavigateToFollowedArtist,
+                                        onArtistClick = onNavigateToArtist,
+                                        contentPadding = contentPadding,
+                                        sort = derivedSort,
+                                        playCounts = playCounts
+                                    )
+                                }
+                            }
                         }
                     }
                     LibraryTab.Albums -> {
@@ -2015,7 +2205,6 @@ fun ArtistsGrid(
     onArtistClick: (String) -> Unit,
     contentPadding: PaddingValues,
     sort: LibraryGroupSort = LibraryGroupSort.Name,
-    onSortChange: (LibraryGroupSort) -> Unit = {},
     playCounts: Map<String, Int> = emptyMap(),
     /** Artists followed on this device, shown above the ones the library's songs name. */
     followed: List<com.ivor.ivormusic.data.TasteArtist> = emptyList(),
@@ -2110,13 +2299,6 @@ fun ArtistsGrid(
                     )
                 }
             }
-        }
-        if (artists.isNotEmpty()) item(key = "artists_sort", span = { GridItemSpan(maxLineSpan) }) {
-            GroupSortHeader(
-                countLabel = pluralStringResource(R.plurals.lib_artist_count, artists.size, artists.size),
-                sort = sort,
-                onSortChange = onSortChange
-            )
         }
         items(artists, key = { (name, _) -> name }) { (artist, artistSongs) ->
              Column(
@@ -2218,12 +2400,12 @@ fun AlbumsGrid(
 }
 
 /**
- * The artists the signed-in account follows on YouTube Music.
+ * The artists the signed-in account follows on YouTube Music, drawn when the
+ * Artists tab's Following chip is on.
  *
- * One list rather than a section above the device's own groupings: signed in,
- * the account is the source of truth, and a follow made in the YouTube Music
- * app has to read the same here as one made here. The id is the `UC...` channel
- * id YouTube served, which is what the artist page opens on.
+ * The id is the `UC...` channel id YouTube served, which is what the artist
+ * page opens on. This list carries subscriber counts; unfollowing stays on the
+ * artist page, out of accidental thumb-reach of the grid.
  */
 @Composable
 fun AccountArtistsGrid(
@@ -2233,9 +2415,17 @@ fun AccountArtistsGrid(
     isLoading: Boolean = false,
     /** Offline with nothing cached: the empty list is not the account's answer. */
     offline: Boolean = false,
-    /** Unfollow on the account. Null where there is no account to write to. */
-    onUnfollow: ((com.ivor.ivormusic.data.ArtistItem) -> Unit)? = null
+    sort: LibraryGroupSort = LibraryGroupSort.Name
 ) {
+    // The account serves this list in its own subscription order and a follow
+    // made here is prepended to it, so Recently added is that order kept as
+    // served. The other sorts make no sense on these rows: they carry neither
+    // songs nor plays.
+    val sortedArtists = remember(artists, sort) {
+        if (sort == LibraryGroupSort.RecentlyAdded) artists
+        else artists.sortedBy { it.name.lowercase() }
+    }
+
     if (artists.isEmpty()) {
         // "Still loading", "follows nobody" and "cannot reach the account"
         // are different answers, and drawing the wrong one tells the user
@@ -2272,7 +2462,7 @@ fun AccountArtistsGrid(
         verticalArrangement = Arrangement.spacedBy(24.dp),
         modifier = Modifier.fillMaxSize()
     ) {
-        items(artists, key = { "account_artist_" + it.id }) { artist ->
+        items(sortedArtists, key = { "account_artist_" + it.id }) { artist ->
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
@@ -2323,22 +2513,6 @@ fun AccountArtistsGrid(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                }
-                // Unfollowing is the one thing this grid can do to the
-                // account, and it is offered on the card rather than only on
-                // the artist's page: removing 50 artists one page at a time is
-                // the reason someone opens this tab.
-                onUnfollow?.let { unfollow ->
-                    TextButton(
-                        onClick = { unfollow(artist) },
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                        modifier = Modifier.height(28.dp)
-                    ) {
-                        Text(
-                            stringResource(R.string.lib_unfollow),
-                            style = MaterialTheme.typography.labelMedium
-                        )
-                    }
                 }
             }
         }

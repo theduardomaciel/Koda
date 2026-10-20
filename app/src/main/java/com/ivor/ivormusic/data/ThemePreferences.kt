@@ -339,6 +339,19 @@ class ThemePreferences(context: Context) {
     private val _libraryTab = MutableStateFlow(getLibraryTabPreference())
     val libraryTab: StateFlow<String> = _libraryTab.asStateFlow()
 
+    // Whether the Artists tab shows the account's follows rather than the
+    // artists the device's songs name. Off by default.
+    private val _libraryArtistsFollowing =
+        MutableStateFlow(getLibraryArtistsFollowingPreference())
+    val libraryArtistsFollowing: StateFlow<Boolean> = _libraryArtistsFollowing.asStateFlow()
+
+    // The Following list's own sort, a LibraryGroupSort name. Separate from
+    // libraryArtistSort because the two modes offer different orders.
+    private val _libraryFollowingArtistSort =
+        MutableStateFlow(prefs.getString(KEY_LIBRARY_FOLLOWING_ARTIST_SORT, null))
+    val libraryFollowingArtistSort: StateFlow<String?> =
+        _libraryFollowingArtistSort.asStateFlow()
+
     // The Artists and Albums tabs' own sort orders, LibraryGroupSort names.
     private val _libraryArtistSort = MutableStateFlow(prefs.getString(KEY_LIBRARY_ARTIST_SORT, null))
     val libraryArtistSort: StateFlow<String?> = _libraryArtistSort.asStateFlow()
@@ -518,6 +531,11 @@ class ThemePreferences(context: Context) {
             KEY_TIME_LIMIT_BUDGETS -> _timeLimitBudgets.value = getTimeLimitBudgetsPreference()
             KEY_LIBRARY_SORT_OPTION -> _librarySortOption.value = getLibrarySortOptionPreference()
             KEY_LIBRARY_TAB -> _libraryTab.value = getLibraryTabPreference()
+            KEY_LIBRARY_ARTISTS_FOLLOWING ->
+                _libraryArtistsFollowing.value = getLibraryArtistsFollowingPreference()
+            KEY_LIBRARY_FOLLOWING_ARTIST_SORT ->
+                _libraryFollowingArtistSort.value =
+                    prefs.getString(KEY_LIBRARY_FOLLOWING_ARTIST_SORT, null)
             KEY_LIBRARY_ARTIST_SORT -> _libraryArtistSort.value = prefs.getString(KEY_LIBRARY_ARTIST_SORT, null)
             KEY_LIBRARY_ALBUM_SORT -> _libraryAlbumSort.value = prefs.getString(KEY_LIBRARY_ALBUM_SORT, null)
             KEY_SUBSCRIPTION_FEED_PERIOD ->
@@ -1082,6 +1100,8 @@ class ThemePreferences(context: Context) {
         private const val KEY_LIBRARY_TAB = "library_tab"
         private const val KEY_LIBRARY_ARTIST_SORT = "library_artist_sort"
         private const val KEY_LIBRARY_ALBUM_SORT = "library_album_sort"
+        private const val KEY_LIBRARY_ARTISTS_FOLLOWING = "library_artists_following"
+        private const val KEY_LIBRARY_FOLLOWING_ARTIST_SORT = "library_following_artist_sort"
         private const val KEY_SUBSCRIPTION_FEED_PERIOD = "subscription_feed_period"
         private const val KEY_SUBSCRIPTION_FEED_ORDER = "subscription_feed_order"
         private const val KEY_HIDE_WATCHED_IN_FEED = "hide_watched_in_feed"
@@ -2718,6 +2738,21 @@ class ThemePreferences(context: Context) {
     fun setLibraryTab(tabName: String) {
         prefs.edit().putString(KEY_LIBRARY_TAB, tabName).apply()
         _libraryTab.value = tabName
+    }
+
+    /** Whether the Artists tab lists the account's follows. Off by default. */
+    private fun getLibraryArtistsFollowingPreference(): Boolean =
+        prefs.getBoolean(KEY_LIBRARY_ARTISTS_FOLLOWING, false)
+
+    fun setLibraryArtistsFollowing(following: Boolean) {
+        prefs.edit().putBoolean(KEY_LIBRARY_ARTISTS_FOLLOWING, following).apply()
+        _libraryArtistsFollowing.value = following
+    }
+
+    /** Pass a LibraryGroupSort name for the Following list; constants are frozen. */
+    fun setLibraryFollowingArtistSort(sortName: String) {
+        prefs.edit().putString(KEY_LIBRARY_FOLLOWING_ARTIST_SORT, sortName).apply()
+        _libraryFollowingArtistSort.value = sortName
     }
 
     /** Pass a LibraryGroupSort name; the constants are frozen like the other sorts. */

@@ -267,6 +267,16 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val _isAccountLibraryLoading = MutableStateFlow(false)
     val isAccountLibraryLoading: StateFlow<Boolean> = _isAccountLibraryLoading.asStateFlow()
 
+    /**
+     * True when the last read of the account's followed artists failed. The
+     * Library's Following list falls back to the device's derived artists
+     * rather than drawing a "nobody followed" screen for a request that never
+     * landed. Cleared by a successful read and on sign-out.
+     */
+    private val _isFollowedArtistsUnavailable = MutableStateFlow(false)
+    val isFollowedArtistsUnavailable: StateFlow<Boolean> =
+        _isFollowedArtistsUnavailable.asStateFlow()
+
     // Combine YouTube liked songs with manually liked songs (local or YT)
     private val likedSongsRepository = LikedSongsRepository(application)
 
@@ -798,9 +808,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 KLog.w("HomeViewModel", "Artist ${if (follow) "follow" else "unfollow"} failed for ${artist.id}")
                 // Null offline: keep the optimistic list rather than replacing
                 // it with the empty result of a failed fetch.
-                youtubeRepository.getFollowedArtistsOrNull()?.let {
-                    _followedArtists.value = it
+                val refreshed = youtubeRepository.getFollowedArtistsOrNull()
+                if (refreshed != null) {
+                    _followedArtists.value = refreshed
+                    _isFollowedArtistsUnavailable.value = false
                     persistLibraryCache()
+                } else {
+                    _isFollowedArtistsUnavailable.value = true
                 }
             }
         }
@@ -3109,13 +3123,19 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 throw e
             } catch (e: Exception) { }
             try {
-                youtubeRepository.getFollowedArtistsOrNull()?.let {
-                    _followedArtists.value = it
+                val artists = youtubeRepository.getFollowedArtistsOrNull()
+                if (artists != null) {
+                    _followedArtists.value = artists
+                    _isFollowedArtistsUnavailable.value = false
                     loaded = true
+                } else {
+                    _isFollowedArtistsUnavailable.value = true
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
-            } catch (e: Exception) { }
+            } catch (e: Exception) {
+                _isFollowedArtistsUnavailable.value = true
+            }
             if (loaded) {
                 accountLoadedAtMs = System.currentTimeMillis()
                 persistLibraryCache()
@@ -3154,6 +3174,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         _youtubePlaylists.value = cached?.playlists.orEmpty()
         _savedAlbums.value = cached?.albums.orEmpty()
         _followedArtists.value = cached?.artists.orEmpty()
+        _isFollowedArtistsUnavailable.value = false
     }
 
     /** Sign-out: the account's lists are cleared from memory and from disk. */
@@ -3161,6 +3182,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         _youtubePlaylists.value = emptyList()
         _savedAlbums.value = emptyList()
         _followedArtists.value = emptyList()
+        _isFollowedArtistsUnavailable.value = false
         libraryCacheStore.clear(ProfileManager.requireActiveProfileId(getApplication()))
     }
 

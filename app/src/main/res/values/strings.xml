@@ -1261,6 +1261,8 @@
     <string name="artist_follow">Follow</string>
     <string name="artist_following">Following</string>
     <string name="lib_following_header">Following</string>
+    <!-- Library Artists tab: the account's follows or the device's own artists -->
+    <string name="lib_artist_source_following">Following</string>
 
     <!-- Taste setup -->
     <string name="taste_title_artists">Pick artists you love</string>
@@ -1743,6 +1745,7 @@
     <string name="lib_group_sort_name">Name</string>
     <string name="lib_group_sort_songs">Most songs</string>
     <string name="lib_group_sort_played">Most played</string>
+    <string name="lib_group_sort_recent">Recently added</string>
     <string name="lib_group_sort_cd">Sort by %1$s</string>
     <string name="pip_back_10">Back 10 seconds</string>
     <string name="pip_forward_10">Forward 10 seconds</string>
@@ -1768,7 +1771,6 @@
     <string name="lib_no_followed_artists_subtitle">Artists you follow on YouTube Music will show up here</string>
     <string name="lib_no_saved_albums">No saved albums</string>
     <string name="lib_no_saved_albums_subtitle">Albums you save to your YouTube Music library will show up here</string>
-    <string name="lib_unfollow">Unfollow</string>
     <string name="lib_offline_banner">You\'re offline. Showing your saved library.</string>
     <string name="lib_offline_collapse">Collapse offline notice</string>
     <string name="lib_offline_expand">Show offline notice</string>
@@ -2232,6 +2234,10 @@
     <plurals name="lib_artist_count">
         <item quantity="one">%d artist</item>
         <item quantity="other">%d artists</item>
+    </plurals>
+    <plurals name="lib_following_count">
+        <item quantity="one">%d following</item>
+        <item quantity="other">%d following</item>
     </plurals>
     <plurals name="lib_album_count">
         <item quantity="one">%d album</item>
