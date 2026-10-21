@@ -192,6 +192,7 @@ import com.ivor.ivormusic.BuildConfig
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.ivor.ivormusic.data.DownloadNotificationHelper
+import com.ivor.ivormusic.data.ForkConfig
 import com.ivor.ivormusic.data.FolderInfo
 import com.ivor.ivormusic.data.BackupRepository
 import com.ivor.ivormusic.data.SessionManager
@@ -2466,7 +2467,7 @@ private fun ExpressiveAboutDialog(
     onNavigateToLicenses: () -> Unit
 ) {
     val context = LocalContext.current
-    val githubUrl = "https://github.com/${BuildConfig.GITHUB_REPO}"
+    val githubUrl = "https://github.com/${ForkConfig.GITHUB_REPO}"
     val developerUrl = "https://github.com/${BuildConfig.GITHUB_USERNAME}"
     val developerAvatarUrl = "https://github.com/${BuildConfig.GITHUB_USERNAME}.png"
     // Local Only means the app does not reach the network, and a profile photo

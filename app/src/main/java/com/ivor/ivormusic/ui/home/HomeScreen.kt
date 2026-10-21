@@ -170,6 +170,7 @@ import androidx.compose.animation.ExperimentalAnimationApi
 import com.ivor.ivormusic.BuildConfig
 import com.ivor.ivormusic.R
 import androidx.compose.ui.res.stringResource
+import com.ivor.ivormusic.data.ForkConfig
 import com.ivor.ivormusic.data.UpdateRepository
 import com.ivor.ivormusic.data.UpdateResult
 import com.ivor.ivormusic.data.isPlayableOffline
@@ -720,7 +721,7 @@ fun HomeScreen(
             if (lastCheckAtMs != 0L && now - lastCheckAtMs < UPDATE_RECHECK_MS) return@repeatOnLifecycle
             lastCheckAtMs = now
             val result = updateRepository.checkForUpdate(
-                repoPath = BuildConfig.GITHUB_REPO,
+                repoPath = ForkConfig.GITHUB_REPO,
                 currentVersion = BuildConfig.VERSION_NAME
             )
             updateResult = result

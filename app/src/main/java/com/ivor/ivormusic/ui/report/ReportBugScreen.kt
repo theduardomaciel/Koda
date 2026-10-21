@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ivor.ivormusic.BuildConfig
 import com.ivor.ivormusic.data.CrashReporter
+import com.ivor.ivormusic.data.ForkConfig
 import com.ivor.ivormusic.data.DiagnosticsCollector
 import com.ivor.ivormusic.data.ThemePreferences
 import com.ivor.ivormusic.ui.settings.SettingsCard
@@ -355,7 +356,7 @@ fun ReportBugScreen(onBack: () -> Unit) {
                                     context.startActivity(
                                         Intent(
                                             Intent.ACTION_VIEW,
-                                            Uri.parse("https://github.com/${BuildConfig.GITHUB_REPO}/issues/new")
+                                            Uri.parse("https://github.com/${ForkConfig.GITHUB_REPO}/issues/new")
                                         )
                                     )
                                 }

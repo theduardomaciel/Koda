@@ -87,6 +87,7 @@ import androidx.compose.ui.unit.dp
 import com.ivor.ivormusic.BuildConfig
 import com.ivor.ivormusic.R
 import com.ivor.ivormusic.data.ApkAsset
+import com.ivor.ivormusic.data.ForkConfig
 import com.ivor.ivormusic.data.UpdateRepository
 import com.ivor.ivormusic.data.UpdateResult
 import java.time.OffsetDateTime
@@ -154,7 +155,7 @@ fun UpdateScreen(
         }
         result = UpdateResult.Checking
         result = repository.checkForUpdate(
-            repoPath = BuildConfig.GITHUB_REPO,
+            repoPath = ForkConfig.GITHUB_REPO,
             currentVersion = BuildConfig.VERSION_NAME,
             forceRefresh = checkRequest > 0,
         )
