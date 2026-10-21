@@ -597,6 +597,31 @@ fun VideoPlayerOverlay(
         val miniEnterOffsetPx = with(density) { 12.dp.toPx() }
         val miniOffsetAnimationSpec = MaterialTheme.motionScheme.fastSpatialSpec<Float>()
 
+        // The bar's way out, shared by the downward swipe and the close control:
+        // slide out of the window, then give the session up. The button used to
+        // call closePlayer() straight away, so the bar vanished instead of
+        // leaving the way the gesture does.
+        val dismissVideoBar: (Float) -> Unit = { fromOffset ->
+            if (!isDismissingMini) {
+                isDismissingMini = true
+                scope.launch {
+                    miniSettleOffset.snapTo(fromOffset)
+                    isMiniDragging = false
+                    miniSettleOffset.animateTo(fullHeightPx, miniOffsetAnimationSpec)
+                    viewModel.closePlayer()
+                    isDismissingMini = false
+                    miniDragY = 0f
+                    miniSettleOffset.snapTo(0f)
+                }
+            }
+        }
+        val closeVideoBar: () -> Unit = {
+            if (!isDismissingMini) {
+                haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                dismissVideoBar(miniSettleOffset.value)
+            }
+        }
+
         // Minimized resting position clears the system navigation inset plus
         // whatever bottom chrome the host says it is drawing, which is nothing
         // on most routes.
@@ -829,20 +854,7 @@ fun VideoPlayerOverlay(
                                         if (!thresholdFeedbackSent) {
                                             haptics.performHapticFeedback(HapticFeedbackType.Confirm)
                                         }
-                                        isDismissingMini = true
-                                        val releasedOffset = miniDragY
-                                        scope.launch {
-                                            miniSettleOffset.snapTo(releasedOffset)
-                                            isMiniDragging = false
-                                            miniSettleOffset.animateTo(
-                                                fullHeightPx,
-                                                miniOffsetAnimationSpec
-                                            )
-                                            viewModel.closePlayer()
-                                            isDismissingMini = false
-                                            miniDragY = 0f
-                                            miniSettleOffset.snapTo(0f)
-                                        }
+                                        dismissVideoBar(miniDragY)
                                     }
                                     else -> {
                                         val releasedOffset = miniDragY
@@ -982,7 +994,11 @@ fun VideoPlayerOverlay(
                  // Mini Player Content. Tap and both drags are handled by the
                  // Surface above, so the bar itself only draws and offers its
                  // two controls.
-                 MiniVideoPlayerContent(viewModel = viewModel, skipState = miniSkip)
+                 MiniVideoPlayerContent(
+                     viewModel = viewModel,
+                     skipState = miniSkip,
+                     onClose = closeVideoBar
+                 )
              }
         }
         if (showExpandedSurface) {
@@ -1099,6 +1115,7 @@ fun VideoPlayerOverlay(
                         width = fullWidth - MINI_VIDEO_MARGIN * 2,
                         progress = transformProgress,
                         holdsSurface = barHoldsSurfaceNow,
+                        onClose = closeVideoBar,
                     )
                     if (pageComposed) {
                         Box(
@@ -1140,6 +1157,7 @@ private fun BoxScope.ContainerMiniLayer(
     width: Dp,
     progress: () -> Float,
     holdsSurface: () -> Boolean,
+    onClose: () -> Unit,
 ) {
     val visible by remember(progress) {
         derivedStateOf { containerMiniAlpha(progress()) > 0f }
@@ -1154,6 +1172,11 @@ private fun BoxScope.ContainerMiniLayer(
             .height(MINI_VIDEO_HEIGHT)
             .graphicsLayer { alpha = containerMiniAlpha(progress()) }
     ) {
-        MiniVideoPlayerContent(viewModel = viewModel, holdsSurface = holdsSurface, skipState = skipState)
+        MiniVideoPlayerContent(
+            viewModel = viewModel,
+            holdsSurface = holdsSurface,
+            skipState = skipState,
+            onClose = onClose
+        )
     }
 }

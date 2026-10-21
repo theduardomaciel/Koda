@@ -113,6 +113,12 @@ fun MiniVideoPlayerContent(
     holdsSurface: () -> Boolean = { true },
     /** The bar's sideways swipe, owned by the overlay's gesture and bound here. */
     skipState: MiniSkipState,
+    /**
+     * The close control. The overlay owns the way out - it slides the bar off
+     * the window and only then ends the session - so the button reports the
+     * action rather than calling the ViewModel itself.
+     */
+    onClose: () -> Unit,
 ) {
     val currentVideo by viewModel.currentVideo.collectAsState()
     val isPlaying by viewModel.isPlaying.collectAsState()
@@ -249,7 +255,7 @@ fun MiniVideoPlayerContent(
 
         Spacer(modifier = Modifier.width(6.dp))
         FilledIconButton(
-            onClick = { viewModel.closePlayer() },
+            onClick = onClose,
             modifier = Modifier.size(44.dp),
             shapes = IconButtonDefaults.shapes(),
             colors = IconButtonDefaults.filledIconButtonColors(
