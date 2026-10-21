@@ -42,6 +42,28 @@ jobs:
           UPSTREAM_CODE=$(git show upstream/beta:app/build.gradle.kts | grep -oP 'versionCode = \K\d+')
           test "$CUSTOM_CODE" -ge "$UPSTREAM_CODE"
 
+Can      - name: Stamp the release version and notes
+        env:
+          TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
+        run: |
+          test -n "$TAG"
+          VERSION_NAME="${TAG#[vV]}"
+          printf '%s' "$VERSION_NAME" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'
+          BASE_NAME=$(grep -oP '^\s*versionName = "\K[^"]+' app/build.gradle.kts | head -1)
+          test -n "$BASE_NAME"
+          sed -i -E "s/^([[:space:]]*)versionName = \".*\"$/\1versionName = \"$VERSION_NAME\"/" app/build.gradle.kts
+          test "$(grep -c "versionName = \"$VERSION_NAME\"" app/build.gradle.kts)" -eq 1
+          grep -n 'versionName =' app/build.gradle.kts
+          NOTES_DIR=app/src/main/assets/release-notes
+          if [ -f "$NOTES_DIR/$VERSION_NAME.md" ]; then
+            echo "Bundling the committed $VERSION_NAME.md"
+          elif [ -f "$NOTES_DIR/$BASE_NAME.md" ]; then
+            cp "$NOTES_DIR/$BASE_NAME.md" "$NOTES_DIR/$VERSION_NAME.md"
+            echo "Bundling $BASE_NAME.md as $VERSION_NAME.md"
+          else
+            echo "No release notes for $VERSION_NAME or $BASE_NAME"
+          fi
+
       - name: Decode keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
@@ -63,10 +85,14 @@ jobs:
             -Pandroid.injected.signing.key.password="$KEY_PASSWORD"
 
       - name: Verify signature
+        env:
+          TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
         run: |
           BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
           "$BUILD_TOOLS/apksigner" verify --verbose --print-certs \
             app/build/outputs/apk/release/app-universal-release.apk
+          "$BUILD_TOOLS/aapt2" dump badging app/build/outputs/apk/release/app-universal-release.apk \
+            | grep -F "versionName='${TAG#[vV]}'"
 
       - name: Publish release
         env:

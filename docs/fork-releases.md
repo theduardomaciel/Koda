@@ -23,6 +23,7 @@ Read this before touching the release setup. The reasoning behind the signatures
 | Key alias | `koda-fork` |
 | Local signing init script | `~/.gradle/init.d/koda-signing.gradle` |
 | Release tag format | `v<major>.<minor>.<patch>.<forkBuild>`, for example `v5.2.0.1` |
+| Release APK `versionName` | The tag without its leading `v`, stamped by the workflow (`5.2.0.1`) |
 | Release assets | `app-universal-release.apk`, `app-arm64-v8a-release.apk`, `app-armeabi-v7a-release.apk` |
 
 A release is built and signed in GitHub Actions, not on a developer machine. The local key and init script exist only so you can build a signed release locally when needed.
@@ -497,7 +498,7 @@ Confirm the version the app will report. Upstream keeps literal values in `app/b
 Select-String -Path app/build.gradle.kts -Pattern "versionCode =|versionName ="
 ```
 
-At the time of writing: `versionCode = 30`, `versionName = "5.2"`. The fork does not override either. The workflow enforces `versionCode(custom) >= versionCode(upstream/beta)`.
+At the time of writing: `versionCode = 30`, `versionName = "5.2"`. The fork does not change either in the source. The workflow enforces `versionCode(custom) >= versionCode(upstream/beta)` and stamps the APK's `versionName` with the tag, so a release build installed on a phone reports `5.2.0.1` while the source tree still says `5.2`.
 
 Compile before tagging:
 
@@ -543,10 +544,11 @@ The tag push triggers `.github/workflows/fork-release.yml`. The workflow:
 1. Checks out the pushed tag with full history.
 2. Fetches `upstream/beta` and asserts it is an ancestor of the tagged commit.
 3. Asserts `versionCode` in `custom` is greater than or equal to upstream's.
-4. Decodes `KEYSTORE_BASE64` into `$RUNNER_TEMP/keys/koda-fork.jks`.
-5. Runs `:app:assembleRelease` with the four injected signing properties.
-6. Runs `apksigner verify --print-certs`.
-7. Creates a non-prerelease, latest GitHub Release with the three APKs and generated notes.
+4. Stamps `versionName` in the checked-out `app/build.gradle.kts` with the tag (without `v`), so the APK reports `5.2.0.1` rather than upstream's `5.2`, and copies the upstream release-notes file to `<tag>.md` when the release has no fork-specific file. Both are CI-only edits; the commit keeps upstream's values.
+5. Decodes `KEYSTORE_BASE64` into `$RUNNER_TEMP/keys/koda-fork.jks`.
+6. Runs `:app:assembleRelease` with the four injected signing properties.
+7. Runs `apksigner verify --print-certs` and checks `aapt2 dump badging` reports the tag as `versionName`.
+8. Creates a non-prerelease, latest GitHub Release with the three APKs and generated notes.
 
 The workflow only runs in the fork (`if: github.repository == 'theduardomaciel/Koda'`), so it cannot consume secrets in upstream's repository.
 
@@ -593,7 +595,7 @@ gh release edit v5.2.0.1 --repo theduardomaciel/Koda --notes-file .\release-note
 
 `--notes-file` **replaces** the body. Keep the generated "What's Changed" sections below the Highlights block if you want the full list; otherwise the release carries only the highlights. Generated notes are raw commit titles, so rewrite anything internal before users read it; editing the release afterwards is fine and changes nothing about the APK or the updater.
 
-The sheet shown after updating is different: it reads `app/src/main/assets/release-notes/<versionName>.md` from inside the APK. Fork builds keep upstream's `versionName`, so `5.2.md` is upstream's file and fork-only changes do not appear in that post-update sheet. That is intentional: the fork does not edit upstream's assets, and the update prompt's Highlights section is where fork-specific notes belong.
+The sheet shown after updating is different: it reads `app/src/main/assets/release-notes/<versionName>.md` from inside the APK. A release build reports the tag as its `versionName`, so `v5.2.0.1` needs a `5.2.0.1.md` asset. The workflow handles that without touching app code: if the release has no committed `5.2.0.1.md`, it copies the upstream base file (`5.2.md`) to `5.2.0.1.md` in the CI checkout before assembling, so the sheet still works. To give a fork release its own notes, commit `app/src/main/assets/release-notes/<tag>.md` (without the `v`); the workflow then uses it instead of copying. The release body's `## Highlights` section is still what the update prompt on an older install reads.
 
 ### 3.5 Install on a phone for the first time
 
@@ -676,7 +678,7 @@ Select-String -Path app/build.gradle.kts -Pattern "versionCode =|versionName ="
 git diff upstream/beta...custom -- "*.gradle.kts" "gradle/libs.versions.toml"
 ```
 
-The diff must stay empty. The fork never bumps `versionCode` or `versionName` on its own; upstream's numbers are the base, and the fork build number lives in the tag.
+The diff must stay empty. The fork never changes `versionCode` or `versionName` in the source; upstream's numbers are the base, and the release workflow stamps the tag into the APK's `versionName` at build time. The fork build number lives in the tag.
 
 ### 4.2 Adding fork-only work
 
@@ -729,10 +731,11 @@ Run through this every time:
 - [ ] `git merge-base --is-ancestor upstream/beta custom` returns 0.
 - [ ] `git diff --stat upstream/beta...custom -- "*.gradle.kts" "gradle/libs.versions.toml"` is empty.
 - [ ] `ForkConfig.GITHUB_REPO` points at `theduardomaciel/Koda`, and `git grep` shows no user-facing `BuildConfig.GITHUB_REPO` left.
-- [ ] `versionCode` and `versionName` match upstream's values.
+- [ ] `versionCode` matches upstream's value and `versionName` in the source still matches upstream's (the workflow stamps the APK).
 - [ ] `.\gradlew.bat :app:compileDebugKotlin` passes.
-- [ ] The new tag is numerically higher than the previous tag and uses four components.
+- [ ] The new tag is numerically higher than the previous tag, uses four components, and matches the versionName the release will report.
 - [ ] The user-visible highlights for the fork are written (they go into the release body, not an upstream asset).
+- [ ] Optional: `app/src/main/assets/release-notes/<tag>.md` exists if this release needs its own What's New sheet; otherwise the workflow copies the upstream version's file to the tag name.
 - [ ] The keystore backup and passwords are available.
 - [ ] All four GitHub secrets exist (`gh secret list`).
 - [ ] Workflows are enabled and have write permission.
@@ -745,6 +748,7 @@ Run through this every time:
 - [ ] The three APK assets are attached.
 - [ ] The release body has a `## Highlights` section (or you deliberately accept the "no highlights" line).
 - [ ] `apksigner verify` on a downloaded APK reports the expected certificate.
+- [ ] `aapt2 dump badging` on a downloaded APK reports `versionName` equal to the tag without `v`.
 - [ ] Install the release over the previous fork build without uninstalling; data is intact.
 - [ ] The in-app manual update check sees the new tag.
 - [ ] Install on a clean secondary device (or after an uninstall) and restore a backup, if anything in the build affects startup or migration.
@@ -758,6 +762,7 @@ This is the behavior the release setup has to satisfy. The implementation is `da
 - Endpoint: `https://api.github.com/repos/theduardomaciel/Koda/releases/latest`.
 - GitHub's `/releases/latest` **excludes drafts and pre-releases**. A fork release marked pre-release is invisible; the release must be published and non-prerelease.
 - Version comparison: strip one leading `v`/`V`, extract all digit runs, compare left to right, missing parts are `0`. It is not SemVer. `5.2` equals `5.2.0`; `5.2.1` is newer than `5.2`; `5.2.0.1` is newer than `5.2`.
+- Release builds report the tag as `versionName` (`5.2.0.1`); the source tree and development builds keep upstream's `5.2`. That is what lets an installed fork build compare equal to its own release instead of being offered the build it is already running.
 - Asset selection: exact ABI match first (`arm64-v8a`, `armeabi-v7a`), then simplified (`v8a`, `v7a`, `arm64`), then a `universal` asset. It never picks an APK for a different architecture. If nothing matches, it falls back to opening the release page.
 - The app does not download or verify the APK. It opens the URL and Android's package installer runs. The app holds no `REQUEST_INSTALL_PACKAGES`.
 - Check frequency: on launch/resume at most once every six hours, with a ten-minute in-process cache; the manual check forces a refresh. The automatic check is disabled in debug builds; the manual one is not.
@@ -906,10 +911,21 @@ Prefer a new `forkBuild` number over deleting a published release.
 Check, in order:
 
 1. The release is published, non-prerelease, and marked latest.
-2. The tag's digits are higher than `BuildConfig.VERSION_NAME` (for example `v5.2.0.1` versus `5.2`).
+2. The tag's digits are higher than the installed build's `versionName`. An installed `v5.2.0.1` reports `5.2.0.1`, so `v5.2.0.2` is newer; check with `aapt2 dump badging`.
 3. You are testing a release build, not a debug build.
 4. Open Settings and use the manual check to bypass the ten-minute cache; the automatic check is throttled to six hours.
 5. `ForkConfig.GITHUB_REPO` is still `theduardomaciel/Koda`, not upstream.
+
+### The updater keeps offering the release that is already installed
+
+The release APK was not stamped with its tag, so it reports upstream's `5.2` and the updater sees `5.2.0.1` as newer than itself. Confirm with:
+
+```powershell
+$bt = Get-ChildItem "$env:ANDROID_HOME\build-tools" | Sort-Object Name | Select-Object -Last 1
+& "$($bt.FullName)\aapt2.exe" dump badging .\app-universal-release.apk | Select-String versionName
+```
+
+The fix is to rebuild from a commit that contains the workflow's "Stamp the release version" step, and make sure the step ran in the run log. The stamp only exists in CI; a local `assembleRelease` still reports `5.2`.
 
 ### The app installs the download but Android rejects it
 
@@ -1009,7 +1025,7 @@ Short answers to the questions the setup usually raises:
 
 - **Why not change `BuildConfig.GITHUB_REPO` in `app/build.gradle.kts`?** It is an upstream file. Changing it conflicts on every upstream version bump. `ForkConfig` plus four one-line call sites keeps the merge surface at zero.
 - **Why not put the signing config in `app/build.gradle.kts`?** Same reason, plus the key path and passwords would end up in a file that is meant to be publishable. AGP's injected signing properties keep both out of the repository.
-- **Why keep upstream's `versionCode` and `versionName`?** Upstream's numbers are the base users understand, and the fork build number lives in the tag where the updater can compare it. Overriding the build file would conflict on every merge and make the guard meaningless.
+- **Why keep upstream's `versionCode` and `versionName` in the source?** `versionCode` is upstream's, and the release guard depends on it. `versionName` in the source stays upstream's too, which keeps the build file mergeable. The release workflow stamps the tag into the APK's `versionName` at build time, so an installed fork build reports `5.2.0.1` and the updater compares like with like. Local development builds still say `5.2`, which is harmless because the automatic update check is disabled in debug builds.
 - **Why four-part tags?** The updater compares digit runs, not SemVer. Four parts make a fork build strictly newer than its upstream base and strictly older than the next upstream version.
 - **Why non-prerelease releases?** `/releases/latest` ignores pre-releases and drafts, so a pre-release is invisible to the updater.
 - **Why is the fork release workflow separate from `build.yml`?** `build.yml` stays untouched and keeps building upstream's artifacts. The fork workflow only runs for the fork repository, owns the signing secrets, and publishes the releases the updater reads.
