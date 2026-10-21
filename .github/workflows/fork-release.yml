@@ -1,0 +1,83 @@
+name: Fork Release APK
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag, e.g. v5.2.0.1'
+        required: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fork-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.repository == 'theduardomaciel/Koda'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'push' && github.ref || 'custom' }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-java@v6
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Ensure custom includes upstream beta and a safe versionCode
+        run: |
+          git remote add upstream https://github.com/Ivorisnoob/Koda.git
+          git fetch --no-tags upstream beta
+          git merge-base --is-ancestor upstream/beta HEAD
+          CUSTOM_CODE=$(grep -oP 'versionCode = \K\d+' app/build.gradle.kts)
+          UPSTREAM_CODE=$(git show upstream/beta:app/build.gradle.kts | grep -oP 'versionCode = \K\d+')
+          test "$CUSTOM_CODE" -ge "$UPSTREAM_CODE"
+
+      - name: Decode keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/keys"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/keys/koda-fork.jks"
+
+      - name: Build signed release
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleRelease \
+            -Pandroid.injected.signing.store.file="$RUNNER_TEMP/keys/koda-fork.jks" \
+            -Pandroid.injected.signing.store.password="$KEYSTORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$KEY_PASSWORD"
+
+      - name: Verify signature
+        run: |
+          BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs \
+            app/build/outputs/apk/release/app-universal-release.apk
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
+        run: |
+          test -n "$TAG"
+          gh release create "$TAG" \
+            app/build/outputs/apk/release/app-universal-release.apk \
+            app/build/outputs/apk/release/app-arm64-v8a-release.apk \
+            app/build/outputs/apk/release/app-armeabi-v7a-release.apk \
+            --title "Koda $TAG" \
+            --generate-notes \
+            --latest
