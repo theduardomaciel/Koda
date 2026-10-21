@@ -38,6 +38,7 @@ import com.ivor.ivormusic.ui.components.MiniPlayerContent
 import com.ivor.ivormusic.ui.components.miniSkipGesture
 import com.ivor.ivormusic.ui.components.PLAYER_CONTAINER_SPRING
 import com.ivor.ivormusic.ui.components.PLAYER_TRANSFORM_COMMIT
+import com.ivor.ivormusic.ui.components.PLAYER_TRANSFORM_FLING_VELOCITY
 import com.ivor.ivormusic.ui.components.containerBackdropAlpha
 import com.ivor.ivormusic.ui.components.containerFullAlpha
 import com.ivor.ivormusic.ui.components.containerMiniAlpha
@@ -71,7 +72,17 @@ private const val PLAYER_BACK_PEEK = 0.72f
 private val MINI_BUBBLE_SIZE = 68.dp
 
 /** The share of the expansion over which a bubble widens back into the pill. */
-private const val MINI_BUBBLE_RELEASE = 0.2f
+private const val MINI_BUBBLE_OPEN_RELEASE = 0.2f
+
+/**
+ * The share of the collapse over which the pill closes into its bubble.
+ *
+ * Longer than the opening window on purpose. At 20% the width sat still until
+ * the height had already landed and then squeezed into the bubble in the tail
+ * of the spring, which read as a snap; spread over 45% of the trip the width
+ * and the height arrive together.
+ */
+private const val MINI_BUBBLE_CLOSE_RELEASE = 0.45f
 
 /** A rounded rectangle whose radius is never more than half its own smaller side. */
 private class CappedRoundedShape(private val radius: androidx.compose.ui.unit.Dp) :
@@ -236,7 +247,13 @@ fun ExpandablePlayer(
     // scrub it and an interrupted transition continues from its current value.
     val expandSpec = PLAYER_CONTAINER_SPRING
     val expand = remember { Animatable(if (isExpanded) 1f else 0f) }
+    // Which way the transform is going, for the bubble's own release window.
+    // Opening widens back into the pill over the first stretch so the container
+    // grows as the pill it has always been; closing spreads the same narrowing
+    // over more of the trip. See the two release constants.
+    var bubbleOpens by remember { mutableStateOf(isExpanded) }
     LaunchedEffect(isExpanded) {
+        bubbleOpens = isExpanded
         expand.animateTo(if (isExpanded) 1f else 0f, expandSpec)
     }
     // While a finger is down the transform follows it directly, in either
@@ -327,12 +344,15 @@ fun ExpandablePlayer(
     // cover the pill was showing is the cover the bubble shows: nothing is
     // swapped, the pill just closes round it.
     val bubbleSizePx = with(density) { MINI_BUBBLE_SIZE.toPx() }
-    // Opening the player from the bubble widens it back to the pill over the
-    // first part of the expansion, so the container transform starts from the
-    // shape it has always started from.
+    // Opening from the bubble widens it back into the pill over the first
+    // stretch, so the container transform starts from the shape it has always
+    // started from. Closing uses a longer window, so the width arrives with the
+    // height instead of squeezing in after it.
+    val bubbleRelease =
+        if (bubbleOpens) MINI_BUBBLE_OPEN_RELEASE else MINI_BUBBLE_CLOSE_RELEASE
     val bubbleFraction: () -> Float = {
         collapsedBubbleFraction().coerceIn(0f, 1f) *
-            (1f - (expandProgress / MINI_BUBBLE_RELEASE).coerceIn(0f, 1f))
+            (1f - (expandProgress / bubbleRelease).coerceIn(0f, 1f))
     }
 
     val expandedHeight = screenHeight
@@ -396,6 +416,8 @@ fun ExpandablePlayer(
     val miniSettleY = remember { Animatable(0f) }
     val miniDismissThresholdPx = with(density) { 56.dp.toPx() }
     val miniFlingVelocityPx = with(density) { 700.dp.toPx() }
+    val transformFlingVelocityPx =
+        with(density) { PLAYER_TRANSFORM_FLING_VELOCITY.toPx() }
     val miniOffsetY: () -> Float = { if (isMiniDraggingY) miniDragY else miniSettleY.value }
     val miniOffsetSpec = MaterialTheme.motionScheme.fastSpatialSpec<Float>()
 
@@ -517,8 +539,8 @@ fun ExpandablePlayer(
                                         // travel only decides for a drag that
                                         // ends almost still.
                                         val commit = when {
-                                            velocityY > miniFlingVelocityPx -> true
-                                            velocityY < -miniFlingVelocityPx -> false
+                                            velocityY > transformFlingVelocityPx -> true
+                                            velocityY < -transformFlingVelocityPx -> false
                                             else ->
                                                 (1f - dragTransformProgress) >= PLAYER_TRANSFORM_COMMIT
                                         }
@@ -564,7 +586,10 @@ fun ExpandablePlayer(
                                     if (!directionChosen) {
                                         directionChosen = true
                                         collapsing = dragAmount > 0f
-                                        if (collapsing) isDraggingTransform = true
+                                        if (collapsing) {
+                                            isDraggingTransform = true
+                                            bubbleOpens = false
+                                        }
                                     }
                                     if (collapsing) {
                                         // 1:1 with the container's top edge.
@@ -665,8 +690,8 @@ fun ExpandablePlayer(
                                         // a flick down always returns; travel only
                                         // decides for a drag that ends almost still.
                                         val commit = when {
-                                            velocityY < -miniFlingVelocityPx -> true
-                                            velocityY > miniFlingVelocityPx -> false
+                                            velocityY < -transformFlingVelocityPx -> true
+                                            velocityY > transformFlingVelocityPx -> false
                                             else -> dragTransformProgress >= PLAYER_TRANSFORM_COMMIT
                                         }
                                         val released = dragTransformProgress
@@ -739,7 +764,10 @@ fun ExpandablePlayer(
                                     if (!directionChosen) {
                                         directionChosen = true
                                         expanding = dragAmount < 0f
-                                        if (expanding) isDraggingTransform = true
+                                        if (expanding) {
+                                            isDraggingTransform = true
+                                            bubbleOpens = true
+                                        }
                                     }
                                     if (expanding) {
                                         // 1:1 with the container's top edge.

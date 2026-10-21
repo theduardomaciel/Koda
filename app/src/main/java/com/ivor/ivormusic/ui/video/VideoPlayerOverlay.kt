@@ -43,6 +43,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.media3.common.util.UnstableApi
 import com.ivor.ivormusic.ui.components.PLAYER_CONTAINER_SPRING
 import com.ivor.ivormusic.ui.components.PLAYER_TRANSFORM_COMMIT
+import com.ivor.ivormusic.ui.components.PLAYER_TRANSFORM_FLING_VELOCITY
 import com.ivor.ivormusic.ui.components.containerFullAlpha
 import com.ivor.ivormusic.ui.components.containerMiniAlpha
 import com.ivor.ivormusic.ui.components.playerContainerFrame
@@ -587,6 +588,8 @@ fun VideoPlayerOverlay(
         val miniExpandThresholdPx = with(density) { 48.dp.toPx() }
         val miniDismissThresholdPx = with(density) { 56.dp.toPx() }
         val miniFlingVelocityPx = with(density) { 700.dp.toPx() }
+        val transformFlingVelocityPx =
+            with(density) { PLAYER_TRANSFORM_FLING_VELOCITY.toPx() }
         // Upward travel is a preview, not a drag: the expand it commits to is
         // a different animation entirely, so letting the bar follow the finger
         // up the screen would promise a movement that never continues.
@@ -777,8 +780,8 @@ fun VideoPlayerOverlay(
                                 // flick down always returns; travel only
                                 // decides for a drag that ends almost still.
                                 val commit = when {
-                                    velocityY < -miniFlingVelocityPx -> true
-                                    velocityY > miniFlingVelocityPx -> false
+                                    velocityY < -transformFlingVelocityPx -> true
+                                    velocityY > transformFlingVelocityPx -> false
                                     else -> dragProgress >= PLAYER_TRANSFORM_COMMIT
                                 }
                                 val released = dragProgress
