@@ -26,6 +26,18 @@ import androidx.compose.animation.core.spring
 internal val PLAYER_CONTAINER_SPRING: SpringSpec<Float> =
     spring(dampingRatio = 0.95f, stiffness = 350f)
 
+/**
+ * How far through the transform a slow drag must be for its release to commit.
+ *
+ * Past it the player finishes the move; short of it the same spring returns it
+ * to where the drag began. A flick faster than the player's own fling velocity
+ * commits from anywhere, so this only decides for a drag that ends almost
+ * still. One value for both players and both directions: a sheet opened from
+ * the music pill and one opened from the video bar should not ask for
+ * different amounts of effort.
+ */
+internal const val PLAYER_TRANSFORM_COMMIT = 0.35f
+
 /** Progress by which the collapsed content has faded out completely. */
 private const val MINI_FADE_END = 0.28f
 

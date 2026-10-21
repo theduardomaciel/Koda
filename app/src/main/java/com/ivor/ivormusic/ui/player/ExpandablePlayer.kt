@@ -37,6 +37,7 @@ import com.ivor.ivormusic.data.PlaylistDisplayItem
 import com.ivor.ivormusic.ui.components.MiniPlayerContent
 import com.ivor.ivormusic.ui.components.miniSkipGesture
 import com.ivor.ivormusic.ui.components.PLAYER_CONTAINER_SPRING
+import com.ivor.ivormusic.ui.components.PLAYER_TRANSFORM_COMMIT
 import com.ivor.ivormusic.ui.components.containerBackdropAlpha
 import com.ivor.ivormusic.ui.components.containerFullAlpha
 import com.ivor.ivormusic.ui.components.containerMiniAlpha
@@ -71,15 +72,6 @@ private val MINI_BUBBLE_SIZE = 68.dp
 
 /** The share of the expansion over which a bubble widens back into the pill. */
 private const val MINI_BUBBLE_RELEASE = 0.2f
-
-/**
- * How far through the transform a slow drag must be for its release to commit,
- * either direction. A flick faster than the pill's fling velocity commits from
- * anywhere; travel only decides for a drag that ends almost still. Without a
- * proportional threshold, a finger-following sheet would close on any small
- * nudge and its midpoint could never be held.
- */
-private const val MINI_TRANSFORM_COMMIT = 0.35f
 
 /** A rounded rectangle whose radius is never more than half its own smaller side. */
 private class CappedRoundedShape(private val radius: androidx.compose.ui.unit.Dp) :
@@ -528,7 +520,7 @@ fun ExpandablePlayer(
                                             velocityY > miniFlingVelocityPx -> true
                                             velocityY < -miniFlingVelocityPx -> false
                                             else ->
-                                                (1f - dragTransformProgress) >= MINI_TRANSFORM_COMMIT
+                                                (1f - dragTransformProgress) >= PLAYER_TRANSFORM_COMMIT
                                         }
                                         playerScope.launch {
                                             try {
@@ -583,7 +575,7 @@ fun ExpandablePlayer(
                                     // The edge that decides the release ticks, and
                                     // it re-arms if the finger comes back inside it.
                                     val crossed = collapsing &&
-                                        (1f - dragTransformProgress) >= MINI_TRANSFORM_COMMIT
+                                        (1f - dragTransformProgress) >= PLAYER_TRANSFORM_COMMIT
                                     if (crossed && !thresholdFeedbackSent) {
                                         thresholdFeedbackSent = true
                                         haptics.threshold()
@@ -675,7 +667,7 @@ fun ExpandablePlayer(
                                         val commit = when {
                                             velocityY < -miniFlingVelocityPx -> true
                                             velocityY > miniFlingVelocityPx -> false
-                                            else -> dragTransformProgress >= MINI_TRANSFORM_COMMIT
+                                            else -> dragTransformProgress >= PLAYER_TRANSFORM_COMMIT
                                         }
                                         val released = dragTransformProgress
                                         playerScope.launch {
@@ -766,7 +758,7 @@ fun ExpandablePlayer(
                                     // The edge that decides the release ticks, and
                                     // it re-arms if the finger comes back inside it.
                                     val crossed = if (expanding) {
-                                        dragTransformProgress >= MINI_TRANSFORM_COMMIT
+                                        dragTransformProgress >= PLAYER_TRANSFORM_COMMIT
                                     } else {
                                         canDismiss && verticalDragOffset >= miniDismissThresholdPx
                                     }
