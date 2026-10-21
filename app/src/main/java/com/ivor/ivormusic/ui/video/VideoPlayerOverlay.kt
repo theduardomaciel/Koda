@@ -432,6 +432,12 @@ fun VideoPlayerOverlay(
                     isDragging || returningToBar ->
                         containerMiniAlpha(transformProgress()) > 0f
                     isExpanded -> false
+                    // A committed collapse still has its page mounted until the
+                    // container lands: it keeps the picture above the bar's fade
+                    // point, exactly as a collapse drag does. Without this the
+                    // bar would take the surface at the commit and the page
+                    // would freeze for the first half of the settle.
+                    showExpandedSurface -> containerMiniAlpha(transformProgress()) > 0f
                     else -> true
                 }
             }
