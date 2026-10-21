@@ -3,6 +3,7 @@ package com.ivor.ivormusic.ui.player
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -420,6 +421,31 @@ fun ExpandablePlayer(
         with(density) { PLAYER_TRANSFORM_FLING_VELOCITY.toPx() }
     val miniOffsetY: () -> Float = { if (isMiniDraggingY) miniDragY else miniSettleY.value }
     val miniOffsetSpec = MaterialTheme.motionScheme.fastSpatialSpec<Float>()
+    // A button press has no finger momentum behind it, so it gets the calmer
+    // default spatial spec; the slide is the whole feedback.
+    val closeOffsetSpec = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
+    // The pill's way out, shared by the downward swipe and the close button:
+    // slide below the screen's edge, then give the player up. The button used
+    // to call clearPlayer() straight away, so the pill vanished instead of
+    // leaving the way the gesture does.
+    val dismissPill: (Float, AnimationSpec<Float>) -> Unit = { fromOffset, spec ->
+        if (!isDismissing) {
+            isDismissing = true
+            playerScope.launch {
+                miniSettleY.snapTo(fromOffset)
+                isMiniDraggingY = false
+                miniSettleY.animateTo(
+                    with(density) { (collapsedHeight + collapsedBottomPadding).toPx() } +
+                        miniDismissThresholdPx,
+                    spec
+                )
+                viewModel.clearPlayer()
+                isDismissing = false
+                miniDragY = 0f
+                miniSettleY.snapTo(0f)
+            }
+        }
+    }
 
     // The songs either side of this one in the order they will play - the
     // play order, not the queue as added, so a shuffled queue peeks at what
@@ -718,24 +744,7 @@ fun ExpandablePlayer(
                                         when {
                                             dismiss -> {
                                                 if (!thresholdFeedbackSent) haptics.confirm()
-                                                isDismissing = true
-                                                val released = miniDragY
-                                                playerScope.launch {
-                                                    miniSettleY.snapTo(released)
-                                                    isMiniDraggingY = false
-                                                    // Below the screen's edge from wherever it is.
-                                                    miniSettleY.animateTo(
-                                                        with(density) {
-                                                            (collapsedHeight + collapsedBottomPadding)
-                                                                .toPx()
-                                                        } + miniDismissThresholdPx,
-                                                        miniOffsetSpec
-                                                    )
-                                                    viewModel.clearPlayer()
-                                                    isDismissing = false
-                                                    miniDragY = 0f
-                                                    miniSettleY.snapTo(0f)
-                                                }
+                                                dismissPill(miniDragY, miniOffsetSpec)
                                             }
                                             else -> settleHome()
                                         }
@@ -905,7 +914,10 @@ fun ExpandablePlayer(
                                     }
                                     com.ivor.ivormusic.data.MiniPlayerButton.SHUFFLE -> viewModel.toggleShuffle()
                                     com.ivor.ivormusic.data.MiniPlayerButton.REPEAT -> viewModel.toggleRepeat()
-                                    com.ivor.ivormusic.data.MiniPlayerButton.CLOSE -> viewModel.clearPlayer()
+                                    com.ivor.ivormusic.data.MiniPlayerButton.CLOSE -> {
+                                        haptics.confirm()
+                                        dismissPill(miniSettleY.value, closeOffsetSpec)
+                                    }
                                     // Play/pause and next have their own callbacks.
                                     com.ivor.ivormusic.data.MiniPlayerButton.PLAY_PAUSE,
                                     com.ivor.ivormusic.data.MiniPlayerButton.NEXT -> Unit

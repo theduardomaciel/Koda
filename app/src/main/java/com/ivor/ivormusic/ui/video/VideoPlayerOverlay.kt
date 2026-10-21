@@ -7,6 +7,7 @@ import android.app.PictureInPictureParams
 import android.os.Build
 import android.util.Rational
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -596,18 +597,21 @@ fun VideoPlayerOverlay(
         val miniLiftLimitPx = with(density) { 24.dp.toPx() }
         val miniEnterOffsetPx = with(density) { 12.dp.toPx() }
         val miniOffsetAnimationSpec = MaterialTheme.motionScheme.fastSpatialSpec<Float>()
+        // A button press has no finger momentum behind it, so it gets the calmer
+        // default spatial spec; the slide is the whole feedback.
+        val closeOffsetSpec = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
 
         // The bar's way out, shared by the downward swipe and the close control:
         // slide out of the window, then give the session up. The button used to
         // call closePlayer() straight away, so the bar vanished instead of
         // leaving the way the gesture does.
-        val dismissVideoBar: (Float) -> Unit = { fromOffset ->
+        val dismissVideoBar: (Float, AnimationSpec<Float>) -> Unit = { fromOffset, spec ->
             if (!isDismissingMini) {
                 isDismissingMini = true
                 scope.launch {
                     miniSettleOffset.snapTo(fromOffset)
                     isMiniDragging = false
-                    miniSettleOffset.animateTo(fullHeightPx, miniOffsetAnimationSpec)
+                    miniSettleOffset.animateTo(fullHeightPx, spec)
                     viewModel.closePlayer()
                     isDismissingMini = false
                     miniDragY = 0f
@@ -618,7 +622,7 @@ fun VideoPlayerOverlay(
         val closeVideoBar: () -> Unit = {
             if (!isDismissingMini) {
                 haptics.performHapticFeedback(HapticFeedbackType.Confirm)
-                dismissVideoBar(miniSettleOffset.value)
+                dismissVideoBar(miniSettleOffset.value, closeOffsetSpec)
             }
         }
 
@@ -854,7 +858,7 @@ fun VideoPlayerOverlay(
                                         if (!thresholdFeedbackSent) {
                                             haptics.performHapticFeedback(HapticFeedbackType.Confirm)
                                         }
-                                        dismissVideoBar(miniDragY)
+                                        dismissVideoBar(miniDragY, miniOffsetAnimationSpec)
                                     }
                                     else -> {
                                         val releasedOffset = miniDragY
