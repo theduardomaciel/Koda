@@ -42,7 +42,7 @@ jobs:
           UPSTREAM_CODE=$(git show upstream/beta:app/build.gradle.kts | grep -oP 'versionCode = \K\d+')
           test "$CUSTOM_CODE" -ge "$UPSTREAM_CODE"
 
-Can      - name: Stamp the release version and notes
+      - name: Stamp the release version and notes
         env:
           TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
         run: |
