@@ -2409,4 +2409,11 @@
 <string name="channel_of">Canal %1$s</string>
 <string name="offline_label">Offline</string>
 <string name="account_new_profile_note">Ele tem suas próprias inscrições e recomendações ocultas, sem nenhuma conta do Google envolvida.</string>
+<string name="ck_missing_cookies">Faltando %1$s. Copie o valor completo do cookie e verifique se esse navegador está conectado.</string>
+<string name="ck_cookie_warning">Estes cookies dão acesso total à sua conta do Google e ignoram a verificação em duas etapas. O Koda os armazena criptografados neste dispositivo e só os envia ao YouTube. Nunca os compartilhe.</string>
+<string name="us_preview_debug">Pré-visualizar diálogo de atualização (depuração)</string>
+<plurals name="bk_accounts_signin_note">
+        <item quantity="one">Os backups nunca incluem uma sessão, então a conta nele precisará ser conectada novamente. As contas já conectadas neste dispositivo continuam conectadas.</item>
+        <item quantity="other">Os backups nunca incluem uma sessão, então as %1$d contas nele precisarão ser conectadas novamente. As contas já conectadas neste dispositivo continuam conectadas.</item>
+    </plurals>
 </resources>

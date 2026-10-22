@@ -240,7 +240,7 @@ fun UpdateScreen(
                         modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
                         shape = RoundedCornerShape(18.dp),
                     ) {
-                        Text("Preview update dialog (debug)")
+                        Text(stringResource(R.string.us_preview_debug))
                     }
                 }
             }

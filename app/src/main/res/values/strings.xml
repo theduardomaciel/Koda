@@ -2485,4 +2485,11 @@
     <string name="channel_of">%1$s channel</string>
     <string name="offline_label">Offline</string>
     <string name="account_new_profile_note">It gets its own subscriptions and hidden recommendations, with no Google account involved.</string>
+    <string name="ck_missing_cookies">Missing %1$s. Copy the whole cookie value, and make sure that browser is signed in.</string>
+    <string name="ck_cookie_warning">These cookies grant full access to your Google account and bypass 2-step verification. Koda stores them encrypted on this device and only sends them to YouTube. Never share them.</string>
+    <string name="us_preview_debug">Preview update dialog (debug)</string>
+    <plurals name="bk_accounts_signin_note">
+        <item quantity="one">Backups never carry a sign-in, so the account in it will come back needing to be signed into again. Accounts already signed in on this device stay signed in.</item>
+        <item quantity="other">Backups never carry a sign-in, so the %1$d accounts in it will come back needing to be signed into again. Accounts already signed in on this device stay signed in.</item>
+    </plurals>
 </resources>

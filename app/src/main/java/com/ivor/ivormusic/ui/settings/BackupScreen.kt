@@ -77,6 +77,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -724,10 +725,7 @@ private fun RestoreConfirmDialog(
                 )
                 if (accounts > 0) {
                     Text(
-                        text = "Backups never carry a sign-in, so " +
-                            (if (accounts == 1) "the account in it" else "the $accounts accounts in it") +
-                            " will come back needing to be signed into again. Accounts " +
-                            "already signed in on this device stay signed in.",
+                        text = pluralStringResource(R.plurals.bk_accounts_signin_note, accounts, accounts),
                         fontSize = 13.sp,
                         lineHeight = 18.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
