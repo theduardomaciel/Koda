@@ -136,6 +136,11 @@ fun CommentsPanel(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                // Every host gets the bar inset from here rather than from
+                // its own wrapper: the sheet draws behind the navigation bar
+                // on purpose, and the video player's inline panel had no
+                // wrapper to carry the inset, so its composer sat under it.
+                .navigationBarsPadding()
                 .imePadding()
         ) {
             Row(
@@ -417,9 +422,9 @@ fun CommentsSheet(
             onOpenAuthor = onOpenAuthor,
             header = header,
             unavailableMessage = unavailableMessage,
-            modifier = Modifier
-                .fillMaxHeight(heightFraction)
-                .navigationBarsPadding()
+            // The panel carries the navigation bar inset itself, so adding
+            // it here as well would double it under the composer.
+            modifier = Modifier.fillMaxHeight(heightFraction)
         )
     }
 }

@@ -16,12 +16,14 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -59,8 +61,11 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
@@ -69,6 +74,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogWindowProvider
@@ -92,6 +98,7 @@ import com.ivor.ivormusic.data.VideoShaderCustomization
 import com.ivor.ivormusic.data.VideoShaderPreset
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 /** The shape of the watch page's video box when the source shape is unknown. */
@@ -107,6 +114,16 @@ private const val DEFAULT_VIDEO_ASPECT = 16f / 9f
  * rather than pushing the page off the screen.
  */
 private const val MAX_VIDEO_BOX_HEIGHT_FRACTION = 0.62f
+
+/**
+ * How far down the comments panel has to travel before letting go closes it.
+ * A third is the same proportion the player's other drags commit on, so the
+ * page answers every swipe the same way.
+ */
+private const val COMMENTS_DISMISS_TRAVEL_FRACTION = 1f / 3f
+
+/** A flick this fast closes the comments panel without the travel adding up. */
+private val COMMENTS_DISMISS_FLING_DP_PER_SECOND = 400.dp
 
 /**
  * Content for the full Video Player Overlay.
@@ -648,6 +665,102 @@ fun VideoPlayerContent(
                 return available
             }
         }
+    }
+
+    /**
+     * Pull the comments panel down to close it, the way the sheet it looks
+     * like would. The list keeps its own scrolling; once it runs out at the
+     * top the leftover pull moves the panel with the finger, and letting go
+     * past a third of its height - or on a flick - dismisses it. Dragging back
+     * up returns the panel to rest before the list scrolls again.
+     */
+    var commentsPanelHeight by remember { mutableIntStateOf(0) }
+    var commentsDismissOffset by remember { mutableFloatStateOf(0f) }
+    val commentsDismissScope = rememberCoroutineScope()
+    val commentsDismissFlingPx = with(LocalDensity.current) {
+        COMMENTS_DISMISS_FLING_DP_PER_SECOND.toPx()
+    }
+    fun commentsShouldDismiss(velocityY: Float): Boolean =
+        velocityY > commentsDismissFlingPx ||
+            commentsDismissOffset > commentsPanelHeight * COMMENTS_DISMISS_TRAVEL_FRACTION
+    suspend fun settleCommentsPanel() {
+        animate(
+            initialValue = commentsDismissOffset,
+            targetValue = 0f,
+            animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
+        ) { value, _ -> commentsDismissOffset = value }
+    }
+    val commentsDismissDrag = remember(commentsDismissFlingPx) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (source != NestedScrollSource.UserInput ||
+                    commentsDismissOffset <= 0f || available.y >= 0f
+                ) {
+                    return Offset.Zero
+                }
+                val previous = commentsDismissOffset
+                commentsDismissOffset = (commentsDismissOffset + available.y).coerceAtLeast(0f)
+                return Offset(0f, commentsDismissOffset - previous)
+            }
+
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource
+            ): Offset {
+                if (source != NestedScrollSource.UserInput || available.y <= 0f) return Offset.Zero
+                commentsDismissOffset = (commentsDismissOffset + available.y)
+                    .coerceAtMost(commentsPanelHeight.toFloat())
+                return Offset(0f, available.y)
+            }
+
+            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                if (commentsDismissOffset <= 0f) return Velocity.Zero
+                if (commentsShouldDismiss(available.y)) {
+                    // The exit slide takes over from the released position, so
+                    // the offset is cleared when it opens again, not here.
+                    showCommentsSheet = false
+                } else {
+                    settleCommentsPanel()
+                }
+                return available
+            }
+        }
+    }
+    // A sheet closes from the finger wherever it lands, not only from its
+    // list: the header, an empty state and the composer answer the same pull.
+    // A drag that starts on the list is claimed by the list (a scrollable
+    // consumes its drag even at the top), and the connection above takes over
+    // once the list runs out.
+    val commentsPanelDrag = Modifier.pointerInput(commentsDismissFlingPx) {
+        val velocityTracker = VelocityTracker()
+        detectVerticalDragGestures(
+            onDragStart = { velocityTracker.resetTracking() },
+            onVerticalDrag = { change, dragAmount ->
+                if (!change.isConsumed) {
+                    change.consume()
+                    commentsDismissOffset = (commentsDismissOffset + dragAmount)
+                        .coerceIn(0f, commentsPanelHeight.toFloat())
+                    velocityTracker.addPosition(
+                        change.uptimeMillis,
+                        Offset(0f, commentsDismissOffset)
+                    )
+                }
+            },
+            onDragEnd = {
+                if (commentsShouldDismiss(velocityTracker.calculateVelocity().y)) {
+                    showCommentsSheet = false
+                } else {
+                    commentsDismissScope.launch { settleCommentsPanel() }
+                }
+            },
+            onDragCancel = {
+                commentsDismissScope.launch { settleCommentsPanel() }
+            }
+        )
+    }
+    LaunchedEffect(showCommentsSheet) {
+        if (showCommentsSheet) commentsDismissOffset = 0f
     }
 
     // ---------------- UI ----------------
@@ -1238,7 +1351,12 @@ fun VideoPlayerContent(
                             onLikeComment = { comment -> requireLogin { viewModel.toggleCommentLike(comment) } },
                             onDeleteComment = { comment -> viewModel.deleteComment(comment) },
                             onDismiss = { showCommentsSheet = false },
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .offset { IntOffset(0, commentsDismissOffset.roundToInt()) }
+                                .nestedScroll(commentsDismissDrag)
+                                .then(commentsPanelDrag)
+                                .onSizeChanged { commentsPanelHeight = it.height },
                             onSeekTo = { seconds ->
                                 viewModel.seekTo(seconds * 1000L, precise = true)
                                 // Jumping to the moment a comment is about is

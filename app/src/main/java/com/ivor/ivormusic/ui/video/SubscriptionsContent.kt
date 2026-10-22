@@ -11,6 +11,8 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -674,8 +676,14 @@ fun SubscriptionsContent(
                         }
 
                         item(key = "feed-controls") {
+                            // Scrolls rather than shrinks: three labels fit in
+                            // English but not in a longer translation, and a
+                            // squeezed chip truncates the one answer it has.
                             Row(
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState())
+                                    .padding(horizontal = 16.dp),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 Box {
