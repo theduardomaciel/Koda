@@ -1525,7 +1525,7 @@ private fun SettingsHub(
     } else {
         com.ivor.ivormusic.ui.theme.findPalette(colorPalette)?.name ?: "Dynamic"
     }
-    val playerStyleLabel = com.ivor.ivormusic.ui.player.playerStyleInfo(playerStyle).label
+    val playerStyleName = com.ivor.ivormusic.ui.player.playerStyleLabel(playerStyle)
 
     val contentValue = when {
         localOnlyMode -> "Local only, offline"
@@ -1702,7 +1702,7 @@ private fun SettingsHub(
                                 append(", ")
                                 append(paletteName)
                                 append(" \u00B7 ")
-                                append(playerStyleLabel)
+                                append(playerStyleName)
                                 // Only when it is doing something: a "100%"
                                 // on every install is noise, not a live value.
                                 if (uiScale != UI_SCALE_DEFAULT) {

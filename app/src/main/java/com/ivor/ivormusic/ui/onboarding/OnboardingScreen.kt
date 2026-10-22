@@ -357,7 +357,7 @@ fun OnboardingScreen(
                         shapes = IconButtonDefaults.shapes(),
                         modifier = Modifier.size(56.dp)
                     ) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.cd_back))
                     }
                 }
 

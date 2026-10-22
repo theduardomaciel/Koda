@@ -117,7 +117,7 @@ internal fun CustomizationSettingsPage(
                     SettingsHubRow(
                         icon = Icons.Rounded.PlayCircle,
                         title = stringResource(R.string.settings_player),
-                        value = com.ivor.ivormusic.ui.player.playerStyleInfo(playerStyle).label,
+                        value = com.ivor.ivormusic.ui.player.playerStyleLabel(playerStyle),
                         onClick = { onOpenPage(SettingsPage.PLAYER) },
                         iconShape = MaterialShapes.Clover4Leaf.toShape(),
                         explanation = stringResource(R.string.si_hub_player)

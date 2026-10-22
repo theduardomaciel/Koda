@@ -1603,7 +1603,7 @@ fun VideoPlayerContent(
                                 modifier = Modifier.weight(1f)
                             )
                             FilledTonalIconButton(onClick = { showPlaybackSettings = false }) {
-                                Icon(Icons.Rounded.Close, contentDescription = "Close")
+                                Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.cd_close))
                             }
                         }
                         Spacer(modifier = Modifier.height(12.dp))

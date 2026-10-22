@@ -197,7 +197,7 @@ fun DownloadsScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.cd_back))
                     }
                 },
                 actions = {
@@ -600,11 +600,11 @@ private fun ProgressCard(
                 }
                 if (failed) {
                     IconButton(onClick = { onRetry(item.request) }) {
-                        Icon(Icons.Rounded.Refresh, contentDescription = "Retry")
+                        Icon(Icons.Rounded.Refresh, contentDescription = stringResource(R.string.action_retry))
                     }
                 }
                 IconButton(onClick = { onCancel(item.songId) }) {
-                    Icon(Icons.Rounded.Close, contentDescription = "Cancel")
+                    Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.action_cancel))
                 }
             }
 

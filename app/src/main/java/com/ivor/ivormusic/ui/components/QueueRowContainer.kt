@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import androidx.compose.ui.res.stringResource
 
 /**
  * The chrome every queue row shares: the lift while it is being dragged, and
@@ -197,7 +198,7 @@ fun QueueDragHandle(
     ) {
         Icon(
             imageVector = Icons.Rounded.DragHandle,
-            contentDescription = "Drag to reorder",
+            contentDescription = stringResource(R.string.cd_drag_to_reorder),
             tint = tint,
             modifier = Modifier.size(20.dp)
         )

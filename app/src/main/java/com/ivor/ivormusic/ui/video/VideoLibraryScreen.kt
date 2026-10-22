@@ -1463,7 +1463,7 @@ private fun SubPageTopBar(
                 contentColor = MaterialTheme.colorScheme.onBackground
             )
         ) {
-            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.cd_back))
         }
         Spacer(modifier = Modifier.width(12.dp))
         Text(
