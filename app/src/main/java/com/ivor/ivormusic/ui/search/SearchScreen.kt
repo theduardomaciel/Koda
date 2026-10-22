@@ -964,7 +964,7 @@ fun SearchScreen(
                     if (channelResults.isNotEmpty()) {
                         item {
                             ResultHeader(
-                                title = "Channels",
+                                title = stringResource(R.string.section_channels),
                                 count = channelResults.size,
                                 icon = Icons.Rounded.AccountCircle,
                                 color = MaterialTheme.colorScheme.primary,
@@ -989,7 +989,7 @@ fun SearchScreen(
                     if (videoPlaylistResults.isNotEmpty()) {
                         item {
                             ResultHeader(
-                                title = "Playlists",
+                                title = stringResource(R.string.section_playlists),
                                 count = videoPlaylistResults.size,
                                 icon = Icons.Rounded.QueueMusic,
                                 color = Color(0xFF_FF9800), // Orange
@@ -1082,7 +1082,7 @@ fun SearchScreen(
                 artistResults.isNotEmpty() -> {
                     item {
                         ResultHeader(
-                            title = "Artists",
+                            title = stringResource(R.string.section_artists),
                             count = artistResults.size,
                             icon = Icons.Rounded.Person,
                             color = Color(0xFF9C27B0), // Purple
@@ -1125,7 +1125,7 @@ fun SearchScreen(
                 albumResults.isNotEmpty() -> {
                      item {
                         ResultHeader(
-                            title = "Albums",
+                            title = stringResource(R.string.section_albums),
                             count = albumResults.size,
                             icon = Icons.Rounded.Album,
                             color = Color(0xFF_009688), // Teal
@@ -1560,7 +1560,7 @@ private fun SearchHeroHeader(
         } catch (e: ActivityNotFoundException) {
             // No recognizer on the device. A toast beats a silent dead button,
             // and this is the one voice-search failure that is a device fact.
-            Toast.makeText(context, "Voice search is not available on this device", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, context.getString(R.string.search_voice_unavailable), Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -2979,7 +2979,7 @@ private fun LinkPlaylistHeader(
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Icon(
                             Icons.Rounded.PlayArrow,
-                            contentDescription = "Play all",
+                            contentDescription = stringResource(R.string.action_play_all),
                             tint = MaterialTheme.colorScheme.onPrimary,
                             modifier = Modifier.size(24.dp)
                         )

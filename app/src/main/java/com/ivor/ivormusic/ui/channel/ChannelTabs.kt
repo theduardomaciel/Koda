@@ -390,7 +390,7 @@ private fun FeaturedVideoCard(
                     color = MaterialTheme.colorScheme.primary
                 ) {
                     Text(
-                        text = "Featured",
+                        text = stringResource(R.string.ch_featured),
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onPrimary,
@@ -827,7 +827,7 @@ private fun LazyGridScope.aboutTab(about: ChannelAbout?, isLoading: Boolean) {
 
     if (!about.description.isNullOrBlank()) {
         item(key = "about_description", span = { GridItemSpan(maxLineSpan) }) {
-            AboutCard(title = "Description") {
+            AboutCard(title = stringResource(R.string.vp_description)) {
                 // The bio arrives as a bare string, so its addresses, emails
                 // and @handles are found here; a YouTube one opens in Koda.
                 val linkified = remember(about.description) {
@@ -845,7 +845,7 @@ private fun LazyGridScope.aboutTab(about: ChannelAbout?, isLoading: Boolean) {
     if (about.links.isNotEmpty()) {
         item(key = "about_links", span = { GridItemSpan(maxLineSpan) }) {
             val uriHandler = LocalUriHandler.current
-            AboutCard(title = "Links") {
+            AboutCard(title = stringResource(R.string.ch_links)) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     about.links.forEach { link ->
                         Row(
@@ -898,7 +898,7 @@ private fun LazyGridScope.aboutTab(about: ChannelAbout?, isLoading: Boolean) {
     )
     if (stats.isNotEmpty()) {
         item(key = "about_stats", span = { GridItemSpan(maxLineSpan) }) {
-            AboutCard(title = "Details") {
+            AboutCard(title = stringResource(R.string.ch_details)) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     stats.forEach { (icon, text) ->
                         Row(
@@ -1270,13 +1270,13 @@ internal fun ChannelSearchPane(
                 modifier = Modifier.size(44.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(Icons.Rounded.Close, contentDescription = "Close search")
+                    Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.cd_close_search))
                 }
             }
             SearchField(
                 query = query,
                 onQueryChange = onQueryChange,
-                placeholder = "Search $channelName",
+                placeholder = stringResource(R.string.ch_search_placeholder, channelName),
                 modifier = Modifier.weight(1f)
             )
         }
@@ -1304,7 +1304,7 @@ internal fun ChannelSearchPane(
                 )
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    text = "Nothing in this channel matches \"$query\"",
+                    text = stringResource(R.string.ch_no_match, query),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center
@@ -1326,7 +1326,7 @@ internal fun ChannelSearchPane(
                 )
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    text = "Search everything $channelName has published",
+                    text = stringResource(R.string.ch_search_everything, channelName),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center
@@ -1427,7 +1427,7 @@ internal fun ChannelPhotoViewer(
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             Icons.Rounded.Close,
-                            contentDescription = "Close photos",
+                            contentDescription = stringResource(R.string.cd_close_photos),
                             modifier = Modifier.size(24.dp)
                         )
                     }

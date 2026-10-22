@@ -102,7 +102,7 @@ fun CommentsPanel(
      */
     header: (@Composable () -> Unit)? = null,
     /** Shown when the thread could not be opened at all. */
-    unavailableMessage: String = "Comments are unavailable for this video"
+    unavailableMessage: String? = null
 ) {
     val listState = rememberLazyListState()
 
@@ -185,7 +185,7 @@ fun CommentsPanel(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = if (commentsAvailable) "No comments yet" else unavailableMessage,
+                                text = if (commentsAvailable) stringResource(R.string.comments_none) else (unavailableMessage ?: stringResource(R.string.comments_unavailable)),
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -216,7 +216,7 @@ fun CommentsPanel(
                                     // Reply affordance (needs login + reply params)
                                     if (canComment && comment.replyParams != null) {
                                         Text(
-                                            text = "Reply",
+                                            text = stringResource(R.string.comments_reply),
                                             style = MaterialTheme.typography.labelLarge,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             fontWeight = FontWeight.Bold,
@@ -236,8 +236,8 @@ fun CommentsPanel(
                                     val isLoadingReplies = comment.commentId in loadingReplyIds
                                     if (comment.repliesToken != null && commentReplies == null) {
                                         Text(
-                                            text = if (isLoadingReplies) "Loading replies…"
-                                            else "View replies" + if (comment.replyCount.isNotEmpty()) " (${comment.replyCount})" else "",
+                                            text = if (isLoadingReplies) stringResource(R.string.comments_loading_replies)
+                                            else stringResource(R.string.comments_view_replies) + if (comment.replyCount.isNotEmpty()) " (${comment.replyCount})" else "",
                                             style = MaterialTheme.typography.labelLarge,
                                             color = MaterialTheme.colorScheme.primary,
                                             fontWeight = FontWeight.Bold,
@@ -269,7 +269,7 @@ fun CommentsPanel(
                                                     // same thread, addressed to its author
                                                     if (canComment && reply.replyParams != null) {
                                                         Text(
-                                                            text = "Reply",
+                                                            text = stringResource(R.string.comments_reply),
                                                             style = MaterialTheme.typography.labelLarge,
                                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                             fontWeight = FontWeight.Bold,
@@ -388,7 +388,7 @@ fun CommentsSheet(
     onOpenAuthor: ((channelId: String) -> Unit)? = null,
     heightFraction: Float = 0.65f,
     header: (@Composable () -> Unit)? = null,
-    unavailableMessage: String = "Comments are unavailable for this video"
+    unavailableMessage: String? = null
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -464,7 +464,7 @@ private fun CommentComposer(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Replying to ${replyTarget.author}",
+                        text = stringResource(R.string.comments_replying_to, replyTarget.author),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.primary,
                         maxLines = 1,
@@ -474,7 +474,7 @@ private fun CommentComposer(
                     IconButton(onClick = onCancelReply) {
                         Icon(
                             Icons.Rounded.Close,
-                            contentDescription = "Cancel reply",
+                            contentDescription = stringResource(R.string.cd_cancel_reply),
                             modifier = Modifier.size(18.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -495,7 +495,7 @@ private fun CommentComposer(
                         .weight(1f)
                         .focusRequester(focusRequester),
                     placeholder = {
-                        Text(if (replyTarget != null) "Add a reply…" else "Add a comment…")
+                        Text(if (replyTarget != null) stringResource(R.string.comments_add_reply) else stringResource(R.string.comments_add_comment))
                     },
                     shape = CircleShape,
                     maxLines = 4,
@@ -518,7 +518,7 @@ private fun CommentComposer(
                     ) {
                         Icon(
                             Icons.AutoMirrored.Rounded.Send,
-                            contentDescription = "Post",
+                            contentDescription = stringResource(R.string.comments_post),
                             tint = if (text.isNotBlank()) MaterialTheme.colorScheme.primary
                             else MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -585,7 +585,7 @@ private fun CommentRow(
                 if (comment.isPinned) {
                     Icon(
                         Icons.Rounded.PushPin,
-                        contentDescription = "Pinned",
+                        contentDescription = stringResource(R.string.comments_pinned),
                         modifier = Modifier.size(12.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -616,7 +616,7 @@ private fun CommentRow(
                 if (comment.isVerified) {
                     Icon(
                         Icons.Rounded.Verified,
-                        contentDescription = "Verified",
+                        contentDescription = stringResource(R.string.cd_verified),
                         modifier = Modifier.size(14.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -660,7 +660,7 @@ private fun CommentRow(
                 ) {
                     Icon(
                         Icons.Rounded.ThumbUp,
-                        contentDescription = if (comment.isLiked) "Unlike" else "Like",
+                        contentDescription = if (comment.isLiked) stringResource(R.string.cd_unlike) else stringResource(R.string.action_like),
                         modifier = Modifier.size(14.dp),
                         tint = likeTint
                     )
@@ -674,7 +674,7 @@ private fun CommentRow(
                         Spacer(Modifier.width(4.dp))
                         Icon(
                             Icons.Rounded.Favorite,
-                            contentDescription = "Hearted by creator",
+                            contentDescription = stringResource(R.string.comments_hearted),
                             modifier = Modifier.size(14.dp),
                             tint = MaterialTheme.colorScheme.error
                         )
@@ -695,12 +695,12 @@ private fun CommentRow(
                     ) {
                         Icon(
                             Icons.Rounded.DeleteOutline,
-                            contentDescription = "Delete comment",
+                            contentDescription = stringResource(R.string.cd_delete_comment),
                             modifier = Modifier.size(14.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = "Delete",
+                            text = stringResource(R.string.action_delete),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
