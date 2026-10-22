@@ -2483,4 +2483,6 @@
     <string name="level_volume">Volume</string>
     <string name="a11y_percent">%1$s %2$d percent</string>
     <string name="channel_of">%1$s channel</string>
+    <string name="offline_label">Offline</string>
+    <string name="account_new_profile_note">It gets its own subscriptions and hidden recommendations, with no Google account involved.</string>
 </resources>

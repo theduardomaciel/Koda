@@ -1,6 +1,7 @@
 package com.ivor.ivormusic.ui.video
 
 import com.ivor.ivormusic.util.KLog
+import com.ivor.ivormusic.R
 
 import android.content.Context
 import android.net.Uri
@@ -2132,11 +2133,11 @@ class VideoPlayerViewModel(application: android.app.Application) : AndroidViewMo
             sources = videos.associate { download ->
                 download.id to LocalPlaybackSource(
                     uri = download.uri,
-                    label = download.quality?.let { "$it • Offline" } ?: "Offline",
+                    label = download.quality?.let { "$it • ${context.getString(R.string.offline_label)}" } ?: context.getString(R.string.offline_label),
                 )
             },
             index = index,
-            title = "Downloads",
+            title = context.getString(R.string.cd_downloads),
         )
     }
 
@@ -2192,7 +2193,7 @@ class VideoPlayerViewModel(application: android.app.Application) : AndroidViewMo
                     uri = uri,
                     // Replaced by the real label, HDR included, on the first
                     // onTracksChanged - the same placeholder the folder path uses.
-                    label = "On this device",
+                    label = context.getString(R.string.dv_on_this_device),
                     allowsTrackSelection = true,
                 )
             ),
@@ -2234,7 +2235,7 @@ class VideoPlayerViewModel(application: android.app.Application) : AndroidViewMo
             sources = mapOf(
                 id to LocalPlaybackSource(
                     uri = uri,
-                    label = "On this device",
+                    label = context.getString(R.string.dv_on_this_device),
                     allowsTrackSelection = true,
                 )
             ),

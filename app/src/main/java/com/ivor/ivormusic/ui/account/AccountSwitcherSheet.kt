@@ -515,8 +515,7 @@ private fun NameProfileDialog(onConfirm: (String) -> Unit, onDismiss: () -> Unit
         text = {
             Column {
                 Text(
-                    text = "It gets its own subscriptions and hidden recommendations, " +
-                        "with no Google account involved.",
+                    text = stringResource(R.string.account_new_profile_note),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
