@@ -65,7 +65,9 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.ivor.ivormusic.ui.components.SegmentedGroup
 import com.ivor.ivormusic.ui.home.HomeViewModel
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Locale
 
 /**
  * 🌟 Material 3 Expressive Statistics Screen
@@ -95,7 +97,7 @@ fun StatsScreen(
     // Format duration from seconds
     val hours = globalStats.totalPlayTimeSeconds / 3600
     val minutes = (globalStats.totalPlayTimeSeconds % 3600) / 60
-    val formattedTime = if (hours > 0) "${hours}h ${minutes}m" else "${minutes}m"
+    val formattedTime = if (hours > 0) stringResource(R.string.stats_duration_hours_minutes, hours, minutes) else stringResource(R.string.stats_duration_minutes, minutes)
 
     val onBg = MaterialTheme.colorScheme.onBackground
     val secondaryText = MaterialTheme.colorScheme.onSurfaceVariant
@@ -110,7 +112,7 @@ fun StatsScreen(
             title = { Text(stringResource(R.string.fab_statistics), fontWeight = FontWeight.Bold) },
             navigationIcon = {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back")
+                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.cd_back))
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
@@ -153,7 +155,7 @@ fun StatsScreen(
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                             Text(
-                                "listened • ${globalStats.totalPlays} plays",
+                                stringResource(R.string.stats_listened_plays, pluralStringResource(R.plurals.n_plays, globalStats.totalPlays, globalStats.totalPlays)),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                             )
@@ -390,7 +392,7 @@ fun StatsScreen(
             if (searchHistory.isNotEmpty()) {
                 item {
                     Text(
-                        "Recent searches",
+                        stringResource(R.string.stats_recent_searches),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = onBg,
@@ -537,13 +539,13 @@ private fun StreakAndMilestoneRow(
                 }
                 Column {
                     Text(
-                        if (currentStreak == 1) "1 day" else "$currentStreak days",
+                        pluralStringResource(R.plurals.stats_days, currentStreak, currentStreak),
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onTertiaryContainer
                     )
                     Text(
-                        if (longestStreak > currentStreak) "Streak • best $longestStreak" else "Listening streak",
+                        if (longestStreak > currentStreak) stringResource(R.string.stats_streak_best, longestStreak) else stringResource(R.string.stats_listening_streak),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.75f),
                         maxLines = 1,
@@ -584,14 +586,14 @@ private fun StreakAndMilestoneRow(
                         val fraction = (totalPlays - prevMilestone).toFloat() /
                                 (nextMilestone - prevMilestone).toFloat()
                         Text(
-                            "${nextMilestone - totalPlays} to go",
+                            pluralStringResource(R.plurals.stats_to_go, nextMilestone - totalPlays, nextMilestone - totalPlays),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1
                         )
                         Text(
-                            "Next: $nextMilestone plays",
+                            stringResource(R.string.stats_next_milestone, pluralStringResource(R.plurals.n_plays, nextMilestone, nextMilestone)),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1
@@ -630,18 +632,11 @@ private fun StreakAndMilestoneRow(
 private fun WeeklyActivityCard(dailyPlays: Map<String, Int>) {
     // Build the last 7 days in StatsRepository's "M/d" key format
     val days = remember(dailyPlays) {
+        val dayFormat = SimpleDateFormat("EEEEE", Locale.getDefault())
         (6 downTo 0).map { offset ->
             val c = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -offset) }
             val key = "${c.get(Calendar.MONTH) + 1}/${c.get(Calendar.DAY_OF_MONTH)}"
-            val label = when (c.get(Calendar.DAY_OF_WEEK)) {
-                Calendar.MONDAY -> "M"
-                Calendar.TUESDAY -> "T"
-                Calendar.WEDNESDAY -> "W"
-                Calendar.THURSDAY -> "T"
-                Calendar.FRIDAY -> "F"
-                Calendar.SATURDAY -> "S"
-                else -> "S"
-            }
+            val label = dayFormat.format(c.time)
             Triple(key, label, dailyPlays[key] ?: 0)
         }
     }
@@ -656,14 +651,14 @@ private fun WeeklyActivityCard(dailyPlays: Map<String, Int>) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "This week",
+                    stringResource(R.string.sc_this_week),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f)
                 )
                 Text(
-                    "$weekTotal plays",
+                    pluralStringResource(R.plurals.n_plays, weekTotal, weekTotal),
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary

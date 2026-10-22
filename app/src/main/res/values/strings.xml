@@ -2493,4 +2493,19 @@
         <item quantity="one">Backups never carry a sign-in, so the account in it will come back needing to be signed into again. Accounts already signed in on this device stay signed in.</item>
         <item quantity="other">Backups never carry a sign-in, so the %1$d accounts in it will come back needing to be signed into again. Accounts already signed in on this device stay signed in.</item>
     </plurals>
+    <string name="stats_recent_searches">Recent searches</string>
+    <string name="stats_listened_plays">listened • %1$s</string>
+    <string name="stats_streak_best">Streak • best %1$d</string>
+    <string name="stats_listening_streak">Listening streak</string>
+    <string name="stats_next_milestone">Next: %1$s</string>
+    <string name="stats_duration_hours_minutes">%1$dh %2$dm</string>
+    <string name="stats_duration_minutes">%1$dm</string>
+    <plurals name="stats_days">
+        <item quantity="one">%1$d day</item>
+        <item quantity="other">%1$d days</item>
+    </plurals>
+    <plurals name="stats_to_go">
+        <item quantity="one">%1$d to go</item>
+        <item quantity="other">%1$d to go</item>
+    </plurals>
 </resources>

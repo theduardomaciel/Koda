@@ -2417,4 +2417,19 @@
         <item quantity="one">Os backups nunca incluem uma sessão, então a conta nele precisará ser conectada novamente. As contas já conectadas neste dispositivo continuam conectadas.</item>
         <item quantity="other">Os backups nunca incluem uma sessão, então as %1$d contas nele precisarão ser conectadas novamente. As contas já conectadas neste dispositivo continuam conectadas.</item>
     </plurals>
+<string name="stats_recent_searches">Buscas recentes</string>
+<string name="stats_listened_plays">ouvidas • %1$s</string>
+<string name="stats_streak_best">Sequência • melhor %1$d</string>
+<string name="stats_listening_streak">Sequência de escuta</string>
+<string name="stats_next_milestone">Próximo: %1$s</string>
+<string name="stats_duration_hours_minutes">%1$dh %2$dmin</string>
+<string name="stats_duration_minutes">%1$dmin</string>
+<plurals name="stats_days">
+        <item quantity="one">%1$d dia</item>
+        <item quantity="other">%1$d dias</item>
+    </plurals>
+<plurals name="stats_to_go">
+        <item quantity="one">%1$d restante</item>
+        <item quantity="other">%1$d restantes</item>
+    </plurals>
 </resources>
