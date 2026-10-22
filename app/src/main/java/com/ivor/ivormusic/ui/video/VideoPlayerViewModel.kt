@@ -1,7 +1,6 @@
 package com.ivor.ivormusic.ui.video
 
 import com.ivor.ivormusic.util.KLog
-import com.ivor.ivormusic.R
 
 import android.content.Context
 import android.net.Uri

@@ -889,12 +889,12 @@ private fun GroupSortHeader(
     }
 }
 
-enum class LibrarySortOption(val label: String, val icon: ImageVector) {
-    Title("Title", Icons.Rounded.SortByAlpha),
-    Artist("Artist", Icons.Rounded.Person),
-    Album("Album", Icons.Rounded.Album),
-    MostPlayed("Most played", Icons.Rounded.TrendingUp),
-    RecentlyAdded("Recently added", Icons.Rounded.NewReleases)
+enum class LibrarySortOption(val label: Int, val icon: ImageVector) {
+    Title(R.string.import_sort_title, Icons.Rounded.SortByAlpha),
+    Artist(R.string.import_sort_artist, Icons.Rounded.Person),
+    Album(R.string.label_album, Icons.Rounded.Album),
+    MostPlayed(R.string.lib_group_sort_played, Icons.Rounded.TrendingUp),
+    RecentlyAdded(R.string.lib_group_sort_recent, Icons.Rounded.NewReleases)
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -1547,7 +1547,7 @@ fun AllSongsList(
                                 DropdownMenuItem(
                                     text = {
                                         Text(
-                                            option.label,
+                                            stringResource(option.label),
                                             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
                                         )
                                     },
