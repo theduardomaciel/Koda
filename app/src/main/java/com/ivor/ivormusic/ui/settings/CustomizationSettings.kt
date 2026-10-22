@@ -54,14 +54,14 @@ internal fun CustomizationSettingsPage(
     onBack: () -> Unit
 ) {
     val themeLabel = when (currentThemeMode) {
-        ThemeMode.SYSTEM -> "System"
-        ThemeMode.LIGHT -> "Light"
-        ThemeMode.DARK -> "Dark"
+        ThemeMode.SYSTEM -> stringResource(R.string.theme_system)
+        ThemeMode.LIGHT -> stringResource(R.string.theme_light)
+        ThemeMode.DARK -> stringResource(R.string.theme_dark)
     }
     val paletteName = if (colorPalette == ThemePreferences.DEFAULT_COLOR_PALETTE) {
         "Dynamic"
     } else {
-        com.ivor.ivormusic.ui.theme.findPalette(colorPalette)?.name ?: "Dynamic"
+        com.ivor.ivormusic.ui.theme.findPalette(colorPalette)?.name ?: stringResource(R.string.settings_theme_dynamic)
     }
     val currentAppIcon = remember(appIcon) { AppIcon.fromId(appIcon) }
     val hapticsLabel = stringResource(

@@ -1,5 +1,6 @@
 package com.ivor.ivormusic.ui.settings
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import com.ivor.ivormusic.R
 import kotlin.math.roundToInt
 
@@ -168,9 +169,9 @@ internal fun AppearanceSettingsPage(
     onBack: () -> Unit
 ) {
     val paletteName = if (colorPalette == ThemePreferences.DEFAULT_COLOR_PALETTE) {
-        "Dynamic (from wallpaper)"
+        stringResource(R.string.sp_palette_dynamic_wallpaper)
     } else {
-        com.ivor.ivormusic.ui.theme.findPalette(colorPalette)?.name ?: "Dynamic"
+        com.ivor.ivormusic.ui.theme.findPalette(colorPalette)?.name ?: stringResource(R.string.settings_theme_dynamic)
     }
 
     // Colours only. The app icon, display size, Home layout and touch
@@ -201,9 +202,9 @@ internal fun AppearanceSettingsPage(
                         icon = Icons.Rounded.Contrast,
                         title = stringResource(R.string.sp_amoled_black),
                         subtitle = if (amoledTheme) {
-                            "Pure black backgrounds in dark theme"
+                            stringResource(R.string.sp_amoled_on)
                         } else {
-                            "Standard dark backgrounds"
+                            stringResource(R.string.sp_amoled_off)
                         },
                         enabled = amoledTheme,
                         onToggle = onAmoledThemeToggle,
@@ -300,9 +301,9 @@ internal fun HomeNavigationSettingsPage(
                         icon = Icons.Rounded.Home,
                         title = stringResource(R.string.sp_spotlight_home),
                         subtitle = if (spotlightHome) {
-                            "Shortcut grid, quick picks and artwork shelves"
+                            stringResource(R.string.sp_spotlight_on)
                         } else {
-                            "Classic Home with a hero and carousels"
+                            stringResource(R.string.sp_spotlight_off)
                         },
                         enabled = spotlightHome,
                         onToggle = onSpotlightHomeToggle,
@@ -326,9 +327,9 @@ internal fun HomeNavigationSettingsPage(
                         icon = Icons.Rounded.Dashboard,
                         title = stringResource(R.string.sp_non_expressive_nav),
                         subtitle = if (nonExpressiveNavigationBar) {
-                            "Standard Material 3 bar with fixed labels"
+                            stringResource(R.string.sp_nav_standard_desc)
                         } else {
-                            "Expressive floating navigation"
+                            stringResource(R.string.sp_nav_floating_desc)
                         },
                         enabled = nonExpressiveNavigationBar,
                         onToggle = onNonExpressiveNavigationBarToggle,
@@ -1006,9 +1007,9 @@ internal fun PlayerSettingsPage(
                         icon = Icons.Rounded.Palette,
                         title = stringResource(R.string.sp_ambient_background),
                         subtitle = if (ambientBackground) {
-                            "Dynamic colors from album art"
+                            stringResource(R.string.sp_ambient_on)
                         } else {
-                            "Solid background"
+                            stringResource(R.string.sp_ambient_off)
                         },
                         enabled = ambientBackground,
                         onToggle = onAmbientBackgroundToggle,
@@ -1226,9 +1227,9 @@ internal fun PlaybackSettingsPage(
                         icon = Icons.Rounded.History,
                         title = stringResource(R.string.sp_save_listening_history),
                         subtitle = if (saveMusicHistory) {
-                            "Songs you play are logged on this device"
+                            stringResource(R.string.sp_music_history_on)
                         } else {
-                            "Paused: new plays are not recorded"
+                            stringResource(R.string.sp_music_history_off)
                         },
                         enabled = saveMusicHistory,
                         onToggle = onSaveMusicHistoryToggle,
@@ -1449,9 +1450,9 @@ internal fun PlaybackSettingsPage(
                         icon = Icons.Rounded.BrightnessMedium,
                         title = stringResource(R.string.sp_remember_brightness),
                         subtitle = if (rememberVideoBrightness) {
-                            "Videos reopen at the brightness you last set"
+                            stringResource(R.string.sp_brightness_on)
                         } else {
-                            "Videos reopen at the system brightness"
+                            stringResource(R.string.sp_brightness_off)
                         },
                         enabled = rememberVideoBrightness,
                         onToggle = onRememberVideoBrightnessToggle,
@@ -1570,9 +1571,9 @@ internal fun ContentSettingsPage(
                         icon = Icons.Rounded.CloudOff,
                         title = stringResource(R.string.sp_local_only),
                         subtitle = if (localOnlyMode) {
-                            "Offline: device library only, no internet"
+                            stringResource(R.string.sp_local_only_on)
                         } else {
-                            "YouTube features enabled"
+                            stringResource(R.string.sp_local_only_off)
                         },
                         enabled = localOnlyMode,
                         onToggle = onLocalOnlyModeToggle,
@@ -1603,9 +1604,9 @@ internal fun ContentSettingsPage(
                                 icon = Icons.Rounded.ToggleOn,
                                 title = stringResource(R.string.sp_home_mode_toggle),
                                 subtitle = if (homeModeToggleEnabled) {
-                                    "Switch music and video from the Home header"
+                                    stringResource(R.string.sp_home_mode_toggle_on)
                                 } else {
-                                    "Change the mode here in Settings only"
+                                    stringResource(R.string.sp_home_mode_toggle_off)
                                 },
                                 enabled = homeModeToggleEnabled,
                                 onToggle = onHomeModeToggleChange,
@@ -1635,9 +1636,9 @@ internal fun ContentSettingsPage(
                             icon = Icons.AutoMirrored.Rounded.Comment,
                             title = stringResource(R.string.sp_timed_comments),
                             subtitle = if (timedCommentsEnabled) {
-                                "Comments appear on the seek bar where they were posted"
+                                stringResource(R.string.sp_timed_comments_on)
                             } else {
-                                "Comments stay in the comment sheet"
+                                stringResource(R.string.sp_timed_comments_off)
                             },
                             enabled = timedCommentsEnabled,
                             onToggle = onTimedCommentsToggle,
@@ -1715,9 +1716,9 @@ internal fun ContentSettingsPage(
                                     icon = Icons.Rounded.Visibility,
                                     title = stringResource(R.string.sp_shorts_buttons),
                                     subtitle = if (shortsHiddenActions.isEmpty()) {
-                                        "All buttons shown"
+                                        stringResource(R.string.sp_shorts_buttons_all)
                                     } else {
-                                        "${shortsHiddenActions.size} hidden"
+                                        pluralStringResource(R.plurals.sp_shorts_hidden_count, shortsHiddenActions.size, shortsHiddenActions.size)
                                     },
                                     onClick = onShowShortsButtons,
                                     showChevron = true
@@ -2676,9 +2677,9 @@ internal fun LocalLibrarySettingsPage(
                         icon = Icons.Rounded.Folder,
                         title = stringResource(R.string.sp_load_local_songs),
                         subtitle = if (loadLocalSongs) {
-                            "Shows songs from your device"
+                            stringResource(R.string.sp_local_songs_on)
                         } else {
-                            "YouTube Music only"
+                            stringResource(R.string.sp_local_songs_off)
                         },
                         enabled = loadLocalSongs,
                         onToggle = onLoadLocalSongsToggle,
@@ -2699,10 +2700,9 @@ internal fun LocalLibrarySettingsPage(
                                 icon = Icons.Rounded.FolderOff,
                                 title = stringResource(R.string.sp_excluded_folders),
                                 subtitle = if (excludedFolderCount == 0) {
-                                    "All folders included"
+                                    stringResource(R.string.sp_folders_all)
                                 } else {
-                                    "$excludedFolderCount folder" +
-                                        "${if (excludedFolderCount == 1) "" else "s"} excluded"
+                                    pluralStringResource(R.plurals.sp_folders_excluded, excludedFolderCount, excludedFolderCount)
                                 },
                                 onClick = onOpenFolderExclusion,
                                 showChevron = true

@@ -234,9 +234,9 @@ internal fun AccountSettingsPage(
                             icon = Icons.Rounded.CheckCircle,
                             title = stringResource(R.string.sp_save_watch_history),
                             subtitle = if (saveVideoHistory) {
-                                "Videos you watch are added to your YouTube history"
+                                stringResource(R.string.account_history_on)
                             } else {
-                                "Watching does not touch your YouTube history"
+                                stringResource(R.string.account_history_off)
                             },
                             enabled = saveVideoHistory,
                             onToggle = onSaveVideoHistoryToggle,

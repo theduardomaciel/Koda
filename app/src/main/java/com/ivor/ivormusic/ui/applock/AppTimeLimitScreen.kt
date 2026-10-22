@@ -231,10 +231,9 @@ private fun TodayCard(
                             budgetMinutes <= 0 ->
                                 stringResource(R.string.tl_unlimited_today)
                             lockedNow ->
-                                "${AppTimeLimit.formatBudget(budgetMinutes)} used - locked until midnight"
+                                stringResource(R.string.atl_locked_until_midnight, AppTimeLimit.formatBudget(budgetMinutes))
                             else ->
-                                "${formatUsed(usedSecondsToday)} of " +
-                                    "${AppTimeLimit.formatBudget(budgetMinutes)} used"
+                                stringResource(R.string.atl_used_of, formatUsed(usedSecondsToday), AppTimeLimit.formatBudget(budgetMinutes))
                         },
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold

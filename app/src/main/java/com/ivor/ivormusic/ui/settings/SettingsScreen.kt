@@ -1538,9 +1538,9 @@ private fun SettingsHub(
         append(" · ")
         append(
             if (cacheEnabled) {
-                "${com.ivor.ivormusic.data.CacheManager.formatSize(currentCacheSize)} cached"
+                stringResource(R.string.settings_cached_size, com.ivor.ivormusic.data.CacheManager.formatSize(currentCacheSize))
             } else {
-                "Caching off"
+                stringResource(R.string.settings_caching_off)
             }
         )
     }
@@ -1725,8 +1725,7 @@ private fun SettingsHub(
                         SettingsHubRow(
                             icon = Icons.Rounded.GraphicEq,
                             title = stringResource(R.string.settings_playback_and_quality),
-                            value = "${musicQualityLabel(musicQualityWifi)} music, " +
-                                "${videoQualityLabel(videoQualityWifi)} video on Wi-Fi",
+                            value = stringResource(R.string.settings_quality_summary, musicQualityLabel(musicQualityWifi), videoQualityLabel(videoQualityWifi)),
                             onClick = { onOpenPage(SettingsPage.PLAYBACK) },
                             selected = selectedPage == SettingsPage.PLAYBACK,
                             tint = MaterialTheme.colorScheme.secondary,

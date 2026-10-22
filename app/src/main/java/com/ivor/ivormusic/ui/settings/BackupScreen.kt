@@ -875,16 +875,17 @@ private fun relativeDay(timestamp: Long): String {
     }
 }
 
+@Composable
 private fun manifestLine(manifest: BackupManifest): String {
     val date = if (manifest.createdAt > 0) {
         DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT)
             .format(Date(manifest.createdAt))
     } else {
-        "an unknown date"
+        stringResource(R.string.bk_unknown_date)
     }
-    val from = manifest.device?.let { " from $it" }.orEmpty()
-    val version = manifest.appVersionName?.let { ", Koda $it" }.orEmpty()
-    return "Taken $date$from$version."
+    val from = manifest.device?.let { stringResource(R.string.bk_backup_from, it) }.orEmpty()
+    val version = manifest.appVersionName?.let { stringResource(R.string.bk_backup_version, it) }.orEmpty()
+    return stringResource(R.string.bk_backup_taken, date, from, version)
 }
 
 private fun backupWrittenMessage(manifest: BackupManifest): String {
