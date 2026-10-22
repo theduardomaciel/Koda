@@ -75,6 +75,8 @@ import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
+import androidx.compose.ui.res.stringResource
+import com.ivor.ivormusic.R
 
 /**
  * Dial Player - the rotary instrument style.
@@ -188,7 +190,7 @@ fun DialPlayerSheetContent(
                             size = 44.dp
                         ) {
                             Icon(
-                                Icons.Default.KeyboardArrowDown, "Collapse",
+                                Icons.Default.KeyboardArrowDown, stringResource(R.string.cd_collapse),
                                 modifier = Modifier.size(26.dp)
                             )
                         }
@@ -200,7 +202,7 @@ fun DialPlayerSheetContent(
                                 size = 44.dp
                             ) {
                                 Icon(
-                                    Icons.Rounded.Bedtime, "Sleep timer",
+                                    Icons.Rounded.Bedtime, stringResource(R.string.sleep_timer_title),
                                     modifier = Modifier.size(22.dp)
                                 )
                             }
@@ -211,7 +213,7 @@ fun DialPlayerSheetContent(
                                 size = 44.dp
                             ) {
                                 Icon(
-                                    Icons.AutoMirrored.Filled.QueueMusic, "Queue",
+                                    Icons.AutoMirrored.Filled.QueueMusic, stringResource(R.string.swipe_action_queue),
                                     modifier = Modifier.size(22.dp)
                                 )
                             }
@@ -222,7 +224,7 @@ fun DialPlayerSheetContent(
                                 size = 44.dp
                             ) {
                                 Icon(
-                                    Icons.Rounded.MoreVert, "More options",
+                                    Icons.Rounded.MoreVert, stringResource(R.string.cd_more_options),
                                     modifier = Modifier.size(22.dp)
                                 )
                             }
@@ -290,7 +292,7 @@ fun DialPlayerSheetContent(
                             .swipeToSkipFollow(swipeToSkip)
                     ) {
                         Text(
-                            text = currentSong?.title?.takeIf { !isUnknownTitle(it) } ?: "Untitled",
+                            text = currentSong?.title?.takeIf { !isUnknownTitle(it) } ?: stringResource(R.string.untitled),
                             style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                             color = ink,
                             maxLines = 1,
@@ -301,7 +303,7 @@ fun DialPlayerSheetContent(
                                 .padding(horizontal = 24.dp)
                         )
                         val artistName = currentSong?.artist?.takeIf { !isUnknownArtist(it) }
-                            ?: "Unknown Artist"
+                            ?: stringResource(R.string.unknown_artist)
                         Text(
                             text = artistName,
                             style = MaterialTheme.typography.bodyMedium,
@@ -311,7 +313,7 @@ fun DialPlayerSheetContent(
                             modifier = Modifier
                                 .align(Alignment.CenterHorizontally)
                                 .clip(RoundedCornerShape(8.dp))
-                                .clickable(enabled = artistName != "Unknown Artist") {
+                                .clickable(enabled = !isUnknownArtist(currentSong?.artist)) {
                                     onArtistClick(artistName)
                                 }
                                 .padding(horizontal = 8.dp, vertical = 4.dp)
@@ -335,7 +337,7 @@ fun DialPlayerSheetContent(
                             size = 56.dp
                         ) {
                             Icon(
-                                Icons.Default.SkipPrevious, "Previous",
+                                Icons.Default.SkipPrevious, stringResource(R.string.cd_previous),
                                 modifier = Modifier.size(28.dp)
                             )
                         }
@@ -353,7 +355,7 @@ fun DialPlayerSheetContent(
                             accent = accent,
                             field = MaterialTheme.colorScheme.onPrimary
                         ) {
-                            Icon(Icons.Default.Shuffle, "Shuffle", modifier = Modifier.size(20.dp))
+                            Icon(Icons.Default.Shuffle, stringResource(R.string.cd_shuffle), modifier = Modifier.size(20.dp))
                         }
                         EditorialChip(
                             checked = repeatMode != Player.REPEAT_MODE_OFF,
@@ -364,7 +366,7 @@ fun DialPlayerSheetContent(
                             Icon(
                                 if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Default.RepeatOne
                                 else Icons.Default.Repeat,
-                                "Repeat",
+                                stringResource(R.string.cd_repeat),
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -374,7 +376,7 @@ fun DialPlayerSheetContent(
                             accent = accent,
                             field = MaterialTheme.colorScheme.onPrimary
                         ) {
-                            Icon(Icons.Rounded.Lyrics, "Lyrics", modifier = Modifier.size(20.dp))
+                            Icon(Icons.Rounded.Lyrics, stringResource(R.string.ps_lyrics), modifier = Modifier.size(20.dp))
                         }
                         EditorialCircleButton(
                             onClick = { playerHaptics.skip(); viewModel.skipToNext() },
@@ -382,7 +384,7 @@ fun DialPlayerSheetContent(
                             field = ink,
                             size = 56.dp
                         ) {
-                            Icon(Icons.Default.SkipNext, "Next", modifier = Modifier.size(28.dp))
+                            Icon(Icons.Default.SkipNext, stringResource(R.string.cd_next), modifier = Modifier.size(28.dp))
                         }
                     }
 
@@ -601,7 +603,7 @@ private fun RotaryDial(
             if (artSong != null) {
                 PlayerArtwork(
                     song = artSong,
-                    contentDescription = "Album Art",
+                    contentDescription = stringResource(R.string.cd_album_art),
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )

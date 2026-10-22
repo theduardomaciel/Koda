@@ -307,7 +307,7 @@ private fun ExpressiveNowPlayingView(
                 ),
                 modifier = Modifier.size(48.dp)
             ) {
-                Icon(Icons.Default.KeyboardArrowDown, "Collapse", modifier = Modifier.size(28.dp))
+                Icon(Icons.Default.KeyboardArrowDown, stringResource(R.string.cd_collapse), modifier = Modifier.size(28.dp))
             }
             
             // Expressive center toggle - morphs between "Now Playing" and "Lyrics" with animation
@@ -366,7 +366,7 @@ private fun ExpressiveNowPlayingView(
                     ),
                     modifier = Modifier.size(48.dp)
                 ) {
-                    Icon(Icons.AutoMirrored.Filled.QueueMusic, "Queue", modifier = Modifier.size(24.dp))
+                    Icon(Icons.AutoMirrored.Filled.QueueMusic, stringResource(R.string.swipe_action_queue), modifier = Modifier.size(24.dp))
                 }
 
                 FilledIconButton(
@@ -378,7 +378,7 @@ private fun ExpressiveNowPlayingView(
                     ),
                     modifier = Modifier.size(48.dp)
                 ) {
-                    Icon(Icons.Rounded.MoreVert, "More options", modifier = Modifier.size(24.dp))
+                    Icon(Icons.Rounded.MoreVert, stringResource(R.string.cd_more_options), modifier = Modifier.size(24.dp))
                 }
             }
         }
@@ -586,7 +586,7 @@ private fun ExpressiveNowPlayingView(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 // Clickable artist name
-                val artistName = currentSong?.artist?.takeIf { !isUnknownArtist(it) } ?: "Unknown Artist"
+                val artistName = currentSong?.artist?.takeIf { !isUnknownArtist(it) } ?: stringResource(R.string.unknown_artist)
                 Text(
                     text = artistName,
                     style = MaterialTheme.typography.titleMedium,
@@ -594,7 +594,7 @@ private fun ExpressiveNowPlayingView(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
                         .clickable(
-                            enabled = artistName != "Unknown Artist"
+                            enabled = !isUnknownArtist(currentSong?.artist)
                         ) { onArtistClick(artistName) }
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 )
@@ -924,7 +924,7 @@ private fun ExpressiveQueueView(
                 ),
                 modifier = Modifier.size(48.dp)
             ) {
-                Icon(Icons.Default.KeyboardArrowDown, "Collapse", modifier = Modifier.size(28.dp))
+                Icon(Icons.Default.KeyboardArrowDown, stringResource(R.string.cd_collapse), modifier = Modifier.size(28.dp))
             }
             
             // Queue title pill (matching player's "Now Playing" pill)
@@ -981,7 +981,7 @@ private fun ExpressiveQueueView(
                     ),
                     modifier = Modifier.size(48.dp)
                 ) {
-                    Icon(Icons.Rounded.MusicNote, "Now Playing", modifier = Modifier.size(24.dp))
+                    Icon(Icons.Rounded.MusicNote, stringResource(R.string.cd_now_playing), modifier = Modifier.size(24.dp))
                 }
             }
         }
@@ -1104,7 +1104,7 @@ private fun ExpressiveQueueView(
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = song.artist.takeIf { !isUnknownArtist(it) } ?: "Unknown Artist",
+                                    text = song.artist.takeIf { !isUnknownArtist(it) } ?: stringResource(R.string.unknown_artist),
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = onSurfaceVariantColor,
                                     maxLines = 1,

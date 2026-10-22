@@ -68,6 +68,7 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.compose.ui.res.stringResource
 
 /**
  * The style wheel: long-press the artwork in any player style and every
@@ -91,7 +92,6 @@ import kotlinx.coroutines.launch
  */
 internal data class PlayerStyleWheelEntry(
     val style: PlayerStyle,
-    val label: String,
     val icon: ImageVector,
     val polygon: RoundedPolygon
 )
@@ -191,7 +191,7 @@ fun Modifier.styleWheelHold(controller: PlayerStyleWheelController?): Modifier {
 @Composable
 internal fun rememberPlayerStyleWheelEntries(): List<PlayerStyleWheelEntry> = remember {
     playerStyleCatalog.map { info ->
-        PlayerStyleWheelEntry(info.style, info.label, info.icon, info.polygon)
+        PlayerStyleWheelEntry(info.style, info.icon, info.polygon)
     }
 }
 
@@ -303,7 +303,7 @@ fun PlayerStyleWheel(
             // Center readout: what you are on, or what you are aiming at.
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    text = if (aimedIndex != null) "Release for" else "Player style",
+                    text = if (aimedIndex != null) stringResource(R.string.ps_release_for) else stringResource(R.string.ob_player_style_card),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center

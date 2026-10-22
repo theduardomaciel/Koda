@@ -62,6 +62,8 @@ import com.ivor.ivormusic.data.LyricsSyncType
 import com.ivor.ivormusic.ui.theme.MontserratFamily
 import com.ivor.ivormusic.util.lyricsFitDisplayFont
 import kotlinx.coroutines.isActive
+import androidx.compose.ui.res.stringResource
+import com.ivor.ivormusic.R
 
 /**
  * Set a lyric in the chosen family, or leave the style exactly as it was.
@@ -1161,7 +1163,7 @@ private fun LoadingState(primaryColor: Color) {
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = "Fetching lyrics...",
+            text = stringResource(R.string.ps_fetching_lyrics),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -1183,13 +1185,13 @@ private fun NoLyricsState(onSurfaceVariantColor: Color) {
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = "No lyrics available",
+            text = stringResource(R.string.ps_no_lyrics_available),
             style = MaterialTheme.typography.titleMedium,
             color = onSurfaceVariantColor
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Lyrics couldn't be found for this track",
+            text = stringResource(R.string.ps_lyrics_not_found),
             style = MaterialTheme.typography.bodyMedium,
             color = onSurfaceVariantColor.copy(alpha = 0.7f),
             textAlign = TextAlign.Center
@@ -1212,7 +1214,7 @@ private fun ErrorState(message: String, onSurfaceVariantColor: Color) {
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = "Couldn't load lyrics",
+            text = stringResource(R.string.ps_lyrics_load_failed),
             style = MaterialTheme.typography.titleMedium,
             color = onSurfaceVariantColor
         )

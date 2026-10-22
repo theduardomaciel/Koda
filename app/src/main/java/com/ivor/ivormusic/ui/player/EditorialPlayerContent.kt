@@ -321,7 +321,7 @@ private fun EditorialNowPlayingView(
                 field = field,
                 size = 44.dp
             ) {
-                Icon(Icons.Default.KeyboardArrowDown, "Collapse", modifier = Modifier.size(26.dp))
+                Icon(Icons.Default.KeyboardArrowDown, stringResource(R.string.cd_collapse), modifier = Modifier.size(26.dp))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 // Inverted while a timer runs - in a two-tone player, swapping
@@ -332,7 +332,7 @@ private fun EditorialNowPlayingView(
                     field = if (sleepTimerActive) field else accent,
                     size = 44.dp
                 ) {
-                    Icon(Icons.Rounded.Bedtime, "Sleep timer", modifier = Modifier.size(22.dp))
+                    Icon(Icons.Rounded.Bedtime, stringResource(R.string.sleep_timer_title), modifier = Modifier.size(22.dp))
                 }
                 EditorialCircleButton(
                     onClick = onShowQueue,
@@ -340,7 +340,7 @@ private fun EditorialNowPlayingView(
                     field = field,
                     size = 44.dp
                 ) {
-                    Icon(Icons.AutoMirrored.Filled.QueueMusic, "Queue", modifier = Modifier.size(22.dp))
+                    Icon(Icons.AutoMirrored.Filled.QueueMusic, stringResource(R.string.swipe_action_queue), modifier = Modifier.size(22.dp))
                 }
                 EditorialCircleButton(
                     onClick = onShowOptions,
@@ -348,7 +348,7 @@ private fun EditorialNowPlayingView(
                     field = field,
                     size = 44.dp
                 ) {
-                    Icon(Icons.Rounded.MoreVert, "More options", modifier = Modifier.size(22.dp))
+                    Icon(Icons.Rounded.MoreVert, stringResource(R.string.cd_more_options), modifier = Modifier.size(22.dp))
                 }
             }
         }
@@ -399,7 +399,7 @@ private fun EditorialNowPlayingView(
         // ========== HEADLINE ==========
         // Wrapped so the song information is one swipe target the full width
         // of the player, not two text-shaped ones.
-        val title = currentSong?.title?.takeIf { !isUnknownTitle(it) } ?: "Untitled"
+        val title = currentSong?.title?.takeIf { !isUnknownTitle(it) } ?: stringResource(R.string.untitled)
         val headlineBase = when {
             title.length <= 12 -> MaterialTheme.typography.displayLarge
             title.length <= 24 -> MaterialTheme.typography.displayMedium
@@ -426,7 +426,7 @@ private fun EditorialNowPlayingView(
                     .padding(horizontal = 24.dp)
             )
 
-            val artistName = currentSong?.artist?.takeIf { !isUnknownArtist(it) } ?: "Unknown Artist"
+            val artistName = currentSong?.artist?.takeIf { !isUnknownArtist(it) } ?: stringResource(R.string.unknown_artist)
             Text(
                 text = artistName.uppercase(),
                 style = MaterialTheme.typography.labelLarge.copy(letterSpacing = 2.sp),
@@ -436,7 +436,7 @@ private fun EditorialNowPlayingView(
                 modifier = Modifier
                     .padding(horizontal = 20.dp)
                     .clip(RoundedCornerShape(8.dp))
-                    .clickable(enabled = artistName != "Unknown Artist") { onArtistClick(artistName) }
+                    .clickable(enabled = !isUnknownArtist(currentSong?.artist)) { onArtistClick(artistName) }
                     .padding(horizontal = 4.dp, vertical = 4.dp)
             )
         }
@@ -484,7 +484,7 @@ private fun EditorialNowPlayingView(
                                 label = "EditorialPlayWord"
                             ) { playing ->
                                 Text(
-                                    text = if (playing) "PAUSE" else "PLAY",
+                                    text = if (playing) stringResource(R.string.ps_pause_caps) else stringResource(R.string.ps_play_caps),
                                     style = MaterialTheme.typography.headlineSmall.copy(
                                         fontWeight = FontWeight.Medium,
                                         letterSpacing = 3.sp
@@ -500,7 +500,7 @@ private fun EditorialNowPlayingView(
                     field = field,
                     size = 80.dp
                 ) {
-                    Icon(Icons.Default.SkipNext, "Next", modifier = Modifier.size(34.dp))
+                    Icon(Icons.Default.SkipNext, stringResource(R.string.cd_next), modifier = Modifier.size(34.dp))
                 }
             }
 
@@ -518,7 +518,7 @@ private fun EditorialNowPlayingView(
                     field = field,
                     size = 80.dp
                 ) {
-                    Icon(Icons.Default.SkipPrevious, "Previous", modifier = Modifier.size(34.dp))
+                    Icon(Icons.Default.SkipPrevious, stringResource(R.string.cd_previous), modifier = Modifier.size(34.dp))
                 }
 
                 Column(modifier = Modifier.weight(1f)) {
@@ -626,7 +626,7 @@ private fun EditorialNowPlayingView(
                 ) {
                     when {
                         isLocalOriginal -> Icon(
-                            Icons.Rounded.Smartphone, "Local File",
+                            Icons.Rounded.Smartphone, stringResource(R.string.cd_local_file),
                             modifier = Modifier.size(20.dp)
                         )
                         isDownloading -> CircularWavyProgressIndicator(
@@ -635,7 +635,7 @@ private fun EditorialNowPlayingView(
                         )
                         else -> Icon(
                             if (isDownloaded) Icons.Rounded.CheckCircle else Icons.Rounded.Download,
-                            if (isDownloaded) "Downloaded" else "Download",
+                            if (isDownloaded) stringResource(R.string.song_options_downloaded) else stringResource(R.string.song_options_download),
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -646,7 +646,7 @@ private fun EditorialNowPlayingView(
                     accent = accent,
                     field = field
                 ) {
-                    Icon(Icons.Default.Shuffle, "Shuffle", modifier = Modifier.size(20.dp))
+                    Icon(Icons.Default.Shuffle, stringResource(R.string.cd_shuffle), modifier = Modifier.size(20.dp))
                 }
                 EditorialChip(
                     checked = repeatMode != Player.REPEAT_MODE_OFF,
@@ -657,7 +657,7 @@ private fun EditorialNowPlayingView(
                     Icon(
                         if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Default.RepeatOne
                         else Icons.Default.Repeat,
-                        "Repeat",
+                        stringResource(R.string.cd_repeat),
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -667,7 +667,7 @@ private fun EditorialNowPlayingView(
                     accent = accent,
                     field = field
                 ) {
-                    Icon(Icons.Rounded.Lyrics, "Lyrics", modifier = Modifier.size(20.dp))
+                    Icon(Icons.Rounded.Lyrics, stringResource(R.string.ps_lyrics), modifier = Modifier.size(20.dp))
                 }
             }
         }
@@ -766,7 +766,7 @@ private fun EditorialDieCutArt(
             if (artSong != null) {
                 PlayerArtwork(
                     song = artSong,
-                    contentDescription = "Album Art",
+                    contentDescription = stringResource(R.string.cd_album_art),
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )
@@ -889,7 +889,7 @@ internal fun EditorialQueueView(
                 field = field,
                 size = 44.dp
             ) {
-                Icon(Icons.Default.KeyboardArrowDown, "Collapse", modifier = Modifier.size(26.dp))
+                Icon(Icons.Default.KeyboardArrowDown, stringResource(R.string.cd_collapse), modifier = Modifier.size(26.dp))
             }
             Text(
                 text = stringResource(R.string.ps_up_next),
@@ -923,7 +923,7 @@ internal fun EditorialQueueView(
                     field = field,
                     size = 44.dp
                 ) {
-                    Icon(Icons.Rounded.MusicNote, "Now Playing", modifier = Modifier.size(22.dp))
+                    Icon(Icons.Rounded.MusicNote, stringResource(R.string.cd_now_playing), modifier = Modifier.size(22.dp))
                 }
             }
         }
@@ -931,7 +931,7 @@ internal fun EditorialQueueView(
         if (queue.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
-                    text = "Queue is empty",
+                    text = stringResource(R.string.ps_queue_empty),
                     style = MaterialTheme.typography.titleMedium,
                     color = accent.copy(alpha = 0.7f)
                 )
@@ -984,7 +984,7 @@ internal fun EditorialQueueView(
                                 Box(modifier = Modifier.width(28.dp), contentAlignment = Alignment.Center) {
                                     if (isCurrent) {
                                         Icon(
-                                            Icons.Rounded.GraphicEq, "Playing",
+                                            Icons.Rounded.GraphicEq, stringResource(R.string.cd_playing),
                                             modifier = Modifier.size(18.dp)
                                         )
                                     } else {
@@ -1028,7 +1028,7 @@ internal fun EditorialQueueView(
                                     modifier = Modifier.size(32.dp)
                                 ) {
                                     Icon(
-                                        Icons.Filled.Close, "Remove from queue",
+                                        Icons.Filled.Close, stringResource(R.string.cd_remove_from_queue),
                                         modifier = Modifier.size(18.dp)
                                     )
                                 }
@@ -1068,7 +1068,7 @@ internal fun EditorialQueueView(
                                     )
                                 } else {
                                     Text(
-                                        text = "MORE",
+                                        text = stringResource(R.string.ps_more_caps),
                                         style = MaterialTheme.typography.labelLarge.copy(
                                             letterSpacing = 3.sp,
                                             fontWeight = FontWeight.Medium

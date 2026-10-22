@@ -96,6 +96,8 @@ import com.ivor.ivormusic.ui.components.LikeBurstIcon
 import kotlin.math.abs
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import androidx.compose.ui.res.stringResource
+import com.ivor.ivormusic.R
 
 /**
  * Morph Player - one living shape.
@@ -224,7 +226,7 @@ fun MorphPlayerSheetContent(
                     ) {
                         MorphUtilityButton(onClick = onCollapse) {
                             Icon(
-                                Icons.Default.KeyboardArrowDown, "Collapse",
+                                Icons.Default.KeyboardArrowDown, stringResource(R.string.cd_collapse),
                                 modifier = Modifier.size(26.dp)
                             )
                         }
@@ -234,25 +236,25 @@ fun MorphPlayerSheetContent(
                                 active = sleepTimer.active
                             ) {
                                 Icon(
-                                    Icons.Rounded.Bedtime, "Sleep timer",
+                                    Icons.Rounded.Bedtime, stringResource(R.string.sleep_timer_title),
                                     modifier = Modifier.size(22.dp)
                                 )
                             }
                             MorphUtilityButton(onClick = { showLyrics = !showLyrics }) {
                                 Icon(
-                                    Icons.Rounded.Lyrics, "Lyrics",
+                                    Icons.Rounded.Lyrics, stringResource(R.string.ps_lyrics),
                                     modifier = Modifier.size(22.dp)
                                 )
                             }
                             MorphUtilityButton(onClick = { showQueue = true }) {
                                 Icon(
-                                    Icons.AutoMirrored.Filled.QueueMusic, "Queue",
+                                    Icons.AutoMirrored.Filled.QueueMusic, stringResource(R.string.swipe_action_queue),
                                     modifier = Modifier.size(22.dp)
                                 )
                             }
                             MorphUtilityButton(onClick = { showOptions = true }) {
                                 Icon(
-                                    Icons.Rounded.MoreVert, "More options",
+                                    Icons.Rounded.MoreVert, stringResource(R.string.cd_more_options),
                                     modifier = Modifier.size(22.dp)
                                 )
                             }
@@ -306,7 +308,7 @@ fun MorphPlayerSheetContent(
                             .swipeToSkipFollow(swipeToSkip)
                     ) {
                         Text(
-                            text = currentSong?.title?.takeIf { !isUnknownTitle(it) } ?: "Untitled",
+                            text = currentSong?.title?.takeIf { !isUnknownTitle(it) } ?: stringResource(R.string.untitled),
                             style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
                             color = onSurfaceColor,
                             maxLines = 1,
@@ -317,7 +319,7 @@ fun MorphPlayerSheetContent(
                                 .padding(horizontal = 24.dp)
                         )
                         val artistName = currentSong?.artist?.takeIf { !isUnknownArtist(it) }
-                            ?: "Unknown Artist"
+                            ?: stringResource(R.string.unknown_artist)
                         Text(
                             text = artistName,
                             style = MaterialTheme.typography.titleMedium,
@@ -327,7 +329,7 @@ fun MorphPlayerSheetContent(
                             modifier = Modifier
                                 .align(Alignment.CenterHorizontally)
                                 .clip(RoundedCornerShape(8.dp))
-                                .clickable(enabled = artistName != "Unknown Artist") {
+                                .clickable(enabled = !isUnknownArtist(currentSong?.artist)) {
                                     onArtistClick(artistName)
                                 }
                                 .padding(horizontal = 8.dp, vertical = 4.dp)
@@ -436,17 +438,17 @@ fun MorphPlayerSheetContent(
                                         checked = shuffleModeEnabled,
                                         onCheckedChange = { viewModel.toggleShuffle() }
                                     ) {
-                                        Icon(Icons.Default.Shuffle, "Shuffle")
+                                        Icon(Icons.Default.Shuffle, stringResource(R.string.cd_shuffle))
                                     }
                                     androidx.compose.material3.IconButton(
                                         onClick = { playerHaptics.skip(); viewModel.skipToPrevious() }
                                     ) {
-                                        Icon(Icons.Default.SkipPrevious, "Previous")
+                                        Icon(Icons.Default.SkipPrevious, stringResource(R.string.cd_previous))
                                     }
                                     androidx.compose.material3.IconButton(
                                         onClick = { playerHaptics.skip(); viewModel.skipToNext() }
                                     ) {
-                                        Icon(Icons.Default.SkipNext, "Next")
+                                        Icon(Icons.Default.SkipNext, stringResource(R.string.cd_next))
                                     }
                                     IconToggleButton(
                                         checked = repeatMode != Player.REPEAT_MODE_OFF,
@@ -455,7 +457,7 @@ fun MorphPlayerSheetContent(
                                         Icon(
                                             if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Default.RepeatOne
                                             else Icons.Default.Repeat,
-                                            "Repeat"
+                                            stringResource(R.string.cd_repeat)
                                         )
                                     }
                                 }
@@ -659,7 +661,7 @@ private fun MorphHero(
             if (artSong != null) {
                 PlayerArtwork(
                     song = artSong,
-                    contentDescription = "Album Art",
+                    contentDescription = stringResource(R.string.cd_album_art),
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
                 )

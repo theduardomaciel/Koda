@@ -75,6 +75,8 @@ import com.ivor.ivormusic.data.isUnknownArtist
 import com.ivor.ivormusic.data.isUnknownTitle
 import com.ivor.ivormusic.data.PlaylistDisplayItem
 import com.ivor.ivormusic.ui.components.LikeBurstIcon
+import androidx.compose.ui.res.stringResource
+import com.ivor.ivormusic.R
 
 /**
  * Bento Player - the squish grid style.
@@ -201,7 +203,7 @@ fun BentoPlayerSheetContent(
                                 .fillMaxHeight()
                         ) {
                             Icon(
-                                Icons.Default.KeyboardArrowDown, "Collapse",
+                                Icons.Default.KeyboardArrowDown, stringResource(R.string.cd_collapse),
                                 modifier = Modifier.size(26.dp)
                             )
                         }
@@ -215,7 +217,7 @@ fun BentoPlayerSheetContent(
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Text(
-                                    text = "NOW PLAYING",
+                                    text = stringResource(R.string.ps_now_playing_caps),
                                     style = MaterialTheme.typography.labelLarge.copy(letterSpacing = 3.sp),
                                     maxLines = 1,
                                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
@@ -235,7 +237,7 @@ fun BentoPlayerSheetContent(
                                 .fillMaxHeight()
                         ) {
                             Icon(
-                                Icons.Rounded.Bedtime, "Sleep timer",
+                                Icons.Rounded.Bedtime, stringResource(R.string.sleep_timer_title),
                                 modifier = Modifier.size(24.dp)
                             )
                         }
@@ -248,7 +250,7 @@ fun BentoPlayerSheetContent(
                                 .fillMaxHeight()
                         ) {
                             Icon(
-                                Icons.Rounded.MoreVert, "More options",
+                                Icons.Rounded.MoreVert, stringResource(R.string.cd_more_options),
                                 modifier = Modifier.size(24.dp)
                             )
                         }
@@ -311,7 +313,7 @@ fun BentoPlayerSheetContent(
                                 if (artSong != null) {
                                     PlayerArtwork(
                                         song = artSong,
-                                        contentDescription = "Album Art",
+                                        contentDescription = stringResource(R.string.cd_album_art),
                                         modifier = Modifier.fillMaxSize(),
                                         contentScale = ContentScale.Crop
                                     )
@@ -344,14 +346,14 @@ fun BentoPlayerSheetContent(
                         Column(modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp)) {
                             Text(
                                 text = currentSong?.title?.takeIf { !isUnknownTitle(it) }
-                                    ?: "Untitled",
+                                    ?: stringResource(R.string.untitled),
                                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                                 color = onTile,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                             val artistName = currentSong?.artist?.takeIf { !isUnknownArtist(it) }
-                                ?: "Unknown Artist"
+                                ?: stringResource(R.string.unknown_artist)
                             Text(
                                 text = artistName,
                                 style = MaterialTheme.typography.bodyMedium,
@@ -360,7 +362,7 @@ fun BentoPlayerSheetContent(
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(6.dp))
-                                    .clickable(enabled = artistName != "Unknown Artist") {
+                                    .clickable(enabled = !isUnknownArtist(currentSong?.artist)) {
                                         onArtistClick(artistName)
                                     }
                             )
@@ -395,7 +397,7 @@ fun BentoPlayerSheetContent(
                             contentColor = MaterialTheme.colorScheme.onSecondaryContainer
                         ) {
                             Icon(
-                                Icons.Default.SkipPrevious, "Previous",
+                                Icons.Default.SkipPrevious, stringResource(R.string.cd_previous),
                                 modifier = Modifier.size(32.dp)
                             )
                         }
@@ -422,7 +424,7 @@ fun BentoPlayerSheetContent(
                             } else {
                                 Icon(
                                     imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                    contentDescription = if (isPlaying) "Pause" else "Play",
+                                    contentDescription = if (isPlaying) stringResource(R.string.cd_pause) else stringResource(R.string.cd_play),
                                     modifier = Modifier.size(40.dp)
                                 )
                             }
@@ -434,7 +436,7 @@ fun BentoPlayerSheetContent(
                             contentColor = MaterialTheme.colorScheme.onSecondaryContainer
                         ) {
                             Icon(
-                                Icons.Default.SkipNext, "Next",
+                                Icons.Default.SkipNext, stringResource(R.string.cd_next),
                                 modifier = Modifier.size(32.dp)
                             )
                         }
@@ -461,7 +463,7 @@ fun BentoPlayerSheetContent(
                             uncheckedColor = tileColor,
                             uncheckedContent = onTileVariant
                         ) {
-                            Icon(Icons.Default.Shuffle, "Shuffle", modifier = Modifier.size(22.dp))
+                            Icon(Icons.Default.Shuffle, stringResource(R.string.cd_shuffle), modifier = Modifier.size(22.dp))
                         }
                         BentoToggleTile(
                             checked = repeatMode != Player.REPEAT_MODE_OFF,
@@ -472,7 +474,7 @@ fun BentoPlayerSheetContent(
                             Icon(
                                 if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Default.RepeatOne
                                 else Icons.Default.Repeat,
-                                "Repeat",
+                                stringResource(R.string.cd_repeat),
                                 modifier = Modifier.size(22.dp)
                             )
                         }
@@ -482,7 +484,7 @@ fun BentoPlayerSheetContent(
                             uncheckedColor = tileColor,
                             uncheckedContent = onTileVariant
                         ) {
-                            Icon(Icons.Rounded.Lyrics, "Lyrics", modifier = Modifier.size(22.dp))
+                            Icon(Icons.Rounded.Lyrics, stringResource(R.string.ps_lyrics), modifier = Modifier.size(22.dp))
                         }
                         // Up-next peek tile: expands into the queue.
                         Surface(
@@ -500,7 +502,7 @@ fun BentoPlayerSheetContent(
                             ) {
                                 Icon(
                                     Icons.AutoMirrored.Filled.QueueMusic,
-                                    contentDescription = "Queue",
+                                    contentDescription = stringResource(R.string.swipe_action_queue),
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))

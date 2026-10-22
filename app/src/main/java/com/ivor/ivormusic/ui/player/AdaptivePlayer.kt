@@ -717,7 +717,7 @@ internal fun LandscapeNowPlaying(
                     Spacer(Modifier.weight(1f))
 
                     // ---- Title block: one swipe target with the artwork ----
-                    val title = currentSong?.title?.takeIf { !isUnknownTitle(it) } ?: "Untitled"
+                    val title = currentSong?.title?.takeIf { !isUnknownTitle(it) } ?: stringResource(R.string.untitled)
                     val artist = currentSong?.artist?.takeIf { !isUnknownArtist(it) }
                     Column(
                         modifier = Modifier

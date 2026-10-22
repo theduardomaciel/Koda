@@ -293,7 +293,7 @@ private fun GestureNowPlayingView(
     )
     
     // Get album info
-    val albumName = currentSong?.album?.takeIf { !isUnknownAlbum(it) } ?: "Unknown Album"
+    val albumName = currentSong?.album?.takeIf { !isUnknownAlbum(it) } ?: stringResource(R.string.unknown_album)
     val albumArtUrl = currentSong?.highResThumbnailUrl 
         ?: currentSong?.thumbnailUrl 
         ?: currentSong?.albumArtUri?.toString()
@@ -343,7 +343,7 @@ private fun GestureNowPlayingView(
                     ),
                     modifier = Modifier.size(48.dp)
                 ) {
-                    Icon(Icons.Default.KeyboardArrowDown, "Collapse", modifier = Modifier.size(28.dp))
+                    Icon(Icons.Default.KeyboardArrowDown, stringResource(R.string.cd_collapse), modifier = Modifier.size(28.dp))
                 }
                 
                 // Lyrics Toggle Button (center)
@@ -366,7 +366,7 @@ private fun GestureNowPlayingView(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = if (showLyrics) "Now Playing" else "Lyrics",
+                            text = if (showLyrics) stringResource(R.string.cd_now_playing) else stringResource(R.string.ps_lyrics),
                             style = MaterialTheme.typography.labelLarge,
                             color = if (showLyrics) MaterialTheme.colorScheme.onPrimary 
                                    else MaterialTheme.colorScheme.onSurface
@@ -386,7 +386,7 @@ private fun GestureNowPlayingView(
                     ) {
                         Icon(
                             Icons.AutoMirrored.Filled.QueueMusic,
-                            "Queue",
+                            stringResource(R.string.swipe_action_queue),
                             modifier = Modifier.size(24.dp)
                         )
                     }
@@ -396,7 +396,7 @@ private fun GestureNowPlayingView(
             // ========== 2. "PLAYING FROM" HEADER (right below top bar) ==========
             Spacer(modifier = Modifier.height(12.dp))
             Text(
-                text = "Playing From",
+                text = stringResource(R.string.ps_playing_from),
                 style = MaterialTheme.typography.labelMedium,
                 color = onSurfaceVariantColor,
                 textAlign = TextAlign.Center
@@ -504,7 +504,7 @@ private fun GestureNowPlayingView(
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
-                                text = currentSong?.title?.takeIf { !isUnknownTitle(it) } ?: "Untitled",
+                                text = currentSong?.title?.takeIf { !isUnknownTitle(it) } ?: stringResource(R.string.untitled),
                                 style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -512,13 +512,13 @@ private fun GestureNowPlayingView(
                                 textAlign = TextAlign.Center
                             )
                             Spacer(modifier = Modifier.height(4.dp))
-                            val artistName = currentSong?.artist?.takeIf { !isUnknownArtist(it) } ?: "Unknown Artist"
+                            val artistName = currentSong?.artist?.takeIf { !isUnknownArtist(it) } ?: stringResource(R.string.unknown_artist)
                             Text(
                                 text = artistName,
                                 style = MaterialTheme.typography.titleMedium,
                                 color = onSurfaceVariantColor,
                                 modifier = Modifier
-                                    .clickable(enabled = artistName != "Unknown Artist") { onArtistClick(artistName) },
+                                    .clickable(enabled = !isUnknownArtist(currentSong?.artist)) { onArtistClick(artistName) },
                                 textAlign = TextAlign.Center
                             )
                         }
@@ -698,7 +698,7 @@ private fun GesturePlayerToolbar(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Shuffle,
-                        contentDescription = "Shuffle"
+                        contentDescription = stringResource(R.string.cd_shuffle)
                     )
                 }
                 
@@ -712,7 +712,7 @@ private fun GesturePlayerToolbar(
                             Player.REPEAT_MODE_ONE -> Icons.Default.RepeatOne
                             else -> Icons.Default.Repeat
                         },
-                        contentDescription = "Repeat"
+                        contentDescription = stringResource(R.string.cd_repeat)
                     )
                 }
                 
@@ -721,7 +721,7 @@ private fun GesturePlayerToolbar(
                     IconButton(onClick = {}) {
                         Icon(
                             imageVector = Icons.Rounded.Smartphone,
-                            contentDescription = "Local File"
+                            contentDescription = stringResource(R.string.cd_local_file)
                         )
                     }
                 } else {
@@ -737,7 +737,7 @@ private fun GesturePlayerToolbar(
                         } else {
                             Icon(
                                 imageVector = if (isDownloaded) Icons.Rounded.CheckCircle else Icons.Rounded.Download,
-                                contentDescription = if (isDownloaded) "Downloaded" else "Download"
+                                contentDescription = if (isDownloaded) stringResource(R.string.song_options_downloaded) else stringResource(R.string.song_options_download)
                             )
                         }
                     }
@@ -747,7 +747,7 @@ private fun GesturePlayerToolbar(
                 IconButton(onClick = onSleepTimerClick) {
                     Icon(
                         imageVector = Icons.Rounded.Bedtime,
-                        contentDescription = "Sleep timer",
+                        contentDescription = stringResource(R.string.sleep_timer_title),
                         tint = if (sleepTimerActive) primaryColor else LocalContentColor.current
                     )
                 }
@@ -756,7 +756,7 @@ private fun GesturePlayerToolbar(
                 IconButton(onClick = onShowOptions) {
                     Icon(
                         imageVector = Icons.Rounded.MoreVert,
-                        contentDescription = "More options"
+                        contentDescription = stringResource(R.string.cd_more_options)
                     )
                 }
             }
@@ -990,7 +990,7 @@ private fun SwipeableAlbumCarousel(
                                     } else {
                                         Icon(
                                             imageVector = Icons.Default.PlayArrow,
-                                            contentDescription = "Play",
+                                            contentDescription = stringResource(R.string.cd_play),
                                             modifier = Modifier.size(68.dp),
                                             tint = Color.White.copy(alpha = 0.9f)
                                         )
@@ -1102,7 +1102,7 @@ private fun SingleAlbumArt(
                         } else {
                             Icon(
                                 imageVector = Icons.Default.PlayArrow,
-                                contentDescription = "Play",
+                                contentDescription = stringResource(R.string.cd_play),
                                 modifier = Modifier.size(72.dp),
                                 tint = Color.White.copy(alpha = 0.9f)
                             )
@@ -1188,7 +1188,7 @@ private fun GestureQueueView(
                     ),
                     modifier = Modifier.size(48.dp)
                 ) {
-                    Icon(Icons.Default.KeyboardArrowDown, "Collapse", modifier = Modifier.size(28.dp))
+                    Icon(Icons.Default.KeyboardArrowDown, stringResource(R.string.cd_collapse), modifier = Modifier.size(28.dp))
                 }
                 
                 Surface(
@@ -1244,7 +1244,7 @@ private fun GestureQueueView(
                         ),
                         modifier = Modifier.size(48.dp)
                     ) {
-                        Icon(Icons.Rounded.MusicNote, "Now Playing", modifier = Modifier.size(24.dp))
+                        Icon(Icons.Rounded.MusicNote, stringResource(R.string.cd_now_playing), modifier = Modifier.size(24.dp))
                     }
                 }
             }
@@ -1266,7 +1266,7 @@ private fun GestureQueueView(
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
-                            "Queue is empty",
+                            stringResource(R.string.ps_queue_empty),
                             style = MaterialTheme.typography.titleMedium,
                             color = onSurfaceVariantColor
                         )
@@ -1308,7 +1308,7 @@ private fun GestureQueueView(
                                         if (hasArt) {
                                             SongArtwork(
                                                 song = song,
-                                                contentDescription = "Now Playing",
+                                                contentDescription = stringResource(R.string.cd_now_playing),
                                                 modifier = Modifier
                                                     .fillMaxSize()
                                                     .clip(RoundedCornerShape(28.dp)),
@@ -1331,7 +1331,7 @@ private fun GestureQueueView(
                                 }
                                 
                                 Text(
-                                    text = song.title.takeIf { !isUnknownTitle(it) } ?: "Untitled",
+                                    text = song.title.takeIf { !isUnknownTitle(it) } ?: stringResource(R.string.untitled),
                                     style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
@@ -1339,7 +1339,7 @@ private fun GestureQueueView(
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = song.artist.takeIf { !isUnknownArtist(it) } ?: "Unknown Artist",
+                                    text = song.artist.takeIf { !isUnknownArtist(it) } ?: stringResource(R.string.unknown_artist),
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = onSurfaceVariantColor,
                                     maxLines = 1,
@@ -1357,7 +1357,7 @@ private fun GestureQueueView(
                                         color = onSurfaceVariantColor.copy(alpha = 0.1f)
                                     )
                                     Text(
-                                        text = "QUEUE",
+                                        text = stringResource(R.string.ps_queue),
                                         style = MaterialTheme.typography.labelSmall,
                                         color = onSurfaceVariantColor,
                                         modifier = Modifier.padding(horizontal = 16.dp)
@@ -1420,7 +1420,7 @@ private fun GestureQueueView(
                                     if (isCurrent) {
                                         Icon(
                                             imageVector = Icons.Rounded.GraphicEq,
-                                            contentDescription = "Playing",
+                                            contentDescription = stringResource(R.string.cd_playing),
                                             tint = primaryColor,
                                             modifier = Modifier.size(20.dp)
                                         )
@@ -1500,7 +1500,7 @@ private fun GestureQueueView(
                                 } else if (isDownloaded(song.id)) {
                                     Icon(
                                         imageVector = Icons.Rounded.CheckCircle,
-                                        contentDescription = "Downloaded",
+                                        contentDescription = stringResource(R.string.song_options_downloaded),
                                         tint = if (isCurrent) primaryColor else onSurfaceVariantColor,
                                         modifier = Modifier.size(18.dp)
                                     )
@@ -1508,7 +1508,7 @@ private fun GestureQueueView(
                                 } else if (isLocalOriginal(song)) {
                                     Icon(
                                         imageVector = Icons.Rounded.Smartphone,
-                                        contentDescription = "Local",
+                                        contentDescription = stringResource(R.string.cd_local),
                                         tint = if (isCurrent) primaryColor.copy(alpha = 0.7f) else onSurfaceVariantColor.copy(alpha = 0.7f),
                                         modifier = Modifier.size(16.dp)
                                     )
@@ -1531,7 +1531,7 @@ private fun GestureQueueView(
                                 ) {
                                     Icon(
                                         imageVector = Icons.Filled.Close,
-                                        contentDescription = "Remove from queue",
+                                        contentDescription = stringResource(R.string.cd_remove_from_queue),
                                         tint = onSurfaceVariantColor
                                     )
                                 }

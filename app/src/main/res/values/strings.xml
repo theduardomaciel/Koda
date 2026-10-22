@@ -2380,4 +2380,47 @@
     <string name="vst_sepia">Sepia</string>
     <string name="vst_edge_glow">Edge glow</string>
     <string name="vst_wobble">Wobble</string>
+
+    <!-- Hardcoded UI strings extracted from Kotlin -->
+    <string name="cd_collapse">Collapse</string>
+    <string name="cd_more">More</string>
+    <string name="cd_local">Local</string>
+    <string name="ps_now_playing_caps">NOW PLAYING</string>
+    <string name="untitled">Untitled</string>
+    <string name="ps_playing_from">Playing From</string>
+    <string name="ps_release_for">Release for</string>
+    <string name="ps_play_caps">PLAY</string>
+    <string name="ps_pause_caps">PAUSE</string>
+    <string name="ps_more_caps">MORE</string>
+    <string name="ps_fetching_lyrics">Fetching lyrics…</string>
+    <string name="ps_no_lyrics_available">No lyrics available</string>
+    <string name="ps_lyrics_not_found">Lyrics couldn\'t be found for this track</string>
+    <string name="ps_lyrics_load_failed">Couldn\'t load lyrics</string>
+    <string name="search_voice_unavailable">Voice search is not available on this device</string>
+    <string name="ch_featured">Featured</string>
+    <string name="ch_links">Links</string>
+    <string name="ch_details">Details</string>
+    <string name="cd_close_search">Close search</string>
+    <string name="cd_close_photos">Close photos</string>
+    <string name="ch_search_placeholder">Search %1$s</string>
+    <string name="ch_no_match">Nothing in this channel matches \"%1$s\"</string>
+    <string name="ch_search_everything">Search everything %1$s has published</string>
+    <string name="comments_unavailable">Comments are unavailable for this video</string>
+    <string name="comments_none">No comments yet</string>
+    <string name="comments_reply">Reply</string>
+    <string name="comments_loading_replies">Loading replies…</string>
+    <string name="comments_view_replies">View replies</string>
+    <string name="comments_replying_to">Replying to %1$s</string>
+    <string name="cd_cancel_reply">Cancel reply</string>
+    <string name="comments_add_reply">Add a reply…</string>
+    <string name="comments_add_comment">Add a comment…</string>
+    <string name="comments_post">Post</string>
+    <string name="comments_pinned">Pinned</string>
+    <string name="cd_unlike">Unlike</string>
+    <string name="comments_hearted">Hearted by creator</string>
+    <string name="cd_delete_comment">Delete comment</string>
+    <string name="stats_artists_explored">Artists explored</string>
+    <string name="stats_top_artist">Top artist</string>
+    <string name="cd_finish_editing">Finish editing</string>
+    <string name="settings_android_auto_sub">Koda missing from your car? Start here</string>
 </resources>

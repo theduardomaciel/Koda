@@ -68,6 +68,8 @@ import com.ivor.ivormusic.data.isUnknownArtist
 import com.ivor.ivormusic.data.isUnknownTitle
 import com.ivor.ivormusic.ui.components.SongArtwork
 import com.ivor.ivormusic.ui.theme.IvorMusicTheme
+import androidx.compose.ui.res.stringResource
+import com.ivor.ivormusic.R
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -93,12 +95,12 @@ fun PlayerScreen(
                 title = { },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
-                        Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Collapse")
+                        Icon(Icons.Default.KeyboardArrowDown, contentDescription = stringResource(R.string.cd_collapse))
                     }
                 },
                 actions = {
                     IconButton(onClick = { /* More options */ }) {
-                        Icon(Icons.Default.MoreVert, contentDescription = "More")
+                        Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.cd_more))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -152,7 +154,7 @@ fun PlayerScreen(
                     if (artSong != null) {
                         SongArtwork(
                             song = artSong,
-                            contentDescription = "Album Art",
+                            contentDescription = stringResource(R.string.cd_album_art),
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop
                         )
@@ -177,7 +179,7 @@ fun PlayerScreen(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = (currentSong?.title.takeIf { !isUnknownTitle(it) } ?: "Untitled Song"),
+                        text = (currentSong?.title.takeIf { !isUnknownTitle(it) } ?: stringResource(R.string.untitled_song)),
                         style = MaterialTheme.typography.headlineMedium.copy(
                             fontWeight = FontWeight.ExtraBold,
                             letterSpacing = (-0.5).sp,
@@ -193,7 +195,7 @@ fun PlayerScreen(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = (currentSong?.artist.takeIf { !isUnknownArtist(it) } ?: "Unknown Artist"),
+                        text = (currentSong?.artist.takeIf { !isUnknownArtist(it) } ?: stringResource(R.string.unknown_artist)),
                         style = MaterialTheme.typography.titleMedium,
                         color = onSurfaceVariantColor,
                         maxLines = 1,
@@ -208,7 +210,7 @@ fun PlayerScreen(
                 ) {
                     Icon(
                         imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                        contentDescription = "Favorite",
+                        contentDescription = stringResource(R.string.cd_favorite),
                         tint = if (isFavorite) MaterialTheme.colorScheme.error else onSurfaceColor,
                         modifier = Modifier.size(32.dp)
                     )
@@ -292,7 +294,7 @@ fun PlayerScreen(
                         containerColor = secondaryContainerColor
                     )
                 ) {
-                    Icon(Icons.Default.SkipPrevious, contentDescription = "Previous", modifier = Modifier.size(32.dp))
+                    Icon(Icons.Default.SkipPrevious, contentDescription = stringResource(R.string.cd_previous), modifier = Modifier.size(32.dp))
                 }
 
                 FilledIconButton(
@@ -321,7 +323,7 @@ fun PlayerScreen(
                     } else {
                         Icon(
                             imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                            contentDescription = if (isPlaying) "Pause" else "Play",
+                            contentDescription = if (isPlaying) stringResource(R.string.cd_pause) else stringResource(R.string.cd_play),
                             modifier = Modifier.size(56.dp)
                         )
                     }
@@ -335,7 +337,7 @@ fun PlayerScreen(
                         containerColor = secondaryContainerColor
                     )
                 ) {
-                    Icon(Icons.Default.SkipNext, contentDescription = "Next", modifier = Modifier.size(32.dp))
+                    Icon(Icons.Default.SkipNext, contentDescription = stringResource(R.string.cd_next), modifier = Modifier.size(32.dp))
                 }
             }
 
@@ -353,7 +355,7 @@ fun PlayerScreen(
                 ) {
                     Icon(
                         Icons.Default.Shuffle,
-                        contentDescription = "Shuffle",
+                        contentDescription = stringResource(R.string.cd_shuffle),
                         modifier = Modifier.size(28.dp),
                         tint = if (isShuffleOn) primaryColor else onSurfaceVariantColor
                     )
@@ -366,7 +368,7 @@ fun PlayerScreen(
                 ) {
                     Icon(
                         Icons.Default.Repeat,
-                        contentDescription = "Repeat",
+                        contentDescription = stringResource(R.string.cd_repeat),
                         modifier = Modifier.size(28.dp),
                         tint = if (isRepeatOn) primaryColor else onSurfaceVariantColor
                     )

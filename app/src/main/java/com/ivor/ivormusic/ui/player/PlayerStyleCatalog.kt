@@ -72,8 +72,6 @@ import com.ivor.ivormusic.data.PlayerStyle
  */
 internal data class PlayerStyleInfo(
     val style: PlayerStyle,
-    val label: String,
-    val subtitle: String,
     val icon: ImageVector,
     val polygon: RoundedPolygon
 )
@@ -81,41 +79,41 @@ internal data class PlayerStyleInfo(
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 internal val playerStyleCatalog: List<PlayerStyleInfo> = listOf(
     PlayerStyleInfo(
-        PlayerStyle.CLASSIC, "Classic", "Button controls for playback",
+        PlayerStyle.CLASSIC,
         Icons.Rounded.PlayCircle, MaterialShapes.Circle
     ),
     PlayerStyleInfo(
-        PlayerStyle.GESTURE, "Gesture", "Swipe album art to navigate",
+        PlayerStyle.GESTURE,
         Icons.Rounded.SwipeRight, MaterialShapes.Pill
     ),
     PlayerStyleInfo(
-        PlayerStyle.EDITORIAL, "Editorial", "Two-tone magazine layout",
+        PlayerStyle.EDITORIAL,
         Icons.Rounded.Newspaper, MaterialShapes.Flower
     ),
     // The enum key stays POSTER for SharedPreferences compatibility; every
     // user-facing string says Canvas.
     PlayerStyleInfo(
-        PlayerStyle.POSTER, "Canvas", "Full-bleed album art",
+        PlayerStyle.POSTER,
         Icons.Rounded.Wallpaper, MaterialShapes.Gem
     ),
     PlayerStyleInfo(
-        PlayerStyle.BENTO, "Bento", "Squishy grid of flat tiles",
+        PlayerStyle.BENTO,
         Icons.Rounded.GridView, MaterialShapes.Cookie4Sided
     ),
     PlayerStyleInfo(
-        PlayerStyle.STICKER, "Sticker", "Die-cut art with toy physics",
+        PlayerStyle.STICKER,
         Icons.Rounded.Interests, MaterialShapes.Clover4Leaf
     ),
     PlayerStyleInfo(
-        PlayerStyle.MORPH, "Morph", "Living shape that breathes",
+        PlayerStyle.MORPH,
         Icons.Rounded.Animation, MaterialShapes.SoftBurst
     ),
     PlayerStyleInfo(
-        PlayerStyle.DIAL, "Dial", "Rotary ring, spin to scrub",
+        PlayerStyle.DIAL,
         Icons.Rounded.RadioButtonChecked, MaterialShapes.Sunny
     ),
     PlayerStyleInfo(
-        PlayerStyle.HERO, "Hero", "Full-bleed art, big play button",
+        PlayerStyle.HERO,
         Icons.Rounded.Landscape, MaterialShapes.Arch
     )
 )
