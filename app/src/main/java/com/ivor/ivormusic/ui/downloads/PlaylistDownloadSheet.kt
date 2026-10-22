@@ -309,14 +309,14 @@ private fun PlaylistDownloadButton(
     val label = when {
         snapshot.isComplete -> stringResource(R.string.vh_available_offline)
         snapshot.activeCount > 0 && kind == PlaylistDownloadKind.VIDEO -> stringResource(R.string.pd_downloading_playlist)
-        snapshot.activeCount > 0 -> "Downloading ${snapshot.activeCount}"
+        snapshot.activeCount > 0 -> stringResource(R.string.pd_downloading_count, snapshot.activeCount)
         !snapshot.allPagesLoaded -> stringResource(R.string.pd_download_playlist)
         snapshot.remainingCount > 0 && snapshot.remainingIds.all { it in snapshot.failedIds } ->
-            "Retry ${snapshot.remainingCount}"
+            stringResource(R.string.pd_retry_count, snapshot.remainingCount)
         snapshot.remainingCount > 0 && kind == PlaylistDownloadKind.VIDEO -> stringResource(R.string.pd_download_playlist)
-        snapshot.remainingCount > 0 -> "Download $totalItemCount"
+        snapshot.remainingCount > 0 -> stringResource(R.string.pd_download_count, totalItemCount)
         snapshot.skippedCount > 0 -> stringResource(R.string.pd_unavailable_offline)
-        else -> "Download ${kind.itemNamePlural}"
+        else -> stringResource(R.string.pd_download_items, kind.itemNamePlural)
     }
 
     FilledTonalButton(
@@ -783,7 +783,7 @@ private fun PlaylistDownloadSheet(
                         !snapshot.allPagesLoaded -> stringResource(R.string.pd_download_full)
                         snapshot.remainingCount == 0 && snapshot.activeCount > 0 -> stringResource(R.string.dl_preparing)
                         snapshot.remainingIds.all { it in snapshot.failedIds } ->
-                            "Retry ${itemCountLabel(snapshot.remainingCount, kind)}"
+                            stringResource(R.string.pd_retry_items, itemCountLabel(snapshot.remainingCount, kind))
                         else -> stringResource(R.string.pd_download_full)
                     }
                     if (queueing) {

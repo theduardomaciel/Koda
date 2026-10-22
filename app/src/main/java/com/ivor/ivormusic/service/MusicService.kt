@@ -2488,18 +2488,18 @@ class MusicService : MediaLibraryService() {
      */
     private fun getRootItems(): ImmutableList<MediaItem> {
         val items = mutableListOf<MediaItem>()
-        items.add(browsableCategoryItem("LIBRARY", "Library"))
-        items.add(browsableCategoryItem("RECOMMENDED", "Recommended"))
-        items.add(browsableCategoryItem("PLAYLISTS", "Playlists"))
+        items.add(browsableCategoryItem("LIBRARY", getString(R.string.browse_library)))
+        items.add(browsableCategoryItem("RECOMMENDED", getString(R.string.browse_recommended)))
+        items.add(browsableCategoryItem("PLAYLISTS", getString(R.string.browse_playlists)))
         return ImmutableList.copyOf(items)
     }
 
     private fun getLibraryItems(): ImmutableList<MediaItem> {
         val items = mutableListOf<MediaItem>()
-        items.add(browsableCategoryItem("DOWNLOADS", "Downloaded", "Offline"))
-        items.add(browsableCategoryItem("LIKED", "Liked Songs"))
-        items.add(browsableCategoryItem("RECENT", "Recently Played"))
-        items.add(browsableCategoryItem("LOCAL_SONGS", "On This Device"))
+        items.add(browsableCategoryItem("DOWNLOADS", getString(R.string.browse_downloaded), getString(R.string.browse_offline)))
+        items.add(browsableCategoryItem("LIKED", getString(R.string.browse_liked_songs)))
+        items.add(browsableCategoryItem("RECENT", getString(R.string.browse_recently_played)))
+        items.add(browsableCategoryItem("LOCAL_SONGS", getString(R.string.browse_on_this_device)))
         return ImmutableList.copyOf(items)
     }
 
@@ -2628,7 +2628,7 @@ class MusicService : MediaLibraryService() {
             .setMediaId("root")
             .setMediaMetadata(
                 MediaMetadata.Builder()
-                    .setTitle("Root")
+                    .setTitle(getString(R.string.browse_root))
                     .setIsBrowsable(true)
                     .setIsPlayable(false)
                     .build()
@@ -3592,8 +3592,8 @@ class MusicService : MediaLibraryService() {
                              }
                          }
                          musicProgressLiveUpdate?.updateProgress(
-                             songTitle = mediaItem?.mediaMetadata?.title?.toString() ?: "Unknown",
-                             artistName = mediaItem?.mediaMetadata?.artist?.toString() ?: "Unknown",
+                             songTitle = mediaItem?.mediaMetadata?.title?.toString() ?: getString(R.string.unknown_value),
+                             artistName = mediaItem?.mediaMetadata?.artist?.toString() ?: getString(R.string.unknown_value),
                              currentPositionMs = position,
                              durationMs = duration,
                              isPlaying = true,

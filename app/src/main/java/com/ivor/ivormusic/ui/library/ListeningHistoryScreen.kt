@@ -254,7 +254,7 @@ fun ListeningHistoryScreen(
                 title = { Text(stringResource(R.string.fab_listening_history), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back")
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.cd_back))
                     }
                 },
                 actions = {
@@ -704,7 +704,7 @@ private fun HistoryHeroCard(
                             )
                             Spacer(Modifier.width(6.dp))
                             Text(
-                                "$streakDays day streak",
+                                pluralStringResource(R.plurals.lh_day_streak, streakDays, streakDays),
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -793,7 +793,7 @@ private fun DayHeader(day: HistoryDay) {
                 color = MaterialTheme.colorScheme.surfaceContainerHigh
             ) {
                 Text(
-                    "${day.plays} • ${formatListened(day.listenedMs)}",
+                    pluralStringResource(R.plurals.n_plays, day.plays, day.plays) + " • " + formatListened(day.listenedMs),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
@@ -1105,8 +1105,7 @@ private fun HistoryEmptyState(
         }
         else -> {
             title = stringResource(R.string.lh_empty_title)
-            body = stringResource(R.string.lh_empty_body) +
-                "track from Tuesday and play it again."
+            body = stringResource(R.string.lh_empty_body)
         }
     }
 
@@ -1185,9 +1184,7 @@ private fun ClearHistoryDialog(
         title = { Text(stringResource(R.string.lh_clear_dialog_title)) },
         text = {
             Text(
-                "This removes all $entryCount plays. Your recently played row, " +
-                    "the Library's \"Most played\" sort and your statistics are " +
-                    "all built on this history and will reset with it."
+                stringResource(R.string.lh_clear_dialog_body, entryCount)
             )
         },
         confirmButton = {

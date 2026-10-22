@@ -310,7 +310,7 @@ fun SubscriptionsManagerScreen(
                             text = if (channelQuery.isBlank()) {
                                 stringResource(R.string.section_channels)
                             } else {
-                                "Channels - ${matchedSubscriptions.size} of ${subscriptions.size}"
+                                stringResource(R.string.sm_channels_of, matchedSubscriptions.size, subscriptions.size)
                             },
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.SemiBold,

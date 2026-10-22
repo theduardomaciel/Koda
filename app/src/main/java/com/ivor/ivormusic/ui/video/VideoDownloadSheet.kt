@@ -496,7 +496,7 @@ fun VideoDownloadSheet(
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = estimatedBytes?.let {
-                                "Download • ${formatDownloadSize(it)}"
+                                stringResource(R.string.vd_download_size, formatDownloadSize(it))
                             } ?: stringResource(R.string.song_options_download),
                             fontWeight = FontWeight.SemiBold
                         )

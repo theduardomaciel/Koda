@@ -1046,7 +1046,7 @@ fun SearchScreen(
                                 )
                                 Spacer(modifier = Modifier.weight(1f))
                                 Text(
-                                    "${videoResults.size} results",
+                                    pluralStringResource(R.plurals.n_results, videoResults.size, videoResults.size),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = secondaryTextColor
                                 )
@@ -1279,7 +1279,7 @@ fun SearchScreen(
                             )
                             Spacer(modifier = Modifier.weight(1f))
                             Text(
-                                "${youtubeResults.size} results",
+                                pluralStringResource(R.plurals.n_results, youtubeResults.size, youtubeResults.size),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = secondaryTextColor
                             )
@@ -1364,7 +1364,7 @@ fun SearchScreen(
                                 )
                                 Spacer(modifier = Modifier.weight(1f))
                                 Text(
-                                    "${filteredLocalSongs.size} matches",
+                                    pluralStringResource(R.plurals.n_matches, filteredLocalSongs.size, filteredLocalSongs.size),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = secondaryTextColor
                                 )
@@ -1453,7 +1453,7 @@ fun SearchScreen(
                     // Local search results only (when no YouTube results but have local matches)
                     item {
                         Text(
-                            "${filteredLocalSongs.size} results",
+                            pluralStringResource(R.plurals.n_results, filteredLocalSongs.size, filteredLocalSongs.size),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold,
                             color = secondaryTextColor,
@@ -2155,7 +2155,7 @@ fun ResultHeader(
         )
         Spacer(modifier = Modifier.weight(1f))
         Text(
-            "$count results",
+            pluralStringResource(R.plurals.n_results, count, count),
             style = MaterialTheme.typography.bodySmall,
             color = secondaryTextColor
         )

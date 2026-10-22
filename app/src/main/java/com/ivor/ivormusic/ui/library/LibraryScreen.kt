@@ -1673,7 +1673,7 @@ private fun LibraryShortcutsCard(
                 iconContentColor = MaterialTheme.colorScheme.onSecondary,
                 title = stringResource(R.string.fab_downloads),
                 subtitle = if (downloadCount != null) {
-                    "$downloadCount songs available offline"
+                    stringResource(R.string.lib_songs_offline, pluralStringResource(R.plurals.n_songs, downloadCount, downloadCount))
                 } else {
                     stringResource(R.string.library_downloads_none)
                 },
@@ -4417,7 +4417,7 @@ fun PlaylistDetailScreen(
                                 commitLocalOrder()
                                 onBack()
                             }) {
-                                Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back")
+                                Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.cd_back))
                             }
                         },
                         actions = {
@@ -4465,7 +4465,7 @@ fun PlaylistDetailScreen(
                             if (hasRename || hasShare || canCopyToLocal || radioSeed != null) {
                                 Box {
                                     IconButton(onClick = { showOverflow = true }) {
-                                        Icon(Icons.Rounded.MoreVert, "More options")
+                                        Icon(Icons.Rounded.MoreVert, stringResource(R.string.cd_more_options))
                                     }
                                     DropdownMenu(
                                         expanded = showSortMenu,
@@ -4706,7 +4706,7 @@ fun PlaylistDetailScreen(
                             trailingIcon = if (searchQuery.isNotEmpty()) {
                                 {
                                     IconButton(onClick = { searchQuery = "" }) {
-                                        Icon(Icons.Rounded.Close, "Clear search")
+                                        Icon(Icons.Rounded.Close, stringResource(R.string.cd_clear_search))
                                     }
                                 }
                             } else null,

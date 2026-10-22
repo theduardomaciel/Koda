@@ -352,7 +352,7 @@ fun VerticalLivePlayerContent(
                     ),
                     shapes = stableShapes
                 ) {
-                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back")
+                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.cd_back))
                 }
 
                 LiveBadge(

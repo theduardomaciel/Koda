@@ -898,7 +898,7 @@ fun SubscriptionsContent(
                                             isConnected = isYouTubeConnected
                                         )
                                     } else {
-                                        "${matchedChannels.size} of ${channels.size} channels"
+                                        stringResource(R.string.sc_channels_of, matchedChannels.size, channels.size)
                                     },
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
