@@ -265,7 +265,7 @@ class DownloadNotificationHelper(private val context: Context) {
 
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_download_notification)
-            .setContentTitle("Download failed")
+            .setContentTitle(context.getString(R.string.download_failed_title))
             .setContentText(songTitle)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)

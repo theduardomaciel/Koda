@@ -2488,6 +2488,7 @@
     <string name="ck_missing_cookies">Missing %1$s. Copy the whole cookie value, and make sure that browser is signed in.</string>
     <string name="ck_cookie_warning">These cookies grant full access to your Google account and bypass 2-step verification. Koda stores them encrypted on this device and only sends them to YouTube. Never share them.</string>
     <string name="us_preview_debug">Preview update dialog (debug)</string>
+    <string name="download_failed_title">Download failed</string>
     <plurals name="bk_accounts_signin_note">
         <item quantity="one">Backups never carry a sign-in, so the account in it will come back needing to be signed into again. Accounts already signed in on this device stay signed in.</item>
         <item quantity="other">Backups never carry a sign-in, so the %1$d accounts in it will come back needing to be signed into again. Accounts already signed in on this device stay signed in.</item>
