@@ -87,11 +87,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private enum class PlaylistDownloadKind(
-    val itemName: String,
-    val itemNamePlural: String
+    val itemNameRes: Int,
+    val itemNamePluralRes: Int
 ) {
-    MUSIC("track", "tracks"),
-    VIDEO("video", "videos")
+    MUSIC(R.string.pd_noun_track, R.string.pd_noun_tracks),
+    VIDEO(R.string.pd_noun_video, R.string.pd_noun_videos)
 }
 
 private data class PlaylistDownloadSnapshot(
@@ -283,7 +283,7 @@ fun VideoPlaylistDownloadAction(
             kind = PlaylistDownloadKind.VIDEO,
             playlistItemCountLabel = playlistCountText
                 ?.takeIf { it.isNotBlank() }
-                ?: if (videos.size >= 100) "100+ videos"
+                ?: if (videos.size >= 100) stringResource(R.string.pd_hundred_plus_videos)
                 else itemCountLabel(videos.size, PlaylistDownloadKind.VIDEO),
             snapshot = snapshot,
             onDismiss = { showSheet = false },
@@ -316,7 +316,7 @@ private fun PlaylistDownloadButton(
         snapshot.remainingCount > 0 && kind == PlaylistDownloadKind.VIDEO -> stringResource(R.string.pd_download_playlist)
         snapshot.remainingCount > 0 -> stringResource(R.string.pd_download_count, totalItemCount)
         snapshot.skippedCount > 0 -> stringResource(R.string.pd_unavailable_offline)
-        else -> stringResource(R.string.pd_download_items, kind.itemNamePlural)
+        else -> stringResource(R.string.pd_download_items, stringResource(kind.itemNamePluralRes))
     }
 
     FilledTonalButton(
@@ -683,9 +683,9 @@ private fun PlaylistDownloadSheet(
                                     text = when {
                                         localOnly -> stringResource(R.string.pd_local_only_block)
                                         kind == PlaylistDownloadKind.VIDEO ->
-                                            "${itemCountLabel(snapshot.skippedCount, kind)} can't be downloaded while live and will be skipped."
+                                            stringResource(R.string.pd_skipped_live, itemCountLabel(snapshot.skippedCount, kind))
                                         else ->
-                                            "${itemCountLabel(snapshot.skippedCount, kind)} has no downloadable source and will be skipped."
+                                            stringResource(R.string.pd_skipped_no_source, itemCountLabel(snapshot.skippedCount, kind))
                                     },
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = if (localOnly) MaterialTheme.colorScheme.onErrorContainer
@@ -821,8 +821,9 @@ private fun DownloadSummaryRow(label: String, value: String) {
     }
 }
 
+@Composable
 private fun itemCountLabel(count: Int, kind: PlaylistDownloadKind): String =
-    "$count ${if (count == 1) kind.itemName else kind.itemNamePlural}"
+    "$count ${stringResource(if (count == 1) kind.itemNameRes else kind.itemNamePluralRes)}"
 
 @Composable
 private fun BatchQualityPill(

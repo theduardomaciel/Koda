@@ -509,9 +509,9 @@ fun LibraryContent(
                 // makes the list actionable - Download on a row promotes a song
                 // out of the evictable cache and into a permanent copy.
                 val readyOfflineItem = PlaylistDisplayItem(
-                    name = "Ready offline",
+                    name = stringResource(R.string.ready_offline),
                     url = READY_OFFLINE_ID,
-                    uploaderName = "On this device",
+                    uploaderName = stringResource(R.string.dv_on_this_device),
                     itemCount = readyOffline.songs.size,
                     thumbnailUrl = readyOffline.songs.firstOrNull()?.thumbnailUrl
                 )
@@ -707,11 +707,11 @@ enum class LibraryRoute {
     SpotifyImport
 }
 
-enum class LibraryTab(val label: String) {
-    All("All"),
-    Playlists("Playlists"),
-    Artists("Artists"),
-    Albums("Albums")
+enum class LibraryTab(val labelRes: Int) {
+    All(R.string.filter_all),
+    Playlists(R.string.section_playlists),
+    Artists(R.string.section_artists),
+    Albums(R.string.section_albums)
 }
 
 /**
@@ -1111,7 +1111,7 @@ fun LibraryMainScreen(
                         contentPadding = PaddingValues(horizontal = 8.dp)
                     ) {
                         Text(
-                            text = tab.label,
+                            text = stringResource(tab.labelRes),
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                             maxLines = 1
@@ -1171,7 +1171,7 @@ fun LibraryMainScreen(
                             onShuffleQueue = onShuffleQueue,
                             onDownloadsClick = onDownloadsClick,
                             onLikedSongsClick = {
-                                onNavigateToPlaylist(PlaylistDisplayItem("Liked Songs", "LM", "You", likedSongsVisible.size, null))
+                                onNavigateToPlaylist(PlaylistDisplayItem(context.getString(R.string.liked_songs), "LM", context.getString(R.string.settings_section_you), likedSongsVisible.size, null))
                             },
                             onNavigateToHistory = onNavigateToHistory,
                             readyOfflineCount = readyOfflineCount,
@@ -1209,7 +1209,7 @@ fun LibraryMainScreen(
                                 }
                             },
                             onLikedSongsClick = {
-                                onNavigateToPlaylist(PlaylistDisplayItem("Liked Songs", "LM", "You", likedSongsVisible.size, null))
+                                onNavigateToPlaylist(PlaylistDisplayItem(context.getString(R.string.liked_songs), "LM", context.getString(R.string.settings_section_you), likedSongsVisible.size, null))
                             },
                             hiddenPlaylists = hiddenPlaylists,
                             onHidePlaylist = { playlist -> viewModel.hidePlaylist(playlist) },
@@ -1507,7 +1507,7 @@ fun AllSongsList(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = if (songs.isEmpty()) "All tracks" else "All tracks • ${songs.size}",
+                    text = if (songs.isEmpty()) stringResource(R.string.lib_all_tracks) else stringResource(R.string.lib_all_tracks_count, songs.size),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground
@@ -1646,13 +1646,13 @@ private fun LibraryShortcutsCard(
         readyOfflineCount > 0 || (readyOfflineHistoryDisabled && readyOfflineUnnamed > 0)
     val readyOfflineSubtitle = when {
         readyOfflineCount > 0 -> buildString {
-            append(if (readyOfflineCount == 1) "1 song" else "$readyOfflineCount songs")
+            append(pluralStringResource(R.plurals.n_songs, readyOfflineCount, readyOfflineCount))
             if (readyOfflineBytes > 0) append(" · ${formatCacheSize(readyOfflineBytes)}")
         }
         // Deliberately names the setting rather than saying "unavailable": the
         // fix is one toggle and the user is the only one who can make it.
-        readyOfflineUnnamed == 1 -> "1 cached song. Turn on listening history to list it"
-        else -> "$readyOfflineUnnamed cached songs. Turn on listening history to list them"
+        readyOfflineUnnamed == 1 -> pluralStringResource(R.plurals.lib_cached_songs, readyOfflineUnnamed, readyOfflineUnnamed)
+        else -> pluralStringResource(R.plurals.lib_cached_songs, readyOfflineUnnamed, readyOfflineUnnamed)
     }
     // Not clickable in the explanatory state - there is nothing behind it,
     // and a row that opens an empty screen is worse than one that does not move.
@@ -2414,7 +2414,7 @@ private fun DerivedArtistCard(
             overflow = TextOverflow.Ellipsis
         )
         Text(
-            if (artistSongs.size == 1) "1 song" else "${artistSongs.size} songs",
+            pluralStringResource(R.plurals.n_songs, artistSongs.size, artistSongs.size),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -2680,7 +2680,7 @@ fun ExpressiveLikedSongsCard(count: Int, onClick: () -> Unit) {
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    if (count == 1) "1 song" else "$count songs",
+                    pluralStringResource(R.plurals.n_songs, count, count),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
                     maxLines = 1
@@ -2843,7 +2843,7 @@ fun ExpressivePlaylistCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
-                    subtitle ?: if (count == 1) "1 song" else "$count songs",
+                    subtitle ?: pluralStringResource(R.plurals.n_songs, count, count),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1
@@ -2928,10 +2928,10 @@ fun ExpressivePlaylistCard(
             text = {
                 Text(
                     if (affectsYouTubeAccount) {
-                        "This will permanently remove \"$name\" from your YouTube account. " +
+                        stringResource(R.string.lib_permanently_remove_account, name) + " " +
                             stringResource(R.string.lib_delete_body)
                     } else {
-                        "This will permanently remove \"$name\"."
+                        stringResource(R.string.lib_permanently_remove_generic, name)
                     }
                 )
             },
@@ -3118,6 +3118,7 @@ internal fun Modifier.songRowClick(
 }
 
 /** Compact "when was this added" label for the Recently added sort. */
+@Composable
 private fun formatRelativeDate(
     timestamp: Long,
     todayLabel: String,
@@ -3128,10 +3129,10 @@ private fun formatRelativeDate(
         days < 0L -> todayLabel // Clock skew or a file dated in the future
         days == 0L -> todayLabel
         days == 1L -> yesterdayLabel
-        days < 7L -> "${days}d ago"
-        days < 30L -> "${days / 7}w ago"
-        days < 365L -> "${days / 30}mo ago"
-        else -> "${days / 365}y ago"
+        days < 7L -> stringResource(R.string.lib_days_ago, days)
+        days < 30L -> stringResource(R.string.lib_weeks_ago, days / 7)
+        days < 365L -> stringResource(R.string.lib_months_ago, days / 30)
+        else -> stringResource(R.string.lib_years_ago, days / 365)
     }
 }
 
@@ -4526,7 +4527,7 @@ fun PlaylistDetailScreen(
                                                 leadingIcon = { Icon(Icons.Rounded.FileUpload, null) },
                                                 onClick = {
                                                     showOverflow = false
-                                                    val base = (resolvedPlaylist.name ?: "playlist")
+                                                    val base = (resolvedPlaylist.name ?: shareContext.getString(R.string.lib_playlist_word))
                                                         .replace(Regex("[\\\\/:*?\"<>|]"), "_")
                                                     exportLauncher.launch("$base.m3u8")
                                                 }
@@ -5007,7 +5008,7 @@ fun PlaylistDetailScreen(
                                 if (isAlbum) kindLabel else stringResource(R.string.label_playlist),
                                 resolvedPlaylist.uploaderName.takeIf { isAlbum && it.isNotBlank() },
                                 releaseYear?.toString()?.takeIf { isAlbum },
-                                if (songs.size == 1) "1 track" else "${songs.size} tracks",
+                                pluralStringResource(R.plurals.n_tracks, songs.size, songs.size),
                                 totalDurationLabel
                             ).joinToString("  ·  "),
                             style = MaterialTheme.typography.labelLarge,
@@ -5161,7 +5162,7 @@ fun PlaylistDetailScreen(
             if (!isSearchActive && !isFetching.value && songs.isNotEmpty()) {
                 item {
                     TrackSectionHeader(
-                        countLabel = if (songs.size == 1) "1 track" else "${songs.size} tracks",
+                        countLabel = pluralStringResource(R.plurals.n_tracks, songs.size, songs.size),
                         manageEnabled = isReorderMode,
                         canEdit = canEditSongs,
                         onToggleEdit = {
@@ -5180,7 +5181,7 @@ fun PlaylistDetailScreen(
             if (isSearchActive && searchQuery.isNotBlank() && filteredSongs.isNotEmpty()) {
                 item {
                     Text(
-                        text = if (filteredSongs.size == 1) "1 result" else "${filteredSongs.size} results",
+                        text = pluralStringResource(R.plurals.n_results, filteredSongs.size, filteredSongs.size),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(start = 24.dp, top = 8.dp, bottom = 4.dp)
@@ -5476,10 +5477,10 @@ fun PlaylistDetailScreen(
                     // Only reached for the account's own playlists when it can
                     // actually be deleted there; a local one stays device-only.
                     if (!isLocalPlaylist) {
-                        "This will permanently delete \"${resolvedPlaylist.name}\" from your YouTube account. " +
+                        stringResource(R.string.lib_permanently_delete_account, resolvedPlaylist.name) + " " +
                             stringResource(R.string.lib_delete_body)
                     } else {
-                        "This will permanently remove \"${resolvedPlaylist.name}\" from this device."
+                        stringResource(R.string.lib_permanently_remove_device, resolvedPlaylist.name)
                     },
                     textAlign = TextAlign.Center
                 )
@@ -5522,9 +5523,9 @@ fun PlaylistDetailScreen(
             text = {
                 Text(
                     if (resolvedPlaylist.id == "LM") {
-                        "Removing \"${song.title}\" from Your Likes removes the like from your YouTube account, everywhere you use YouTube."
+                        stringResource(R.string.lib_remove_from_likes_note, song.title)
                     } else {
-                        "This removes \"${song.title}\" from \"${resolvedPlaylist.name}\" on your YouTube account, everywhere you use YouTube."
+                        stringResource(R.string.lib_remove_from_playlist_note, song.title, resolvedPlaylist.name)
                     }
                 )
             },

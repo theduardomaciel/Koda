@@ -2583,4 +2583,32 @@
     <string name="browse_on_this_device">On This Device</string>
     <string name="browse_root">Root</string>
     <string name="unknown_value">Unknown</string>
+    <string name="lib_all_tracks">All tracks</string>
+    <string name="lib_all_tracks_count">All tracks • %1$d</string>
+    <string name="lib_permanently_remove_account">This will permanently remove \"%1$s\" from your YouTube account.</string>
+    <string name="lib_permanently_remove_generic">This will permanently remove \"%1$s\".</string>
+    <string name="lib_permanently_delete_account">This will permanently delete \"%1$s\" from your YouTube account.</string>
+    <string name="lib_permanently_remove_device">This will permanently remove \"%1$s\" from this device.</string>
+    <string name="lib_remove_from_likes_note">Removing \"%1$s\" from Your Likes removes the like from your YouTube account, everywhere you use YouTube.</string>
+    <string name="lib_remove_from_playlist_note">This removes \"%1$s\" from \"%2$s\" on your YouTube account, everywhere you use YouTube.</string>
+    <string name="lib_days_ago">%1$dd ago</string>
+    <string name="lib_weeks_ago">%1$dw ago</string>
+    <string name="lib_months_ago">%1$dmo ago</string>
+    <string name="lib_years_ago">%1$dy ago</string>
+    <string name="lib_playlist_word">playlist</string>
+    <string name="pd_noun_track">track</string>
+    <string name="pd_noun_tracks">tracks</string>
+    <string name="pd_noun_video">video</string>
+    <string name="pd_noun_videos">videos</string>
+    <string name="pd_skipped_live">%1$s can\'t be downloaded while live and will be skipped.</string>
+    <string name="pd_skipped_no_source">%1$s has no downloadable source and will be skipped.</string>
+    <string name="pd_hundred_plus_videos">100+ videos</string>
+    <plurals name="lib_cached_songs">
+        <item quantity="one">%1$d cached song. Turn on listening history to list it</item>
+        <item quantity="other">%1$d cached songs. Turn on listening history to list them</item>
+    </plurals>
+    <plurals name="n_tracks">
+        <item quantity="one">%1$d track</item>
+        <item quantity="other">%1$d tracks</item>
+    </plurals>
 </resources>

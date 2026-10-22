@@ -2507,4 +2507,32 @@
 <string name="browse_on_this_device">Neste dispositivo</string>
 <string name="browse_root">Raiz</string>
 <string name="unknown_value">Desconhecido</string>
+<string name="lib_all_tracks">Todas as faixas</string>
+<string name="lib_all_tracks_count">Todas as faixas • %1$d</string>
+<string name="lib_permanently_remove_account">Isso removerá permanentemente \"%1$s\" da sua conta do YouTube.</string>
+<string name="lib_permanently_remove_generic">Isso removerá permanentemente \"%1$s\".</string>
+<string name="lib_permanently_delete_account">Isso excluirá permanentemente \"%1$s\" da sua conta do YouTube.</string>
+<string name="lib_permanently_remove_device">Isso removerá permanentemente \"%1$s\" deste dispositivo.</string>
+<string name="lib_remove_from_likes_note">Remover \"%1$s\" de Curtidas remove a curtida da sua conta do YouTube, em todos os lugares em que você usa o YouTube.</string>
+<string name="lib_remove_from_playlist_note">Isso remove \"%1$s\" de \"%2$s\" na sua conta do YouTube, em todos os lugares em que você usa o YouTube.</string>
+<string name="lib_days_ago">há %1$dd</string>
+<string name="lib_weeks_ago">há %1$dsem</string>
+<string name="lib_months_ago">há %1$dm</string>
+<string name="lib_years_ago">há %1$da</string>
+<string name="lib_playlist_word">playlist</string>
+<string name="pd_noun_track">faixa</string>
+<string name="pd_noun_tracks">faixas</string>
+<string name="pd_noun_video">vídeo</string>
+<string name="pd_noun_videos">vídeos</string>
+<string name="pd_skipped_live">%1$s não pode ser baixado ao vivo e será ignorado.</string>
+<string name="pd_skipped_no_source">%1$s não tem fonte para download e será ignorado.</string>
+<string name="pd_hundred_plus_videos">100+ vídeos</string>
+<plurals name="lib_cached_songs">
+    <item quantity="one">%1$d música em cache. Ative o histórico de audição para listá-la</item>
+    <item quantity="other">%1$d músicas em cache. Ative o histórico de audição para listá-las</item>
+</plurals>
+<plurals name="n_tracks">
+    <item quantity="one">%1$d faixa</item>
+    <item quantity="other">%1$d faixas</item>
+</plurals>
 </resources>
