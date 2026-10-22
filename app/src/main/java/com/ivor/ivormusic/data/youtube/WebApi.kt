@@ -32,19 +32,28 @@ internal class WebApi(
      * anonymous client, hundreds per session from one address. That is a large
      * part of what makes a device's standing degrade over a session rather than
      * all at once.
+     *
+     * [language] is the language YouTube answers in. It stays English for every
+     * caller whose response is parsed for content - those parsers read English
+     * UI text, and a translated answer would break them silently. The one
+     * family whose text *is* the content asks for the app's language instead
+     * (see [contentLanguage]).
      */
-    fun webContext(): JSONObject =
+    fun webContext(language: String = "en"): JSONObject =
         JSONObject().put(
             "client",
             JSONObject()
                 .put("clientName", "WEB")
                 .put("clientVersion", WEB_VERSION)
-                .put("hl", "en")
+                .put("hl", language)
                 .put("gl", http.contentRegion())
                 .apply {
                     http.visitorIdentity.cachedOrNull()?.let { put("visitorData", it) }
                 }
         )
+
+    /** The app's language, for the responses whose server text is shown as-is. */
+    fun contentLanguage(): String = http.contentLanguage()
 
     /**
      * POST to an InnerTube endpoint on www.youtube.com, attaching cookies and

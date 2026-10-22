@@ -65,6 +65,15 @@ internal class LiveChat(
      * These were verified against the live live_chat/get_live_chat API
      * August 2026.
      *
+     * The request asks for the app's language: this endpoint's text is shown
+     * as it arrives, and YouTube renders its system notices ("Subscribers-only
+     * mode", the welcome line) and the composer's closed reason in the
+     * requested language. Nothing here parses English text - the renderer
+     * keys are the contract - so a translated answer costs nothing and buys
+     * a chat that reads in the app's language. [verified October 2026: the
+     * same continuation answered hl=en and hl=pt with the welcome notice in
+     * English and in Portuguese.]
+     *
      * NOT yet probed against a live response, and so to be treated as
      * best-effort until they are: markChatItemAsDeletedAction,
      * markChatItemsByAuthorAsDeletedAction, replaceChatItemAction,
@@ -76,7 +85,7 @@ internal class LiveChat(
     suspend fun pollLiveChat(continuation: String): LiveChatPage? = withContext(Dispatchers.IO) {
         try {
             val body = JSONObject()
-                .put("context", webApi.webContext())
+                .put("context", webApi.webContext(webApi.contentLanguage()))
                 .put("continuation", continuation)
             val raw = webApi.postWatchApi("live_chat/get_live_chat", body) ?: return@withContext null
             val chat = JSONObject(raw)
@@ -197,7 +206,7 @@ internal class LiveChat(
             }
             try {
                 val body = JSONObject()
-                    .put("context", webApi.webContext())
+                    .put("context", webApi.webContext(webApi.contentLanguage()))
                     .put("params", params)
                     .put(
                         "richMessage",

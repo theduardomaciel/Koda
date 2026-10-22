@@ -97,6 +97,33 @@ internal class YouTubeHttp(
     fun contentRegion(): String = ThemePreferences.resolveContentRegion(context)
 
     /**
+     * The language YouTube should render its own strings in.
+     *
+     * This is the app's own language - the device's, or a per-app locale set
+     * in system settings - and it is only asked for where the response's text
+     * *is* the content: live chat's system notices and its composer reason.
+     * Everywhere else the language stays English on purpose, because those
+     * parsers read English UI text out of the response (view counts, the LIVE
+     * badge, shelf titles) and a translated answer would break them silently.
+     * See [ThemePreferences.resolveContentRegion] for the same reasoning on
+     * the country.
+     *
+     * Chinese needs its script: YouTube serves zh-Hans and zh-Hant as
+     * separate languages, and the plain "zh" is whichever one it feels like.
+     */
+    fun contentLanguage(): String {
+        val locale = context.resources.configuration.locales[0]
+        val language = locale.language.takeIf { it.isNotBlank() } ?: return "en"
+        if (language != "zh") return language
+        locale.script.takeIf { it.isNotBlank() }?.let { return "zh-$it" }
+        return when (locale.country) {
+            "TW", "HK", "MO" -> "zh-Hant"
+            "CN", "SG" -> "zh-Hans"
+            else -> "zh"
+        }
+    }
+
+    /**
      * Read YouTube's own verdict on the session out of a response.
      *
      * Every InnerTube response reports `logged_in` in its responseContext
