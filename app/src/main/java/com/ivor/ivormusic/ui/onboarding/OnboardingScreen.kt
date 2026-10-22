@@ -328,7 +328,7 @@ fun OnboardingScreen(
             )
 
             Text(
-                text = "Step ${pagerState.currentPage + 1} of $ONBOARDING_PAGE_COUNT",
+                text = stringResource(R.string.ob_step_of, pagerState.currentPage + 1, ONBOARDING_PAGE_COUNT),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

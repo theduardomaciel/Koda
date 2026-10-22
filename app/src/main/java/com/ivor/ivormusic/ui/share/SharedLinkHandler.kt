@@ -12,6 +12,7 @@ import androidx.compose.ui.platform.LocalContext
 import com.ivor.ivormusic.data.Song
 import com.ivor.ivormusic.data.VideoItem
 import com.ivor.ivormusic.data.VideoQueue
+import com.ivor.ivormusic.R
 import com.ivor.ivormusic.data.YouTubeLinkParser
 import com.ivor.ivormusic.ui.home.HomeViewModel
 import com.ivor.ivormusic.ui.player.PlayerViewModel
@@ -205,7 +206,7 @@ fun SharedLinkHandler(
                         VideoQueue(
                             videos = videos,
                             index = startIndex,
-                            title = "Shared playlist",
+                            title = context.getString(R.string.shared_playlist),
                             playlistId = playlistId
                         )
                     )
@@ -230,7 +231,7 @@ fun SharedLinkHandler(
                             VideoQueue(
                                 videos = videos,
                                 index = 0,
-                                title = "Shared playlist",
+                                title = context.getString(R.string.shared_playlist),
                                 playlistId = playlistId
                             )
                         )

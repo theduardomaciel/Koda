@@ -1,6 +1,7 @@
 package com.ivor.ivormusic.ui.library
 import com.ivor.ivormusic.ui.components.DismissibleSnackbarHost
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import com.ivor.ivormusic.R
 
 import androidx.compose.animation.AnimatedVisibility
@@ -675,14 +676,11 @@ private fun HistoryHeroCard(
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
+                val rangeText = if (isFiltered) stringResource(R.string.lh_matching) else rangeLabel.lowercase()
+                val playsText = pluralStringResource(R.plurals.n_plays, plays, plays)
+                val songsText = pluralStringResource(R.plurals.n_songs, songs, songs)
                 Text(
-                    buildString {
-                        append(if (isFiltered) "matching" else rangeLabel.lowercase())
-                        append(" • ")
-                        append(if (plays == 1) "1 play" else "$plays plays")
-                        append(" • ")
-                        append(if (songs == 1) "1 song" else "$songs songs")
-                    },
+                    "$rangeText • $playsText • $songsText",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                 )
@@ -1098,7 +1096,7 @@ private fun HistoryEmptyState(
             body = stringResource(R.string.lh_no_matches_body)
         }
         hasAnyHistory -> {
-            title = "Nothing ${rangeLabel.lowercase()}"
+            title = stringResource(R.string.lh_nothing_range, rangeLabel.lowercase())
             body = stringResource(R.string.lh_range_empty_body)
         }
         isPaused -> {

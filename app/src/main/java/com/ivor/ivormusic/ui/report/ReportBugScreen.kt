@@ -1,6 +1,7 @@
 package com.ivor.ivormusic.ui.report
 import com.ivor.ivormusic.ui.components.DismissibleSnackbarHost
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import com.ivor.ivormusic.R
 
 import android.content.ClipData
@@ -156,7 +157,7 @@ fun ReportBugScreen(onBack: () -> Unit) {
                     Column {
                         Text(stringResource(R.string.sp_report_bug), fontWeight = FontWeight.Bold)
                         Text(
-                            text = "${logEntries.size} log lines recorded this session",
+                            text = pluralStringResource(R.plurals.rb_log_lines, logEntries.size, logEntries.size),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

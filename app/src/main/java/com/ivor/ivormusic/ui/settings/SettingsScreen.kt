@@ -1510,27 +1510,27 @@ private fun SettingsHub(
 
     val accountValue = key(accountRefreshKey) {
         when {
-            !isLoggedIn -> "Not signed in"
-            else -> sessionManager.getUserName() ?: "Signed in"
+            !isLoggedIn -> stringResource(R.string.settings_not_signed_in)
+            else -> sessionManager.getUserName() ?: stringResource(R.string.settings_signed_in)
         }
     }
 
     val themeLabel = when (currentThemeMode) {
-        ThemeMode.SYSTEM -> "System"
-        ThemeMode.LIGHT -> "Light"
-        ThemeMode.DARK -> "Dark"
+        ThemeMode.SYSTEM -> stringResource(R.string.theme_system)
+        ThemeMode.LIGHT -> stringResource(R.string.theme_light)
+        ThemeMode.DARK -> stringResource(R.string.theme_dark)
     }
     val paletteName = if (colorPalette == ThemePreferences.DEFAULT_COLOR_PALETTE) {
-        "Dynamic"
+        stringResource(R.string.settings_theme_dynamic)
     } else {
-        com.ivor.ivormusic.ui.theme.findPalette(colorPalette)?.name ?: "Dynamic"
+        com.ivor.ivormusic.ui.theme.findPalette(colorPalette)?.name ?: stringResource(R.string.settings_theme_dynamic)
     }
     val playerStyleName = com.ivor.ivormusic.ui.player.playerStyleLabel(playerStyle)
 
     val contentValue = when {
-        localOnlyMode -> "Local only, offline"
-        videoMode -> "Video mode"
-        else -> "Music mode"
+        localOnlyMode -> stringResource(R.string.settings_local_only_offline)
+        videoMode -> stringResource(R.string.settings_video_mode)
+        else -> stringResource(R.string.settings_music_mode)
     }
 
     val storageValue = buildString {
@@ -3329,7 +3329,7 @@ private fun FolderItem(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = "${folder.songCount} song${if (folder.songCount != 1) "s" else ""}",
+                    text = pluralStringResource(R.plurals.n_songs, folder.songCount, folder.songCount),
                     color = secondaryTextColor,
                     fontSize = 12.sp,
                     maxLines = 1,
@@ -3538,7 +3538,7 @@ private fun ShortsButtonShapeToggle(
             ) {
                 Icon(
                     imageVector = icon,
-                    contentDescription = "$label: ${if (shown) "shown" else "hidden"}",
+                    contentDescription = "$label: ${stringResource(if (shown) R.string.settings_shown else R.string.settings_hidden)}",
                     tint = iconColor,
                     modifier = Modifier.size(26.dp)
                 )

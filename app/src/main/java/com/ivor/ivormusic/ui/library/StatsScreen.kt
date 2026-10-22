@@ -1,5 +1,6 @@
 package com.ivor.ivormusic.ui.library
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import com.ivor.ivormusic.R
 
 import androidx.compose.foundation.background
@@ -325,10 +326,10 @@ fun StatsScreen(
                             shapes = ListItemDefaults.segmentedShapes(index, count),
                             colors = com.ivor.ivormusic.ui.components.segmentedColorsOver(MaterialTheme.colorScheme.background),
                             leadingContent = { RankBadge(rank = index + 1) },
-                            supportingContent = { Text("${artistStats.songCount} songs") },
+                            supportingContent = { Text(pluralStringResource(R.plurals.n_songs, artistStats.songCount, artistStats.songCount)) },
                             trailingContent = {
                                 Text(
-                                    "${artistStats.playCount} plays",
+                                    pluralStringResource(R.plurals.n_plays, artistStats.playCount, artistStats.playCount),
                                     style = MaterialTheme.typography.labelLarge,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.tertiary

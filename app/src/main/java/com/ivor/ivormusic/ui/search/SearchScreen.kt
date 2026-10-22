@@ -1161,7 +1161,7 @@ fun SearchScreen(
                 playlistResults.isNotEmpty() -> {
                     item {
                         ResultHeader(
-                            title = "Playlists",
+                            title = stringResource(R.string.section_playlists),
                             count = playlistResults.size,
                             icon = Icons.Rounded.QueueMusic,
                             color = Color(0xFF_FF9800), // Orange
