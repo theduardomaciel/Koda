@@ -1122,7 +1122,7 @@ fun VideoCard(
                             if (!video.channelIconUrl.isNullOrBlank()) {
                                 AsyncImage(
                                     model = video.channelIconUrl,
-                                    contentDescription = "${video.channelName} channel",
+                                    contentDescription = stringResource(R.string.channel_of, video.channelName),
                                     modifier = Modifier.fillMaxSize(),
                                     contentScale = ContentScale.Crop
                                 )

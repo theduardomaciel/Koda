@@ -2677,7 +2677,7 @@ private fun CaptionsSheet(
             }
             item {
                 CaptionChoiceRow(
-                    label = "Text color",
+                    label = stringResource(R.string.vpc_text_color),
                     options = listOf(
                         CaptionTextColor.WHITE to stringResource(R.string.vpc_white),
                         CaptionTextColor.YELLOW to stringResource(R.string.vpc_yellow)
@@ -2688,7 +2688,7 @@ private fun CaptionsSheet(
             }
             item {
                 CaptionChoiceRow(
-                    label = "Background",
+                    label = stringResource(R.string.vpc_background),
                     options = listOf(
                         CaptionBackground.NONE to stringResource(R.string.vpc_none),
                         CaptionBackground.TRANSLUCENT to stringResource(R.string.vpc_soft),

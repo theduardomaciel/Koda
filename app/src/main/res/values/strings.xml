@@ -2423,4 +2423,64 @@
     <string name="stats_top_artist">Top artist</string>
     <string name="cd_finish_editing">Finish editing</string>
     <string name="settings_android_auto_sub">Koda missing from your car? Start here</string>
+    <string name="cd_delete_group">Delete %1$s</string>
+    <string name="sm_delete_group_title">Delete %1$s?</string>
+    <string name="cd_groups_for">Groups for %1$s</string>
+    <string name="cd_unfollow_channel">Unfollow %1$s</string>
+    <string name="sm_unfollow_confirm">Unfollow %1$s?</string>
+    <string name="action_rename_group">Rename group</string>
+    <string name="sm_no_channels_match">No channels match \"%1$s\"</string>
+    <string name="sm_no_groups_yet">You haven\'t made any groups yet.</string>
+    <string name="sc_checking_channels">Checking %1$d of %2$d channels</string>
+    <string name="cd_recommend_again">Recommend %1$s again</string>
+    <string name="cd_unhide">Unhide %1$s</string>
+    <plurals name="ni_blocked_count">
+        <item quantity="one">%1$d won\'t appear in your feeds</item>
+        <item quantity="other">%1$d won\'t appear in your feeds</item>
+    </plurals>
+    <plurals name="ni_hidden_count">
+        <item quantity="one">%1$d hidden</item>
+        <item quantity="other">%1$d hidden</item>
+    </plurals>
+    <string name="lib_sort_by">Sort by %1$s</string>
+    <string name="lib_your_playlists_count">Your playlists • %1$d</string>
+    <string name="cd_remove_song">Remove %1$s</string>
+    <string name="cd_reorder_song">Reorder %1$s</string>
+    <string name="lib_removed_song">Removed %1$s</string>
+    <string name="lib_find_in_album">Find in album</string>
+    <string name="lib_find_in_playlist">Find in playlist</string>
+    <string name="lib_nothing_in_album">Nothing in this album matches \"%1$s\"</string>
+    <string name="lib_nothing_in_playlist">Nothing in this playlist matches \"%1$s\"</string>
+    <string name="lib_songs_added_album">Songs you add to this album will show up here</string>
+    <string name="lib_songs_added_playlist">Songs you add to this playlist will show up here</string>
+    <string name="lh_matching">matching</string>
+    <string name="lh_nothing_range">Nothing %1$s</string>
+    <string name="settings_no_match">No settings match \"%1$s\"</string>
+    <string name="settings_no_match_hint">Try a shorter word, or what the setting does rather than its name.</string>
+    <string name="shared_playlist">Shared playlist</string>
+    <string name="vpc_text_color">Text color</string>
+    <string name="vpc_background">Background</string>
+    <string name="ob_step_of">Step %1$d of %2$d</string>
+    <string name="vp_playing_from">Playing from %1$s</string>
+    <string name="settings_shown">shown</string>
+    <string name="settings_hidden">hidden</string>
+    <string name="settings_crossfade_duration">Duration: %1$d s</string>
+    <plurals name="rb_log_lines">
+        <item quantity="one">%1$d log line recorded this session</item>
+        <item quantity="other">%1$d log lines recorded this session</item>
+    </plurals>
+    <plurals name="vp_seconds">
+        <item quantity="one">%1$d second</item>
+        <item quantity="other">%1$d seconds</item>
+    </plurals>
+    <string name="settings_not_signed_in">Not signed in</string>
+    <string name="settings_signed_in">Signed in</string>
+    <string name="settings_theme_dynamic">Dynamic</string>
+    <string name="settings_local_only_offline">Local only, offline</string>
+    <string name="settings_video_mode">Video mode</string>
+    <string name="settings_music_mode">Music mode</string>
+    <string name="level_brightness">Brightness</string>
+    <string name="level_volume">Volume</string>
+    <string name="a11y_percent">%1$s %2$d percent</string>
+    <string name="channel_of">%1$s channel</string>
 </resources>

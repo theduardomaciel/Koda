@@ -2347,4 +2347,64 @@
 <string name="stats_top_artist">Artista mais ouvido</string>
 <string name="cd_finish_editing">Concluir edição</string>
 <string name="settings_android_auto_sub">Koda não aparece no seu carro? Comece aqui</string>
+<string name="cd_delete_group">Excluir %1$s</string>
+<string name="sm_delete_group_title">Excluir %1$s?</string>
+<string name="cd_groups_for">Grupos de %1$s</string>
+<string name="cd_unfollow_channel">Deixar de seguir %1$s</string>
+<string name="sm_unfollow_confirm">Deixar de seguir %1$s?</string>
+<string name="action_rename_group">Renomear grupo</string>
+<string name="sm_no_channels_match">Nenhum canal corresponde a \"%1$s\"</string>
+<string name="sm_no_groups_yet">Você ainda não criou nenhum grupo.</string>
+<string name="sc_checking_channels">Verificando %1$d de %2$d canais</string>
+<string name="cd_recommend_again">Recomendar %1$s novamente</string>
+<string name="cd_unhide">Mostrar %1$s novamente</string>
+<plurals name="ni_blocked_count">
+        <item quantity="one">%1$d não aparecerá nos seus feeds</item>
+        <item quantity="other">%1$d não aparecerão nos seus feeds</item>
+    </plurals>
+<plurals name="ni_hidden_count">
+        <item quantity="one">%1$d oculto</item>
+        <item quantity="other">%1$d ocultos</item>
+    </plurals>
+<string name="lib_sort_by">Ordenar por %1$s</string>
+<string name="lib_your_playlists_count">Suas playlists • %1$d</string>
+<string name="cd_remove_song">Remover %1$s</string>
+<string name="cd_reorder_song">Reordenar %1$s</string>
+<string name="lib_removed_song">%1$s removida</string>
+<string name="lib_find_in_album">Buscar no álbum</string>
+<string name="lib_find_in_playlist">Buscar na playlist</string>
+<string name="lib_nothing_in_album">Nada neste álbum corresponde a \"%1$s\"</string>
+<string name="lib_nothing_in_playlist">Nada nesta playlist corresponde a \"%1$s\"</string>
+<string name="lib_songs_added_album">As músicas que você adicionar a este álbum aparecerão aqui</string>
+<string name="lib_songs_added_playlist">As músicas que você adicionar a esta playlist aparecerão aqui</string>
+<string name="lh_matching">correspondentes</string>
+<string name="lh_nothing_range">Nada %1$s</string>
+<string name="settings_no_match">Nenhuma configuração corresponde a \"%1$s\"</string>
+<string name="settings_no_match_hint">Tente uma palavra mais curta, ou o que a configuração faz em vez do nome.</string>
+<string name="shared_playlist">Playlist compartilhada</string>
+<string name="vpc_text_color">Cor do texto</string>
+<string name="vpc_background">Fundo</string>
+<string name="ob_step_of">Etapa %1$d de %2$d</string>
+<string name="vp_playing_from">Tocando de %1$s</string>
+<string name="settings_shown">exibido</string>
+<string name="settings_hidden">oculto</string>
+<string name="settings_crossfade_duration">Duração: %1$d s</string>
+<plurals name="rb_log_lines">
+        <item quantity="one">%1$d linha de log registrada nesta sessão</item>
+        <item quantity="other">%1$d linhas de log registradas nesta sessão</item>
+    </plurals>
+<plurals name="vp_seconds">
+        <item quantity="one">%1$d segundo</item>
+        <item quantity="other">%1$d segundos</item>
+    </plurals>
+<string name="settings_not_signed_in">Não conectado</string>
+<string name="settings_signed_in">Conectado</string>
+<string name="settings_theme_dynamic">Dinâmico</string>
+<string name="settings_local_only_offline">Somente local, offline</string>
+<string name="settings_video_mode">Modo vídeo</string>
+<string name="settings_music_mode">Modo música</string>
+<string name="level_brightness">Brilho</string>
+<string name="level_volume">Volume</string>
+<string name="a11y_percent">%1$s %2$d por cento</string>
+<string name="channel_of">Canal %1$s</string>
 </resources>

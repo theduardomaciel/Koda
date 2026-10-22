@@ -1,5 +1,6 @@
 package com.ivor.ivormusic.ui.video
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import com.ivor.ivormusic.R
 
 import androidx.compose.foundation.background
@@ -129,7 +130,7 @@ fun NotInterestedScreen(
                 item(key = "channels-header") {
                     SectionHeader(
                         title = stringResource(R.string.ni_section_sources),
-                        subtitle = "${blockedChannels.size} won't appear in your feeds",
+                        subtitle = pluralStringResource(R.plurals.ni_blocked_count, blockedChannels.size, blockedChannels.size),
                         onClear = { confirmClear = ClearTarget.CHANNELS }
                     )
                 }
@@ -145,7 +146,7 @@ fun NotInterestedScreen(
                 item(key = "videos-header") {
                     SectionHeader(
                         title = stringResource(R.string.ni_section_items),
-                        subtitle = "${hiddenVideos.size} hidden",
+                        subtitle = pluralStringResource(R.plurals.ni_hidden_count, hiddenVideos.size, hiddenVideos.size),
                         onClear = { confirmClear = ClearTarget.VIDEOS }
                     )
                 }
@@ -198,9 +199,9 @@ private enum class ClearTarget { VIDEOS, CHANNELS }
 @Composable
 private fun summaryLine(hiddenCount: Int, blockedCount: Int): String = when {
     hiddenCount == 0 && blockedCount == 0 -> stringResource(R.string.ni_nothing_hidden)
-    blockedCount == 0 -> "$hiddenCount video${if (hiddenCount == 1) "" else "s"}"
-    hiddenCount == 0 -> "$blockedCount channel${if (blockedCount == 1) "" else "s"}"
-    else -> "$blockedCount channel${if (blockedCount == 1) "" else "s"}, $hiddenCount video${if (hiddenCount == 1) "" else "s"}"
+    blockedCount == 0 -> pluralStringResource(R.plurals.vpl_video_count, hiddenCount, hiddenCount)
+    hiddenCount == 0 -> pluralStringResource(R.plurals.n_channels, blockedCount, blockedCount)
+    else -> pluralStringResource(R.plurals.n_channels, blockedCount, blockedCount) + ", " + pluralStringResource(R.plurals.vpl_video_count, hiddenCount, hiddenCount)
 }
 
 @Composable
@@ -275,7 +276,7 @@ private fun BlockedChannelRow(channel: BlockedChannel, onUnblock: () -> Unit) {
             IconButton(onClick = onUnblock) {
                 Icon(
                     Icons.Rounded.Undo,
-                    contentDescription = "Recommend ${channel.name} again",
+                    contentDescription = stringResource(R.string.cd_recommend_again, channel.name),
                     tint = MaterialTheme.colorScheme.primary
                 )
             }
@@ -331,7 +332,7 @@ private fun HiddenVideoRow(
             IconButton(onClick = onUnhide) {
                 Icon(
                     Icons.Rounded.Undo,
-                    contentDescription = "Unhide ${video.title}",
+                    contentDescription = stringResource(R.string.cd_unhide, video.title),
                     tint = MaterialTheme.colorScheme.primary
                 )
             }

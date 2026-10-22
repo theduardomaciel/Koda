@@ -3129,7 +3129,7 @@ private fun SeekFeedbackBadge(
                     modifier = Modifier.size(40.dp)
                 )
                 Text(
-                    text = "$seconds seconds",
+                    text = pluralStringResource(R.plurals.vp_seconds, seconds, seconds),
                     color = Color.White,
                     style = MaterialTheme.typography.labelLarge
                 )
@@ -3742,7 +3742,7 @@ private fun PlayingFromPlaylistCard(
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Playing from ${queue.title}",
+                    text = stringResource(R.string.vp_playing_from, queue.title),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
