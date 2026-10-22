@@ -2,6 +2,7 @@ package com.ivor.ivormusic.ui.components
 
 import androidx.compose.animation.core.SpringSpec
 import androidx.compose.animation.core.spring
+import androidx.compose.ui.unit.dp
 
 /*
  * The mini-to-full container transform both players share.
@@ -22,9 +23,38 @@ import androidx.compose.animation.core.spring
  * stiff enough to arrive: at 180 this settled over roughly twice Material's own
  * slow spatial spec and read as mush rather than as calm. 0.95 leaves overshoot
  * far below a pixel.
+ *
+ * **The threshold is set explicitly, and that is load-bearing.** A spring's
+ * duration is estimated only to its visibility threshold, and
+ * `TargetBasedAnimation` returns the exact target on the frame that reaches it
+ * - so the last `threshold` worth of progress happens in one frame. At the
+ * default 0.01f that was 0.8% of the trip, about 6dp at the collapsed end: the
+ * container visibly finished a little short and snapped into the pill's final
+ * geometry. 0.001f leaves that last frame a tenth of a pixel, at the cost of
+ * roughly 130ms of tail the spring was going to spend anyway.
  */
 internal val PLAYER_CONTAINER_SPRING: SpringSpec<Float> =
-    spring(dampingRatio = 0.95f, stiffness = 350f)
+    spring(dampingRatio = 0.95f, stiffness = 350f, visibilityThreshold = 0.001f)
+
+/**
+ * Speed of a flick that commits the transform from anywhere, in either player
+ * and either direction. Below the old 700dp/s a strong but short swipe was not
+ * enough to open the player, because only the distance threshold was left to
+ * decide; 400dp/s is an ordinary decisive flick.
+ */
+internal val PLAYER_TRANSFORM_FLING_VELOCITY = 400.dp
+
+/**
+ * How far through the transform a slow drag must be for its release to commit.
+ *
+ * Past it the player finishes the move; short of it the same spring returns it
+ * to where the drag began. A flick faster than the player's own fling velocity
+ * commits from anywhere, so this only decides for a drag that ends almost
+ * still. One value for both players and both directions: a sheet opened from
+ * the music pill and one opened from the video bar should not ask for
+ * different amounts of effort.
+ */
+internal const val PLAYER_TRANSFORM_COMMIT = 0.35f
 
 /** Progress by which the collapsed content has faded out completely. */
 private const val MINI_FADE_END = 0.28f

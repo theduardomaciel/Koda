@@ -7,6 +7,7 @@ import android.app.PictureInPictureParams
 import android.os.Build
 import android.util.Rational
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -42,6 +43,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.media3.common.util.UnstableApi
 import com.ivor.ivormusic.ui.components.PLAYER_CONTAINER_SPRING
+import com.ivor.ivormusic.ui.components.PLAYER_TRANSFORM_COMMIT
+import com.ivor.ivormusic.ui.components.PLAYER_TRANSFORM_FLING_VELOCITY
 import com.ivor.ivormusic.ui.components.containerFullAlpha
 import com.ivor.ivormusic.ui.components.containerMiniAlpha
 import com.ivor.ivormusic.ui.components.playerContainerFrame
@@ -398,6 +401,15 @@ fun VideoPlayerOverlay(
         // Where the finger picked the player up, so the commit test can measure
         // real travel instead of an absolute position on the screen.
         var dragStartProgress by remember { mutableFloatStateOf(1f) }
+        // The bar's own drag into the page, and a refused one on its way back.
+        // They keep the page mounted for a gesture and its settle without
+        // touching showExpandedSurface, which also gates the bar's gesture and
+        // would otherwise cancel the very drag that set it.
+        var barTransformActive by remember { mutableStateOf(false) }
+        var returningToBar by remember { mutableStateOf(false) }
+        // Composition only: whether the page actually owns the video surface is
+        // barHoldsSurface's call.
+        val pageComposed = showExpandedSurface || barTransformActive || returningToBar
 
         // The transition's progress, read only inside offset, layout, layer and
         // AndroidView update blocks, never in composition: it changes every
@@ -408,15 +420,28 @@ fun VideoPlayerOverlay(
         }
 
         // Which of the two video views under the container transform draws the
-        // picture; only one may hold the player's surface. The bar's frame takes
-        // it the moment its content starts fading in on the way down - under a
-        // finger, or once a collapse has committed - so the bar never shows
-        // anything but the live video. The page holds it the rest of the time,
-        // from the first frame of an expansion, so it has pictures before it is
-        // visible. The one letting go keeps its last frame (bindVideoSurface).
+        // picture; only one may hold the player's surface, and the direction
+        // decides which. On the way up the page takes it from the first frame,
+        // so the thing growing under the finger is what is playing. On the way
+        // down the bar takes it back once its own content starts fading in -
+        // under a finger, or once a collapse has committed - so it never shows
+        // anything but the live video. The one letting go keeps its last frame
+        // (bindVideoSurface). At rest the bar holds it, or the page while open.
         val barHoldsSurface = remember {
             derivedStateOf {
-                (!isExpanded || isDragging) && containerMiniAlpha(transformProgress()) > 0f
+                when {
+                    barTransformActive -> false
+                    isDragging || returningToBar ->
+                        containerMiniAlpha(transformProgress()) > 0f
+                    isExpanded -> false
+                    // A committed collapse still has its page mounted until the
+                    // container lands: it keeps the picture above the bar's fade
+                    // point, exactly as a collapse drag does. Without this the
+                    // bar would take the surface at the commit and the page
+                    // would freeze for the first half of the settle.
+                    showExpandedSurface -> containerMiniAlpha(transformProgress()) > 0f
+                    else -> true
+                }
             }
         }
         val barHoldsSurfaceNow = remember { { barHoldsSurface.value } }
@@ -436,6 +461,10 @@ fun VideoPlayerOverlay(
         // never moves, which is what made minimizing work once per app launch.
         LaunchedEffect(isExpanded) {
             isDragging = false
+            // The committed state owns the page from here; a refused drag has
+            // already settled back by the time this changes.
+            barTransformActive = false
+            returningToBar = false
             if (isExpanded) {
                 retainExpanded = true
                 hasExpanded = true
@@ -560,12 +589,42 @@ fun VideoPlayerOverlay(
         val miniExpandThresholdPx = with(density) { 48.dp.toPx() }
         val miniDismissThresholdPx = with(density) { 56.dp.toPx() }
         val miniFlingVelocityPx = with(density) { 700.dp.toPx() }
+        val transformFlingVelocityPx =
+            with(density) { PLAYER_TRANSFORM_FLING_VELOCITY.toPx() }
         // Upward travel is a preview, not a drag: the expand it commits to is
         // a different animation entirely, so letting the bar follow the finger
         // up the screen would promise a movement that never continues.
         val miniLiftLimitPx = with(density) { 24.dp.toPx() }
         val miniEnterOffsetPx = with(density) { 12.dp.toPx() }
         val miniOffsetAnimationSpec = MaterialTheme.motionScheme.fastSpatialSpec<Float>()
+        // A button press has no finger momentum behind it, so it gets the calmer
+        // default spatial spec; the slide is the whole feedback.
+        val closeOffsetSpec = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
+
+        // The bar's way out, shared by the downward swipe and the close control:
+        // slide out of the window, then give the session up. The button used to
+        // call closePlayer() straight away, so the bar vanished instead of
+        // leaving the way the gesture does.
+        val dismissVideoBar: (Float, AnimationSpec<Float>) -> Unit = { fromOffset, spec ->
+            if (!isDismissingMini) {
+                isDismissingMini = true
+                scope.launch {
+                    miniSettleOffset.snapTo(fromOffset)
+                    isMiniDragging = false
+                    miniSettleOffset.animateTo(fullHeightPx, spec)
+                    viewModel.closePlayer()
+                    isDismissingMini = false
+                    miniDragY = 0f
+                    miniSettleOffset.snapTo(0f)
+                }
+            }
+        }
+        val closeVideoBar: () -> Unit = {
+            if (!isDismissingMini) {
+                haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                dismissVideoBar(miniSettleOffset.value, closeOffsetSpec)
+            }
+        }
 
         // Minimized resting position clears the system navigation inset plus
         // whatever bottom chrome the host says it is drawing, which is nothing
@@ -694,121 +753,201 @@ fun VideoPlayerOverlay(
                 showExpandedSurface,
                 miniExpandThresholdPx,
                 miniDismissThresholdPx,
-                miniFlingVelocityPx
+                miniFlingVelocityPx,
+                animatedHost,
+                dragRangePx
             ) {
                 if (showExpandedSurface) return@pointerInput
                 var gestureTravelY = 0f
                 var dragStartOffsetY = 0f
                 var thresholdFeedbackSent = false
+                // On a session the container transform can carry, an upward
+                // drag grows the page under the finger. The direction is
+                // decided on the first delta and held, so one gesture cannot
+                // swap between growing the page and dismissing the bar.
+                var expanding = false
+                var directionChosen = false
                 val velocityTracker = VelocityTracker()
-                detectVerticalDragGestures(
-                    onDragStart = {
-                        gestureTravelY = 0f
-                        dragStartOffsetY = miniSettleOffset.value
-                        thresholdFeedbackSent = false
-                        velocityTracker.resetTracking()
-                        miniDragY = dragStartOffsetY
-                        isMiniDragging = true
-                        scope.launch { miniSettleOffset.stop() }
-                    },
-                    onDragEnd = {
-                        val velocityY = velocityTracker.calculateVelocity().y
-                        val expand = gestureTravelY < -miniExpandThresholdPx ||
-                            (gestureTravelY < 0f && velocityY < -miniFlingVelocityPx)
-                        val dismiss = gestureTravelY > miniDismissThresholdPx ||
-                            (gestureTravelY > 0f && velocityY > miniFlingVelocityPx)
-                        when {
-                            expand -> {
-                                // No tick here: the expansion answers with
-                                // its own when the player lands.
-                                val releasedOffset = miniDragY
-                                scope.launch {
-                                    miniSettleOffset.snapTo(releasedOffset)
-                                    isMiniDragging = false
-                                    miniSettleOffset.animateTo(
-                                        0f,
-                                        miniOffsetAnimationSpec
-                                    )
-                                }
-                                viewModel.setExpanded(true)
-                            }
-                            dismiss -> {
-                                if (!thresholdFeedbackSent) {
-                                    haptics.performHapticFeedback(HapticFeedbackType.Confirm)
-                                }
-                                isDismissingMini = true
-                                val releasedOffset = miniDragY
-                                scope.launch {
-                                    miniSettleOffset.snapTo(releasedOffset)
-                                    isMiniDragging = false
-                                    miniSettleOffset.animateTo(
-                                        fullHeightPx,
-                                        miniOffsetAnimationSpec
-                                    )
-                                    viewModel.closePlayer()
-                                    isDismissingMini = false
-                                    miniDragY = 0f
-                                    miniSettleOffset.snapTo(0f)
-                                }
-                            }
-                            else -> {
-                                val releasedOffset = miniDragY
-                                scope.launch {
-                                    miniSettleOffset.snapTo(releasedOffset)
-                                    isMiniDragging = false
-                                    miniSettleOffset.animateTo(
-                                        0f,
-                                        miniOffsetAnimationSpec
-                                    )
-                                }
-                            }
-                        }
-                    },
-                    onDragCancel = {
-                        val releasedOffset = miniDragY
-                        scope.launch {
-                            miniSettleOffset.snapTo(releasedOffset)
+                // A refused expansion settles back down the channel a collapse
+                // uses, so the bar takes the surface back before it is visible.
+                val refuseExpansion: () -> Unit = {
+                    val released = dragProgress
+                    returningToBar = true
+                    barTransformActive = false
+                    scope.launch {
+                        try {
+                            expandProgress.snapTo(released)
+                        } finally {
+                            isDragging = false
                             isMiniDragging = false
-                            miniSettleOffset.animateTo(
-                                0f,
-                                miniOffsetAnimationSpec
-                            )
                         }
-                    },
-                    onVerticalDrag = { change, dragAmount ->
-                        gestureTravelY += dragAmount
-                        // Track a synthetic position made from the deltas.
-                        // The bar itself follows downward pulls, so pointer
-                        // coordinates relative to it under-report velocity.
-                        velocityTracker.addPosition(
-                            change.uptimeMillis,
-                            Offset(0f, gestureTravelY)
-                        )
-
-                        // Only the dismiss edge ticks. Expanding says so
-                        // when the player lands, not mid-gesture.
-                        val crossedThreshold = gestureTravelY >= miniDismissThresholdPx
-                        if (crossedThreshold && !thresholdFeedbackSent) {
-                            thresholdFeedbackSent = true
-                            haptics.performHapticFeedback(
-                                HapticFeedbackType.GestureThresholdActivate
-                            )
-                        } else if (!crossedThreshold) {
-                            // Re-arm after the finger returns inside the
-                            // commit zone, matching the visual snap-back.
-                            thresholdFeedbackSent = false
-                        }
-
-                        change.consume()
-                        // Keep the full travel for deciding the gesture,
-                        // while limiting only the visual upward preview.
-                        // Previously the same value was clamped to 24dp
-                        // and then compared with a 48dp expand threshold,
-                        // making distance-based swipe-up impossible.
-                        miniDragY = (dragStartOffsetY + gestureTravelY)
-                            .coerceAtLeast(-miniLiftLimitPx)
+                        expandProgress.animateTo(0f, MINIMIZE_SETTLE_SPRING)
+                        returningToBar = false
                     }
-                )
+                }
+                try {
+                    detectVerticalDragGestures(
+                        onDragStart = {
+                            gestureTravelY = 0f
+                            dragStartOffsetY = miniSettleOffset.value
+                            thresholdFeedbackSent = false
+                            directionChosen = false
+                            expanding = false
+                            velocityTracker.resetTracking()
+                            miniDragY = dragStartOffsetY
+                            isMiniDragging = true
+                            if (animatedHost) {
+                                dragProgress = expandProgress.value
+                                dragStartProgress = expandProgress.value
+                            }
+                            scope.launch { miniSettleOffset.stop() }
+                        },
+                        onDragEnd = {
+                            val velocityY = velocityTracker.calculateVelocity().y
+                            if (expanding) {
+                                // Momentum first: a flick up always opens, a
+                                // flick down always returns; travel only
+                                // decides for a drag that ends almost still.
+                                val commit = when {
+                                    velocityY < -transformFlingVelocityPx -> true
+                                    velocityY > transformFlingVelocityPx -> false
+                                    else -> dragProgress >= PLAYER_TRANSFORM_COMMIT
+                                }
+                                val released = dragProgress
+                                scope.launch {
+                                    try {
+                                        expandProgress.snapTo(released)
+                                    } finally {
+                                        isDragging = false
+                                        isMiniDragging = false
+                                    }
+                                    if (commit) {
+                                        // barTransformActive stays set until
+                                        // isExpanded arrives, so the page is
+                                        // not unmounted for a frame at the
+                                        // hand-off.
+                                        viewModel.setExpanded(true)
+                                    } else {
+                                        returningToBar = true
+                                        barTransformActive = false
+                                        expandProgress.animateTo(0f, MINIMIZE_SETTLE_SPRING)
+                                        returningToBar = false
+                                    }
+                                }
+                            } else {
+                                val expand = gestureTravelY < -miniExpandThresholdPx ||
+                                    (gestureTravelY < 0f && velocityY < -miniFlingVelocityPx)
+                                val dismiss = gestureTravelY > miniDismissThresholdPx ||
+                                    (gestureTravelY > 0f && velocityY > miniFlingVelocityPx)
+                                when {
+                                    expand -> {
+                                        // No tick here: the expansion answers with
+                                        // its own when the player lands.
+                                        val releasedOffset = miniDragY
+                                        scope.launch {
+                                            miniSettleOffset.snapTo(releasedOffset)
+                                            isMiniDragging = false
+                                            miniSettleOffset.animateTo(
+                                                0f,
+                                                miniOffsetAnimationSpec
+                                            )
+                                        }
+                                        viewModel.setExpanded(true)
+                                    }
+                                    dismiss -> {
+                                        if (!thresholdFeedbackSent) {
+                                            haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                                        }
+                                        dismissVideoBar(miniDragY, miniOffsetAnimationSpec)
+                                    }
+                                    else -> {
+                                        val releasedOffset = miniDragY
+                                        scope.launch {
+                                            miniSettleOffset.snapTo(releasedOffset)
+                                            isMiniDragging = false
+                                            miniSettleOffset.animateTo(
+                                                0f,
+                                                miniOffsetAnimationSpec
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        onDragCancel = {
+                            if (expanding) {
+                                refuseExpansion()
+                            } else {
+                                val releasedOffset = miniDragY
+                                scope.launch {
+                                    miniSettleOffset.snapTo(releasedOffset)
+                                    isMiniDragging = false
+                                    miniSettleOffset.animateTo(
+                                        0f,
+                                        miniOffsetAnimationSpec
+                                    )
+                                }
+                            }
+                        },
+                        onVerticalDrag = { change, dragAmount ->
+                            gestureTravelY += dragAmount
+                            // Track a synthetic position made from the deltas.
+                            // The bar itself follows downward pulls, so pointer
+                            // coordinates relative to it under-report velocity.
+                            velocityTracker.addPosition(
+                                change.uptimeMillis,
+                                Offset(0f, gestureTravelY)
+                            )
+                            if (!directionChosen) {
+                                directionChosen = true
+                                expanding = animatedHost && dragAmount < 0f
+                                if (expanding) {
+                                    isDragging = true
+                                    barTransformActive = true
+                                }
+                            }
+
+                            // Only the dismiss edge ticks. Expanding says so
+                            // when the player lands, not mid-gesture.
+                            val crossedThreshold = !expanding &&
+                                gestureTravelY >= miniDismissThresholdPx
+                            if (crossedThreshold && !thresholdFeedbackSent) {
+                                thresholdFeedbackSent = true
+                                haptics.performHapticFeedback(
+                                    HapticFeedbackType.GestureThresholdActivate
+                                )
+                            } else if (!crossedThreshold) {
+                                // Re-arm after the finger returns inside the
+                                // commit zone, matching the visual snap-back.
+                                thresholdFeedbackSent = false
+                            }
+
+                            change.consume()
+                            if (expanding) {
+                                // 1:1 with the container's top edge.
+                                dragProgress = (dragProgress - dragAmount / dragRangePx)
+                                    .coerceIn(0f, 1f)
+                                miniDragY = dragStartOffsetY
+                            } else {
+                                // Keep the full travel for deciding the gesture,
+                                // while limiting only the visual upward preview.
+                                // Previously the same value was clamped to 24dp
+                                // and then compared with a 48dp expand threshold,
+                                // making distance-based swipe-up impossible.
+                                miniDragY = (dragStartOffsetY + gestureTravelY)
+                                    .coerceAtLeast(-miniLiftLimitPx)
+                            }
+                        }
+                    )
+                } finally {
+                    // A pointerInput restart cancels the gesture without
+                    // onDragCancel; a latched drag would leave the page mounted
+                    // at a size no finger is holding.
+                    if (isDragging) {
+                        isDragging = false
+                        barTransformActive = false
+                    }
+                }
             }
             // Sideways moves the video inside the bar. Its own detector: each
             // locks to its axis at touch slop and consumes, which cancels the
@@ -859,7 +998,11 @@ fun VideoPlayerOverlay(
                  // Mini Player Content. Tap and both drags are handled by the
                  // Surface above, so the bar itself only draws and offers its
                  // two controls.
-                 MiniVideoPlayerContent(viewModel = viewModel, skipState = miniSkip)
+                 MiniVideoPlayerContent(
+                     viewModel = viewModel,
+                     skipState = miniSkip,
+                     onClose = closeVideoBar
+                 )
              }
         }
         if (showExpandedSurface) {
@@ -976,8 +1119,9 @@ fun VideoPlayerOverlay(
                         width = fullWidth - MINI_VIDEO_MARGIN * 2,
                         progress = transformProgress,
                         holdsSurface = barHoldsSurfaceNow,
+                        onClose = closeVideoBar,
                     )
-                    if (showExpandedSurface) {
+                    if (pageComposed) {
                         Box(
                             modifier = Modifier
                                 .align(Alignment.TopCenter)
@@ -1017,6 +1161,7 @@ private fun BoxScope.ContainerMiniLayer(
     width: Dp,
     progress: () -> Float,
     holdsSurface: () -> Boolean,
+    onClose: () -> Unit,
 ) {
     val visible by remember(progress) {
         derivedStateOf { containerMiniAlpha(progress()) > 0f }
@@ -1031,6 +1176,11 @@ private fun BoxScope.ContainerMiniLayer(
             .height(MINI_VIDEO_HEIGHT)
             .graphicsLayer { alpha = containerMiniAlpha(progress()) }
     ) {
-        MiniVideoPlayerContent(viewModel = viewModel, holdsSurface = holdsSurface, skipState = skipState)
+        MiniVideoPlayerContent(
+            viewModel = viewModel,
+            holdsSurface = holdsSurface,
+            skipState = skipState,
+            onClose = onClose
+        )
     }
 }

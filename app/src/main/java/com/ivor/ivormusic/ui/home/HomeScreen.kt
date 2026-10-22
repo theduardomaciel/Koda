@@ -1907,12 +1907,16 @@ fun HomeScreen(
         }
 
         // Published for the video overlay, which is drawn above the NavHost and
-        // therefore above this player. Cleared on dispose as well as on
-        // collapse: leaving Home while the player is open drops the remembered
-        // flag here, and a stale true would keep the video bar hidden for the
-        // rest of the session.
-        DisposableEffect(showPlayerSheet) {
-            playerViewModel.setPlayerExpanded(showPlayerSheet)
+        // therefore above this player. It follows the player covering the page
+        // rather than the committed flag: a drag up starts covering it before
+        // the finger is lifted, and the bar has to step aside for that too.
+        // Cleared on dispose so leaving Home drops the mirror rather than
+        // keeping the video bar hidden for the rest of the session.
+        var playerCovering by remember { mutableStateOf(false) }
+        LaunchedEffect(playerCovering) {
+            playerViewModel.setPlayerExpanded(playerCovering)
+        }
+        DisposableEffect(Unit) {
             onDispose { playerViewModel.setPlayerExpanded(false) }
         }
 
@@ -1931,6 +1935,7 @@ fun HomeScreen(
         ExpandablePlayer(
             isExpanded = showPlayerSheet,
             onExpandChange = { showPlayerSheet = it },
+            onCoveringChange = { playerCovering = it },
             currentSong = currentSong,
             isPlaying = isPlaying,
             isBuffering = isBuffering,

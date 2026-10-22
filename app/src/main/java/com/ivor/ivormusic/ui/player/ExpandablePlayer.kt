@@ -3,6 +3,7 @@ package com.ivor.ivormusic.ui.player
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -37,6 +38,8 @@ import com.ivor.ivormusic.data.PlaylistDisplayItem
 import com.ivor.ivormusic.ui.components.MiniPlayerContent
 import com.ivor.ivormusic.ui.components.miniSkipGesture
 import com.ivor.ivormusic.ui.components.PLAYER_CONTAINER_SPRING
+import com.ivor.ivormusic.ui.components.PLAYER_TRANSFORM_COMMIT
+import com.ivor.ivormusic.ui.components.PLAYER_TRANSFORM_FLING_VELOCITY
 import com.ivor.ivormusic.ui.components.containerBackdropAlpha
 import com.ivor.ivormusic.ui.components.containerFullAlpha
 import com.ivor.ivormusic.ui.components.containerMiniAlpha
@@ -59,17 +62,28 @@ private const val PLAYER_BACK_PEEK = 0.72f
  * Leverages Material Physics motion scheme for smooth, interruptible animations.
  * 
  * Swipe gestures:
- * - Swipe UP on mini player: Expand to full player
+ * - Swipe UP on mini player: Expand to full player, following the finger
  * - Swipe DOWN on mini player: Dismiss/clear player
  * - Swipe LEFT/RIGHT on mini player: the pill stays put and the song inside it
  *   moves to the next or previous one in the play order (MiniSkipCarousel)
- * - Swipe DOWN on full player: Collapse to mini player
+ * - Swipe DOWN on full player: Collapse to mini player, following the finger
+ * - Swipe UP on full player: Open the options sheet
  */
 /** The collapsed pill as a bubble: its 52dp artwork slot and the 8dp round it. */
 private val MINI_BUBBLE_SIZE = 68.dp
 
 /** The share of the expansion over which a bubble widens back into the pill. */
-private const val MINI_BUBBLE_RELEASE = 0.2f
+private const val MINI_BUBBLE_OPEN_RELEASE = 0.2f
+
+/**
+ * The share of the collapse over which the pill closes into its bubble.
+ *
+ * Longer than the opening window on purpose. At 20% the width sat still until
+ * the height had already landed and then squeezed into the bubble in the tail
+ * of the spring, which read as a snap; spread over 45% of the trip the width
+ * and the height arrive together.
+ */
+private const val MINI_BUBBLE_CLOSE_RELEASE = 0.45f
 
 /** A rounded rectangle whose radius is never more than half its own smaller side. */
 private class CappedRoundedShape(private val radius: androidx.compose.ui.unit.Dp) :
@@ -97,6 +111,13 @@ private class CappedRoundedShape(private val radius: androidx.compose.ui.unit.Dp
 fun ExpandablePlayer(
     isExpanded: Boolean,
     onExpandChange: (Boolean) -> Unit,
+    /**
+     * Whether this player is covering the page: expanded, or on its way there
+     * under a finger or a spring. The video mini bar is drawn above Home and
+     * cannot ask, so the host mirrors this to hide it for the whole transform
+     * rather than only from the moment the expansion commits.
+     */
+    onCoveringChange: (Boolean) -> Unit,
     currentSong: Song?,
     isPlaying: Boolean,
     isBuffering: Boolean,
@@ -227,10 +248,34 @@ fun ExpandablePlayer(
     // scrub it and an interrupted transition continues from its current value.
     val expandSpec = PLAYER_CONTAINER_SPRING
     val expand = remember { Animatable(if (isExpanded) 1f else 0f) }
+    // Which way the transform is going, for the bubble's own release window.
+    // Opening widens back into the pill over the first stretch so the container
+    // grows as the pill it has always been; closing spreads the same narrowing
+    // over more of the trip. See the two release constants.
+    var bubbleOpens by remember { mutableStateOf(isExpanded) }
     LaunchedEffect(isExpanded) {
+        bubbleOpens = isExpanded
         expand.animateTo(if (isExpanded) 1f else 0f, expandSpec)
     }
-    val expandProgress = expand.value.coerceIn(0f, 1f)
+    // While a finger is down the transform follows it directly, in either
+    // direction: the way the expanded video page follows one down into its bar,
+    // and the bar follows one back up. Plain snapshot state rather than the
+    // Animatable: snapTo runs under a MutatorMutex, so one call per pointer
+    // event cancels the one before it and a fast drag applies a fraction of its
+    // deltas and falls behind the finger. The Animatable keeps the release
+    // settle, and is seeded with the dragged value when the finger leaves so
+    // the settle continues from there.
+    var isDraggingTransform by remember { mutableStateOf(false) }
+    var dragTransformProgress by remember { mutableFloatStateOf(0f) }
+    val expandProgress = (if (isDraggingTransform) dragTransformProgress else expand.value)
+        .coerceIn(0f, 1f)
+    // Derived from the same condition the full layer composes under, so the
+    // page and everything that has to step aside for it cannot disagree about
+    // whether the player is out. Reported through the effect so a drag does not
+    // write it once per pointer event.
+    val covering = isExpanded || expandProgress > 0.001f
+    val notifyCovering by rememberUpdatedState(onCoveringChange)
+    LaunchedEffect(covering) { notifyCovering(covering) }
 
     /**
      * Back on the expanded player previews the collapse it is going to do.
@@ -284,6 +329,13 @@ fun ExpandablePlayer(
     val collapsedEndPadding = (screenWidth - collapsedStartPadding - collapsedPillWidth)
         .coerceAtLeast(0.dp)
     val collapsedBottomPadding = collapsedBottomSpacing + bottomInset
+    // How far the container's top edge travels between the pill and full
+    // screen. The drag is mapped onto this exactly, so one pixel of finger is
+    // one pixel of edge and the two cannot disagree about how far along the
+    // expansion is.
+    val expandRangePx = with(density) {
+        (screenHeight - collapsedBottomPadding - collapsedHeight).toPx()
+    }.coerceAtLeast(1f)
     // Exactly half the collapsed height: a radius larger than that (the old
     // 50.dp) is illegal for the shape and rendered visibly distorted corners.
     // It also now matches MiniPlayerContent's inner 50% pill, so the ripple
@@ -293,12 +345,15 @@ fun ExpandablePlayer(
     // cover the pill was showing is the cover the bubble shows: nothing is
     // swapped, the pill just closes round it.
     val bubbleSizePx = with(density) { MINI_BUBBLE_SIZE.toPx() }
-    // Opening the player from the bubble widens it back to the pill over the
-    // first part of the expansion, so the container transform starts from the
-    // shape it has always started from.
+    // Opening from the bubble widens it back into the pill over the first
+    // stretch, so the container transform starts from the shape it has always
+    // started from. Closing uses a longer window, so the width arrives with the
+    // height instead of squeezing in after it.
+    val bubbleRelease =
+        if (bubbleOpens) MINI_BUBBLE_OPEN_RELEASE else MINI_BUBBLE_CLOSE_RELEASE
     val bubbleFraction: () -> Float = {
         collapsedBubbleFraction().coerceIn(0f, 1f) *
-            (1f - (expandProgress / MINI_BUBBLE_RELEASE).coerceIn(0f, 1f))
+            (1f - (expandProgress / bubbleRelease).coerceIn(0f, 1f))
     }
 
     val expandedHeight = screenHeight
@@ -339,9 +394,8 @@ fun ExpandablePlayer(
 
     // Swipe Logic for expand/collapse (vertical)
     var verticalDragOffset by remember { mutableFloatStateOf(0f) }
-    val verticalSwipeThreshold = -50f
-    // Swipe up on the expanded player opens the options sheet. Longer than
-    // the collapse swipe, so a slightly upward flick does not open it.
+    // Swipe up on the expanded player opens the options sheet. Long enough that
+    // a slightly upward flick does not open it.
     val optionsSwipeThreshold = with(density) { 80.dp.toPx() }
     val nowPlayingOptionsOpen = remember { mutableStateOf(false) }
     val haptics = com.ivor.ivormusic.util.rememberKodaHaptics()
@@ -363,8 +417,35 @@ fun ExpandablePlayer(
     val miniSettleY = remember { Animatable(0f) }
     val miniDismissThresholdPx = with(density) { 56.dp.toPx() }
     val miniFlingVelocityPx = with(density) { 700.dp.toPx() }
+    val transformFlingVelocityPx =
+        with(density) { PLAYER_TRANSFORM_FLING_VELOCITY.toPx() }
     val miniOffsetY: () -> Float = { if (isMiniDraggingY) miniDragY else miniSettleY.value }
     val miniOffsetSpec = MaterialTheme.motionScheme.fastSpatialSpec<Float>()
+    // A button press has no finger momentum behind it, so it gets the calmer
+    // default spatial spec; the slide is the whole feedback.
+    val closeOffsetSpec = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
+    // The pill's way out, shared by the downward swipe and the close button:
+    // slide below the screen's edge, then give the player up. The button used
+    // to call clearPlayer() straight away, so the pill vanished instead of
+    // leaving the way the gesture does.
+    val dismissPill: (Float, AnimationSpec<Float>) -> Unit = { fromOffset, spec ->
+        if (!isDismissing) {
+            isDismissing = true
+            playerScope.launch {
+                miniSettleY.snapTo(fromOffset)
+                isMiniDraggingY = false
+                miniSettleY.animateTo(
+                    with(density) { (collapsedHeight + collapsedBottomPadding).toPx() } +
+                        miniDismissThresholdPx,
+                    spec
+                )
+                viewModel.clearPlayer()
+                isDismissing = false
+                miniDragY = 0f
+                miniSettleY.snapTo(0f)
+            }
+        }
+    }
 
     // The songs either side of this one in the order they will play - the
     // play order, not the queue as added, so a shuffled queue peeks at what
@@ -435,48 +516,156 @@ fun ExpandablePlayer(
                         )
                     }
                 }
-                .pointerInput(isExpanded) {
+                .pointerInput(isExpanded, expandRangePx, optionsSwipeThreshold, miniFlingVelocityPx) {
                     if (isExpanded) {
-                        // Expanded: Only handle vertical drag for collapse
-                        detectVerticalDragGestures(
-                            onDragStart = { verticalDragOffset = 0f },
-                            onDragEnd = {
-                                if (verticalDragOffset > -verticalSwipeThreshold) {
-                                    onExpandChange(false)
-                                } else if (verticalDragOffset < -optionsSwipeThreshold &&
-                                    !nowPlayingOptionsOpen.value
-                                ) {
-                                    haptics.performHapticFeedback(
-                                        androidx.compose.ui.hapticfeedback.HapticFeedbackType.GestureEnd
-                                    )
-                                    nowPlayingOptionsOpen.value = true
+                        // Expanded: a downward drag follows the finger into the
+                        // pill, the same transform the pill drags open with. Up
+                        // stays what it was - a discrete shortcut to the options
+                        // sheet - because the sheet is a place to arrive at, not
+                        // a size to scrub through.
+                        val velocityTracker =
+                            androidx.compose.ui.input.pointer.util.VelocityTracker()
+                        // Decided on the first delta and held for the gesture.
+                        var collapsing = false
+                        var directionChosen = false
+                        var thresholdFeedbackSent = false
+                        // Hand the dragged size to the Animatable before leaving
+                        // drag mode, so the settle continues from where the
+                        // finger let go. In a finally because snapTo suspends on
+                        // the Animatable's mutex and a latched flag would freeze
+                        // the player at the dragged size.
+                        val settleTo: (Float, Float) -> Unit = { released, target ->
+                            playerScope.launch {
+                                try {
+                                    expand.snapTo(released)
+                                } finally {
+                                    isDraggingTransform = false
                                 }
-                                verticalDragOffset = 0f
-                            },
-                            onVerticalDrag = { change, dragAmount ->
-                                change.consume()
-                                verticalDragOffset += dragAmount
+                                expand.animateTo(target, expandSpec)
                             }
-                        )
+                        }
+                        try {
+                            detectVerticalDragGestures(
+                                onDragStart = {
+                                    verticalDragOffset = 0f
+                                    directionChosen = false
+                                    collapsing = false
+                                    thresholdFeedbackSent = false
+                                    velocityTracker.resetTracking()
+                                    // Where the settle had got to, so a drag
+                                    // caught mid-expansion continues from what is
+                                    // on screen.
+                                    dragTransformProgress = expand.value
+                                },
+                                onDragEnd = {
+                                    val velocityY = velocityTracker.calculateVelocity().y
+                                    if (collapsing) {
+                                        // Momentum first: a flick down always
+                                        // closes, a flick up always restores;
+                                        // travel only decides for a drag that
+                                        // ends almost still.
+                                        val commit = when {
+                                            velocityY > transformFlingVelocityPx -> true
+                                            velocityY < -transformFlingVelocityPx -> false
+                                            else ->
+                                                (1f - dragTransformProgress) >= PLAYER_TRANSFORM_COMMIT
+                                        }
+                                        playerScope.launch {
+                                            try {
+                                                expand.snapTo(dragTransformProgress)
+                                            } finally {
+                                                isDraggingTransform = false
+                                            }
+                                            if (commit) {
+                                                // The state change carries it the
+                                                // rest of the way down from here.
+                                                onExpandChange(false)
+                                            } else {
+                                                expand.animateTo(1f, expandSpec)
+                                            }
+                                        }
+                                    } else if (verticalDragOffset < -optionsSwipeThreshold &&
+                                        !nowPlayingOptionsOpen.value
+                                    ) {
+                                        haptics.performHapticFeedback(
+                                            androidx.compose.ui.hapticfeedback.HapticFeedbackType.GestureEnd
+                                        )
+                                        nowPlayingOptionsOpen.value = true
+                                    }
+                                    verticalDragOffset = 0f
+                                },
+                                onDragCancel = {
+                                    val wasCollapsing = collapsing
+                                    verticalDragOffset = 0f
+                                    if (wasCollapsing) settleTo(dragTransformProgress, 1f)
+                                },
+                                onVerticalDrag = { change, dragAmount ->
+                                    change.consume()
+                                    verticalDragOffset += dragAmount
+                                    // Deltas, not pointer positions: the surface
+                                    // moves under the finger, so positions
+                                    // relative to it under-report the speed.
+                                    velocityTracker.addPosition(
+                                        change.uptimeMillis,
+                                        androidx.compose.ui.geometry.Offset(0f, verticalDragOffset)
+                                    )
+                                    if (!directionChosen) {
+                                        directionChosen = true
+                                        collapsing = dragAmount > 0f
+                                        if (collapsing) {
+                                            isDraggingTransform = true
+                                            bubbleOpens = false
+                                        }
+                                    }
+                                    if (collapsing) {
+                                        // 1:1 with the container's top edge.
+                                        dragTransformProgress =
+                                            (dragTransformProgress - dragAmount / expandRangePx)
+                                                .coerceIn(0f, 1f)
+                                    }
+                                    // The edge that decides the release ticks, and
+                                    // it re-arms if the finger comes back inside it.
+                                    val crossed = collapsing &&
+                                        (1f - dragTransformProgress) >= PLAYER_TRANSFORM_COMMIT
+                                    if (crossed && !thresholdFeedbackSent) {
+                                        thresholdFeedbackSent = true
+                                        haptics.threshold()
+                                    } else if (!crossed) {
+                                        thresholdFeedbackSent = false
+                                    }
+                                }
+                            )
+                        } finally {
+                            // A pointerInput restart cancels the gesture without
+                            // onDragCancel; a latched flag would freeze the
+                            // player at the dragged size.
+                            isDraggingTransform = false
+                        }
                     }
                 }
                 // Collapsed: sideways moves the song inside the pill.
                 .miniSkipGesture(miniSkip, enabled = !isExpanded && miniCustomization.swipeToSkip)
                 .pointerInput(
                     isExpanded, miniDismissThresholdPx, miniFlingVelocityPx,
-                    miniCustomization.swipeToDismiss
+                    miniCustomization.swipeToDismiss, expandRangePx
                 ) {
                     if (!isExpanded) {
                         // With the dismiss turned off the pill does not follow
                         // the finger down either: a pull that can end nowhere
                         // should not start.
                         val canDismiss = miniCustomization.swipeToDismiss
-                        // Collapsed: up expands, down dismisses. Only the
-                        // downward pull moves the pill: an expansion is its own
-                        // animation, so following the finger up would promise
-                        // a movement that never continues.
+                        // Collapsed: up expands, down dismisses. Up is a drag,
+                        // not a preview: the transform follows the finger, the
+                        // way the expanded video page follows one down into its
+                        // bar, so the middle of the trip is a place the user can
+                        // stop and judge. Down already followed the finger.
                         val velocityTracker = androidx.compose.ui.input.pointer.util.VelocityTracker()
                         var thresholdFeedbackSent = false
+                        // Decided on the first delta and held for the gesture.
+                        // Switching half way would have the pill jump between
+                        // following the finger up and following it down.
+                        var expanding = false
+                        var directionChosen = false
                         val settleHome: () -> Unit = {
                             val released = miniDragY
                             playerScope.launch {
@@ -485,76 +674,146 @@ fun ExpandablePlayer(
                                 miniSettleY.animateTo(0f, miniOffsetSpec)
                             }
                         }
-                        detectVerticalDragGestures(
-                            onDragStart = {
-                                verticalDragOffset = 0f
-                                thresholdFeedbackSent = false
-                                velocityTracker.resetTracking()
-                                miniDragY = 0f
-                                isMiniDraggingY = true
-                                playerScope.launch { miniSettleY.stop() }
-                            },
-                            onDragEnd = {
-                                val velocityY = velocityTracker.calculateVelocity().y
-                                val travel = verticalDragOffset
-                                val dismiss = canDismiss && (
-                                    travel > miniDismissThresholdPx ||
-                                        (travel > 0f && velocityY > miniFlingVelocityPx)
-                                    )
-                                when {
-                                    travel < verticalSwipeThreshold -> {
-                                        settleHome()
-                                        onExpandChange(true)
-                                    }
-                                    dismiss -> {
-                                        if (!thresholdFeedbackSent) haptics.confirm()
-                                        isDismissing = true
-                                        val released = miniDragY
+                        // Hand the dragged size to the Animatable before leaving
+                        // drag mode, so the spring home continues from where the
+                        // finger let go instead of snapping to the pill first.
+                        val settleExpand: (Float) -> Unit = { released ->
+                            playerScope.launch {
+                                try {
+                                    expand.snapTo(released)
+                                } finally {
+                                    // In a finally because snapTo suspends on
+                                    // the Animatable's mutex: an animation that
+                                    // takes it first cancels this call, and a
+                                    // latched flag would freeze the player at
+                                    // the dragged size.
+                                    isDraggingTransform = false
+                                    isMiniDraggingY = false
+                                }
+                                expand.animateTo(0f, expandSpec)
+                            }
+                        }
+                        try {
+                            detectVerticalDragGestures(
+                                onDragStart = {
+                                    verticalDragOffset = 0f
+                                    thresholdFeedbackSent = false
+                                    directionChosen = false
+                                    expanding = false
+                                    velocityTracker.resetTracking()
+                                    // Where the settle had got to, so a drag caught
+                                    // mid-collapse continues from what is on screen.
+                                    dragTransformProgress = expand.value
+                                    miniDragY = 0f
+                                    isMiniDraggingY = true
+                                    playerScope.launch { miniSettleY.stop() }
+                                },
+                                onDragEnd = {
+                                    val velocityY = velocityTracker.calculateVelocity().y
+                                    val travel = verticalDragOffset
+                                    if (expanding) {
+                                        // Momentum first: a flick up always opens,
+                                        // a flick down always returns; travel only
+                                        // decides for a drag that ends almost still.
+                                        val commit = when {
+                                            velocityY < -transformFlingVelocityPx -> true
+                                            velocityY > transformFlingVelocityPx -> false
+                                            else -> dragTransformProgress >= PLAYER_TRANSFORM_COMMIT
+                                        }
+                                        val released = dragTransformProgress
                                         playerScope.launch {
-                                            miniSettleY.snapTo(released)
-                                            isMiniDraggingY = false
-                                            // Below the screen's edge from wherever it is.
-                                            miniSettleY.animateTo(
-                                                with(density) { (collapsedHeight + collapsedBottomPadding).toPx() } +
-                                                    miniDismissThresholdPx,
-                                                miniOffsetSpec
+                                            try {
+                                                expand.snapTo(released)
+                                            } finally {
+                                                isDraggingTransform = false
+                                                isMiniDraggingY = false
+                                            }
+                                            if (commit) {
+                                                // The state change carries it the
+                                                // rest of the way from here.
+                                                onExpandChange(true)
+                                            } else {
+                                                expand.animateTo(0f, expandSpec)
+                                            }
+                                        }
+                                    } else {
+                                        val dismiss = canDismiss && (
+                                            travel > miniDismissThresholdPx ||
+                                                (travel > 0f && velocityY > miniFlingVelocityPx)
                                             )
-                                            viewModel.clearPlayer()
-                                            isDismissing = false
-                                            miniDragY = 0f
-                                            miniSettleY.snapTo(0f)
+                                        when {
+                                            dismiss -> {
+                                                if (!thresholdFeedbackSent) haptics.confirm()
+                                                dismissPill(miniDragY, miniOffsetSpec)
+                                            }
+                                            else -> settleHome()
                                         }
                                     }
-                                    else -> settleHome()
+                                    verticalDragOffset = 0f
+                                },
+                                onDragCancel = {
+                                    val cancelledExpand = expanding
+                                    verticalDragOffset = 0f
+                                    if (cancelledExpand) {
+                                        settleExpand(dragTransformProgress)
+                                    } else {
+                                        settleHome()
+                                    }
+                                },
+                                onVerticalDrag = { change, dragAmount ->
+                                    change.consume()
+                                    verticalDragOffset += dragAmount
+                                    // Deltas, not pointer positions: the pill moves
+                                    // under the finger, so positions relative to it
+                                    // under-report the speed.
+                                    velocityTracker.addPosition(
+                                        change.uptimeMillis,
+                                        androidx.compose.ui.geometry.Offset(0f, verticalDragOffset)
+                                    )
+                                    if (!directionChosen) {
+                                        directionChosen = true
+                                        expanding = dragAmount < 0f
+                                        if (expanding) {
+                                            isDraggingTransform = true
+                                            bubbleOpens = true
+                                        }
+                                    }
+                                    if (expanding) {
+                                        // 1:1 with the container's top edge.
+                                        dragTransformProgress =
+                                            (dragTransformProgress - dragAmount / expandRangePx)
+                                                .coerceIn(0f, 1f)
+                                        miniDragY = 0f
+                                    } else {
+                                        miniDragY =
+                                            if (canDismiss) {
+                                                verticalDragOffset.coerceAtLeast(0f)
+                                            } else {
+                                                0f
+                                            }
+                                    }
+                                    // The edge that decides the release ticks, and
+                                    // it re-arms if the finger comes back inside it.
+                                    val crossed = if (expanding) {
+                                        dragTransformProgress >= PLAYER_TRANSFORM_COMMIT
+                                    } else {
+                                        canDismiss && verticalDragOffset >= miniDismissThresholdPx
+                                    }
+                                    if (crossed && !thresholdFeedbackSent) {
+                                        thresholdFeedbackSent = true
+                                        haptics.threshold()
+                                    } else if (!crossed) {
+                                        thresholdFeedbackSent = false
+                                    }
                                 }
-                                verticalDragOffset = 0f
-                            },
-                            onDragCancel = {
-                                verticalDragOffset = 0f
-                                settleHome()
-                            },
-                            onVerticalDrag = { change, dragAmount ->
-                                change.consume()
-                                verticalDragOffset += dragAmount
-                                // Deltas, not pointer positions: the pill moves
-                                // under the finger, so positions relative to it
-                                // under-report the speed.
-                                velocityTracker.addPosition(
-                                    change.uptimeMillis,
-                                    androidx.compose.ui.geometry.Offset(0f, verticalDragOffset)
-                                )
-                                miniDragY = if (canDismiss) verticalDragOffset.coerceAtLeast(0f) else 0f
-                                // Only the dismiss edge ticks, and it re-arms if
-                                // the finger comes back inside it.
-                                val crossed = canDismiss && verticalDragOffset >= miniDismissThresholdPx
-                                if (crossed && !thresholdFeedbackSent) {
-                                    thresholdFeedbackSent = true
-                                    haptics.threshold()
-                                } else if (!crossed) {
-                                    thresholdFeedbackSent = false
-                                }
-                            }
-                        )
+                            )
+                        } finally {
+                            // A pointerInput restart (a window size change, a
+                            // setting) cancels the gesture without onDragCancel.
+                            // Left latched, the flag would freeze the player at
+                            // the dragged size for the rest of the session.
+                            isDraggingTransform = false
+                        }
                     }
                 }
                 .clickable(enabled = !isExpanded) { onExpandChange(true) },
@@ -655,7 +914,10 @@ fun ExpandablePlayer(
                                     }
                                     com.ivor.ivormusic.data.MiniPlayerButton.SHUFFLE -> viewModel.toggleShuffle()
                                     com.ivor.ivormusic.data.MiniPlayerButton.REPEAT -> viewModel.toggleRepeat()
-                                    com.ivor.ivormusic.data.MiniPlayerButton.CLOSE -> viewModel.clearPlayer()
+                                    com.ivor.ivormusic.data.MiniPlayerButton.CLOSE -> {
+                                        haptics.confirm()
+                                        dismissPill(miniSettleY.value, closeOffsetSpec)
+                                    }
                                     // Play/pause and next have their own callbacks.
                                     com.ivor.ivormusic.data.MiniPlayerButton.PLAY_PAUSE,
                                     com.ivor.ivormusic.data.MiniPlayerButton.NEXT -> Unit
