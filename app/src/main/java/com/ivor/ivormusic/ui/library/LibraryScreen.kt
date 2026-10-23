@@ -3379,9 +3379,16 @@ private fun LibraryOfflinePanel(
     val haptics = com.ivor.ivormusic.util.rememberKodaHaptics()
     val density = androidx.compose.ui.platform.LocalDensity.current
     val collapsePx = with(density) { OFFLINE_PANEL_COLLAPSE_SCROLL.toPx() }
-    val panelHeight = 68.dp
-    val bubbleSizePx = with(density) { panelHeight.toPx() }
-    val panelShape = RoundedCornerShape(panelHeight / 2)
+    // One size in every state: the collapsed circle is as small as the pill.
+    // The mini player's collapsed bubble is 68dp, its cover 52dp with an 8dp
+    // round, so the circle is inset 8dp from the end edge to share that
+    // bubble's centre rather than trying to match its diameter.
+    val panelSize = 52.dp
+    val panelSizePx = with(density) { panelSize.toPx() }
+    val bubbleCenterInsetPx = with(density) { 8.dp.toPx() }
+    // A percentage radius is a pill at full width and a circle when the two
+    // sides meet.
+    val panelShape = RoundedCornerShape(percent = 50)
     // Bumped by a manual open, so the scroll latch starts measuring again from
     // where the list is now rather than from before the panel closed.
     var latchGeneration by remember { mutableStateOf(0) }
@@ -3403,7 +3410,13 @@ private fun LibraryOfflinePanel(
         targetValue = if (expanded) 0f else 1f,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioNoBouncy,
-            stiffness = Spring.StiffnessMediumLow
+            stiffness = Spring.StiffnessMediumLow,
+            // A spring is estimated only to its threshold, and the target is
+            // returned on the frame that crosses it. At the default 0.01f the
+            // last ~0.8% of the width - a couple of dp - happened in one
+            // frame, which read as the pill teleporting into place in both
+            // directions. Same fix as PLAYER_CONTAINER_SPRING.
+            visibilityThreshold = 0.001f
         ),
         label = "offlinePanelCollapse"
     )
@@ -3412,25 +3425,34 @@ private fun LibraryOfflinePanel(
         modifier = modifier
             .fillMaxWidth()
             .offset { IntOffset(0, followOffsetPx().roundToInt()) },
+        // The mini player's bubble closes from the end side, so the circle
+        // lines up over it rather than over the pill's start.
         contentAlignment = Alignment.CenterEnd
     ) {
         Surface(
             modifier = Modifier
-                .height(panelHeight)
-                // Width is interpolated in layout, like the mini player's
-                // bubble: the content is measured at the width it will have,
-                // so a shrinking panel never lays out wider than its shape.
+                // The width shrinks with the collapse and the height never
+                // changes. The 8dp shift left at full collapse centres the
+                // 52dp circle in the mini player's 68dp bubble slot.
+                .offset {
+                    IntOffset(
+                        -(bubbleCenterInsetPx * collapseFraction).roundToInt(),
+                        0
+                    )
+                }
+                // Measured at the width it will have, so a shrinking panel
+                // never lays out wider than its shape.
                 .layout { measurable, constraints ->
                     val fraction = collapseFraction.coerceIn(0f, 1f)
                     val width = androidx.compose.ui.util.lerp(
-                        constraints.maxWidth.toFloat(), bubbleSizePx, fraction
+                        constraints.maxWidth.toFloat(), panelSizePx, fraction
                     ).roundToInt().coerceAtMost(constraints.maxWidth)
                     val placeable = measurable.measure(
                         androidx.compose.ui.unit.Constraints.fixed(
-                            width, constraints.maxHeight
+                            width, panelSizePx.roundToInt()
                         )
                     )
-                    layout(width, constraints.maxHeight) { placeable.placeRelative(0, 0) }
+                    layout(width, panelSizePx.roundToInt()) { placeable.placeRelative(0, 0) }
                 },
             shape = panelShape,
             color = MaterialTheme.colorScheme.surfaceContainerHigh,

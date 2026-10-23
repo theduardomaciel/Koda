@@ -1709,7 +1709,7 @@
 <string name="lib_no_followed_artists_subtitle">Os artistas que você segue no YouTube Music aparecem aqui</string>
 <string name="lib_no_saved_albums">Nenhum álbum salvo</string>
 <string name="lib_no_saved_albums_subtitle">Os álbuns que você salva na sua biblioteca do YouTube Music aparecem aqui</string>
-<string name="lib_offline_banner">Você está off-line. Mostrando sua biblioteca salva.</string>
+<string name="lib_offline_banner">Off-line. Mostrando sua biblioteca salva.</string>
 <string name="lib_offline_collapse">Recolher o aviso off-line</string>
 <string name="lib_offline_expand">Mostrar o aviso off-line</string>
 <string name="lib_offline_no_saved_albums">Nenhum álbum salvo off-line</string>
