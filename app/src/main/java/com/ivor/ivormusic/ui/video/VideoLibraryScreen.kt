@@ -606,6 +606,9 @@ private fun LibraryRoot(
                         onClick = onOpenDownloads,
                         modifier = Modifier.padding(horizontal = 16.dp)
                     )
+                    // Breathing room above the rule: 10dp inside the row read
+                    // as the row sticking to the divider.
+                    Spacer(modifier = Modifier.height(12.dp))
                     PlaylistRowDivider()
                 }
             }
@@ -642,22 +645,18 @@ private fun LibraryRoot(
 
             // Playlists. Creating one no longer needs a session: signed out it
             // goes on the device, which is the whole point of the local store.
-            item {
+            item(key = "playlists_header") {
                 ChapterHeader(
                     number = "02",
                     title = stringResource(R.string.your_playlists),
                     actionLabel = stringResource(R.string.action_new),
                     actionIcon = Icons.Rounded.Add,
-                    onAction = { showCreateDialog = true }
+                    onAction = { showCreateDialog = true },
+                    // m3u/m3u8 and NewPipe or PipePipe backups in, as local video
+                    // playlists; the same button music's Library has, kept on the
+                    // header row beside New rather than on a row of its own.
+                    trailing = importAction
                 )
-            }
-            // m3u/m3u8 and NewPipe or PipePipe backups in, as local video
-            // playlists; the same button music's Library has.
-            item(key = "playlist_import") {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                    horizontalArrangement = Arrangement.End
-                ) { importAction() }
             }
             // Saved ones lead, the way they do in the music Library grid: not
             // the user's own, but deliberately kept, so they belong above the
@@ -812,13 +811,23 @@ private fun ChapterHeader(
     title: String,
     actionLabel: String? = null,
     actionIcon: ImageVector = Icons.Rounded.ChevronRight,
-    onAction: (() -> Unit)? = null
+    onAction: (() -> Unit)? = null,
+    /**
+     * Extra controls at the end of the same row, before [actionLabel]. The
+     * playlists chapter puts Import here so it sits beside New; on its own row
+     * below the header it read as the first item of the list, and left the two
+     * actions stacked in a column.
+     */
+    trailing: (@Composable () -> Unit)? = null
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp),
-        verticalAlignment = Alignment.Bottom
+        // Centred rather than bottom-aligned: the trailing actions are 40dp
+        // TextButtons, so aligning their bottom edge with the title left their
+        // labels floating above it.
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = number,
@@ -834,8 +843,14 @@ private fun ChapterHeader(
             color = MaterialTheme.colorScheme.onBackground,
             modifier = Modifier.weight(1f)
         )
+        trailing?.invoke()
         if (actionLabel != null && onAction != null) {
-            TextButton(onClick = onAction) {
+            TextButton(
+                onClick = onAction,
+                // Compact, so a second action can share the row on a narrow
+                // phone without squeezing the title.
+                contentPadding = PaddingValues(horizontal = 8.dp)
+            ) {
                 Text(actionLabel)
                 Icon(
                     imageVector = actionIcon,
@@ -1064,9 +1079,12 @@ private fun SlimDoorRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            // 12dp, the same as the icon box inside it. 16dp on a row whose
+            // content sits 4dp from the edge read as over-rounded next to the
+            // square list rows below.
+            .clip(RoundedCornerShape(12.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 4.dp, vertical = 10.dp),
+            .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
