@@ -144,6 +144,23 @@ class UpdatePromptStore(context: Context) {
             .apply()
     }
 
+    /**
+     * Whether the floating badge was put away for [version].
+     *
+     * Separate from "Later": the dialog's answer still governs when the dialog
+     * comes back, while the badge is a shortcut, and someone who swiped it away
+     * does not want it back until a newer release exists. Keyed on the version,
+     * so a new release shows it again without anything having to clear it.
+     */
+    fun isBadgeDismissed(version: String): Boolean =
+        prefs.getString(KEY_BADGE_DISMISSED_VERSION, null) == version
+
+    fun markBadgeDismissed(version: String) {
+        prefs.edit()
+            .putString(KEY_BADGE_DISMISSED_VERSION, version)
+            .apply()
+    }
+
     private fun isFreshInstall(): Boolean = try {
         val info = appContext.packageManager.getPackageInfo(appContext.packageName, 0)
         info.firstInstallTime == info.lastUpdateTime
@@ -158,6 +175,7 @@ class UpdatePromptStore(context: Context) {
         private const val KEY_SEEN_VERSION = "whats_new_seen_version"
         private const val KEY_PROMPTED_VERSION = "prompted_version"
         private const val KEY_PROMPTED_AT = "prompted_at"
+        private const val KEY_BADGE_DISMISSED_VERSION = "badge_dismissed_version"
 
         /** "Later" is asked again after two days on the same release. */
         const val REPROMPT_AFTER_MS = 2L * 24L * 60L * 60L * 1000L

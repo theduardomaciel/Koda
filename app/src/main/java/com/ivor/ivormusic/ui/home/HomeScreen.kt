@@ -51,6 +51,7 @@ import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.SystemUpdate
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.WindowInsets
@@ -128,10 +129,12 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlin.math.roundToInt
 import com.ivor.ivormusic.ui.settings.openExternal
 import coil.compose.AsyncImage
 import com.ivor.ivormusic.data.Song
@@ -681,6 +684,10 @@ fun HomeScreen(
     var updateResult by remember { mutableStateOf<UpdateResult?>(null) }
     // Held separately so the pill's label survives its exit animation
     var latestVersion by remember { mutableStateOf("") }
+    // A dismissed pill stays away until a newer release turns up. Without this
+    // the badge is the one floating thing on Home with no way to put it down:
+    // "Later" only quiets the dialog, and the pill came back on the next check.
+    var updateBadgeDismissed by remember { mutableStateOf(false) }
 
     val updateContext = androidx.compose.ui.platform.LocalContext.current
     val updatePrompts = remember(updateContext) {
@@ -727,6 +734,7 @@ fun HomeScreen(
             updateResult = result
             if (result is UpdateResult.UpdateAvailable) {
                 latestVersion = result.latestVersion
+                updateBadgeDismissed = updatePrompts.isBadgeDismissed(result.latestVersion)
                 if (updatePrompts.shouldPromptFor(result.latestVersion)) showUpdatePrompt = true
             }
         }
@@ -927,6 +935,12 @@ fun HomeScreen(
     }
     val navBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val statusBarInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    // The update badge is placed in placement, not composition: it rests on the
+    // same animated clearance as the other bottom UI, then comes down with the
+    // bars as they slide away.
+    val updateBadgeDensity = LocalDensity.current
+    val updateBadgeRestPx = with(updateBadgeDensity) { bottomOverlayInset.toPx() }
+    val updateBadgeGapPx = with(updateBadgeDensity) { 8.dp.toPx() }
     // The one inset every tab list scrolls inside, top and bottom. It belongs
     // in each list's contentPadding and never on a parent modifier: padding a
     // scroll container shrinks its viewport, so content is clipped at the
@@ -1996,7 +2010,7 @@ fun HomeScreen(
         // overlays (shared bottomOverlayInset) rather than the top bar, where it
         // used to sit on top of the settings/profile icons.
         androidx.compose.animation.AnimatedVisibility(
-            visible = updateResult is UpdateResult.UpdateAvailable,
+            visible = updateResult is UpdateResult.UpdateAvailable && !updateBadgeDismissed,
             enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.scaleIn(
                 initialScale = 0.8f,
                 animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec()
@@ -2007,7 +2021,16 @@ fun HomeScreen(
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .navigationBarsPadding()
-                .padding(start = 20.dp + contentStartInset, bottom = bottomOverlayInset + 8.dp)
+                // Ride down with the navigation bar and the mini players. This
+                // pill used to hold the resting clearance, so it stayed high
+                // over the gap they left whenever a list was scrolled.
+                .offset {
+                    val travelled = updateBadgeRestPx -
+                        miniPlayerFollowDistancePx *
+                        floatingToolbarState.hiddenFraction()
+                    IntOffset(0, -(travelled + updateBadgeGapPx).roundToInt())
+                }
+                .padding(start = 20.dp + contentStartInset)
         ) {
             Surface(
                 modifier = Modifier
@@ -2021,7 +2044,7 @@ fun HomeScreen(
                 shape = RoundedCornerShape(50)
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    modifier = Modifier.padding(start = 12.dp, end = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
@@ -2036,6 +2059,21 @@ fun HomeScreen(
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    // Its own target, so a tap meant for the badge does not
+                    // read as one meant to put it away.
+                    Icon(
+                        Icons.Rounded.Close,
+                        contentDescription = stringResource(R.string.update_badge_dismiss),
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clickable {
+                                updatePrompts.markBadgeDismissed(latestVersion)
+                                updateBadgeDismissed = true
+                            }
+                            .padding(8.dp)
                     )
                 }
             }

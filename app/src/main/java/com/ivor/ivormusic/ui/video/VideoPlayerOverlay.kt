@@ -371,6 +371,23 @@ fun VideoPlayerOverlay(
             }
         }
 
+        // The host's bottom chrome sets the bar's resting height: the navigation
+        // bar, plus the music pill above it once something is playing. That
+        // second player appearing or closing moves the target 84dp at once, and
+        // without this the video bar teleported between the two positions.
+        //
+        // It is a pixel Animatable read only inside the placement and layer
+        // blocks below. The layout always targets the new resting height; the
+        // gap to where the animation has got to is added as a translation, so
+        // the move is a spring on the compositor and never recomposes the bar
+        // or remeasures its video view.
+        val chromeTargetPx = with(density) { hostBottomChrome.toPx() }
+        val chromeAnim = remember { Animatable(chromeTargetPx) }
+        val chromeAnimSpec = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
+        LaunchedEffect(hostBottomChrome) {
+            chromeAnim.animateTo(chromeTargetPx, chromeAnimSpec)
+        }
+
         // Which host draws this player, collapsed and expanded both: the
         // container transform rests as the bar itself, so a session it can
         // carry never uses the curtain's bar at all. It depends only on state
@@ -654,7 +671,12 @@ fun VideoPlayerOverlay(
                 // embedded TextureView remains at its final 88dp size.
                 translationY = gestureOffset +
                     (1f - visibility) * miniEnterOffsetPx +
-                    hostChromeFollowOffsetPx() * progress.let { 1f - it }.coerceIn(0f, 1f)
+                    hostChromeFollowOffsetPx() * progress.let { 1f - it }.coerceIn(0f, 1f) +
+                    // Where the stack has not arrived yet: the layout targets
+                    // the new resting height, so hold the bar at the old one
+                    // until the spring gets there. Let go as the player opens -
+                    // a full-screen page has no mini bar to line up with.
+                    (chromeTargetPx - chromeAnim.value) * (1f - progress).coerceIn(0f, 1f)
                 alpha = visibility
 
                 val fadeLimit = if (isDismissingMini) 1f else 0.5f
@@ -1071,9 +1093,15 @@ fun VideoPlayerOverlay(
                         val f = frame()
                         // Follows the host's toolbar while collapsed, and lets
                         // go of it as the player opens: a full-screen player has
-                        // no navigation bar to sit above.
+                        // no navigation bar to sit above. The stack catch-up is
+                        // read here for the same reason - placement only.
                         val follow = hostChromeFollowOffsetPx() * (1f - transformProgress())
-                        IntOffset(f.left.roundToInt(), (f.top + follow).roundToInt())
+                        val stacking = (chromeTargetPx - chromeAnim.value) *
+                            (1f - transformProgress())
+                        IntOffset(
+                            f.left.roundToInt(),
+                            (f.top + follow + stacking).roundToInt()
+                        )
                     }
                     .layout { measurable, _ ->
                         val f = frame()

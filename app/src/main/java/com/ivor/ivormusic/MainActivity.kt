@@ -98,8 +98,21 @@ private val EXPRESSIVE_NAV_BAR_RESERVE = 84.dp
 /** Material 3's standard navigation container height, excluding system insets. */
 private val NON_EXPRESSIVE_NAV_BAR_RESERVE = 80.dp
 
-/** Height the collapsed music player occupies above the navigation bar. */
-private val MUSIC_PILL_RESERVE = 88.dp
+/**
+ * What the collapsed music player occupies above the navigation bar: the 68dp
+ * pill and bubble plus the 16dp gap it keeps above the bar.
+ *
+ * The video mini bar stacks on top of this, and has to keep the same 16dp gap
+ * above the pill that the pill keeps above the bar. It used to reserve 88dp,
+ * which left the pair 20dp apart while every other gap in the stack is 16.
+ */
+private val MUSIC_PILL_RESERVE = 84.dp
+
+/**
+ * The same, where navigation is a rail: the pill's 68dp plus its 12dp gap above
+ * the system inset, with no bar underneath it.
+ */
+private val MUSIC_PILL_RAIL_RESERVE = 80.dp
 
 class MainActivity : ComponentActivity() {
 
@@ -1163,7 +1176,8 @@ fun MusicApp(
         !onHomeRoute -> 0.dp
         // Stacked above the music pill rather than on top of it, when both
         // players are alive at once.
-        musicPillVisible -> navBarReserve + MUSIC_PILL_RESERVE
+        musicPillVisible ->
+            navBarReserve + if (homeUsesRail) MUSIC_PILL_RAIL_RESERVE else MUSIC_PILL_RESERVE
         else -> navBarReserve
     }
 
