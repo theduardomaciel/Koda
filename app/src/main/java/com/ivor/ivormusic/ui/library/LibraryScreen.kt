@@ -1345,7 +1345,15 @@ fun LibraryMainScreen(
                                 .groupSongsByArtist()
                                 .size
                         }
-                        val showHeader = isYouTubeConnected || derivedArtistCount > 0
+                        // Like the albums grids: a count and a sort button over
+                        // nothing is chrome, not information. Following draws
+                        // the account's rows; signed out it draws the derived
+                        // ones. The device follows above have their own heading.
+                        val showHeader = if (showAccount) {
+                            accountArtists.isNotEmpty()
+                        } else {
+                            derivedArtistCount > 0
+                        }
                         val countLabel = when {
                             showAccount && isAccountLibraryLoading && accountArtists.isEmpty() ->
                                 stringResource(R.string.lib_following_header)
