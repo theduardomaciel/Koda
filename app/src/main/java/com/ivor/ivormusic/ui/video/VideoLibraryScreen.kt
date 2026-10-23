@@ -651,6 +651,7 @@ private fun LibraryRoot(
                     title = stringResource(R.string.your_playlists),
                     actionLabel = stringResource(R.string.action_new),
                     actionIcon = Icons.Rounded.Add,
+                    actionIconLeading = true,
                     onAction = { showCreateDialog = true },
                     // m3u/m3u8 and NewPipe or PipePipe backups in, as local video
                     // playlists; the same button music's Library has, kept on the
@@ -813,6 +814,13 @@ private fun ChapterHeader(
     actionIcon: ImageVector = Icons.Rounded.ChevronRight,
     onAction: (() -> Unit)? = null,
     /**
+     * Draws [actionIcon] before the label, with the same 6dp gap the Import
+     * button uses. Creating something reads as a verb, so "New" leads with its
+     * icon; "View all" keeps its chevron trailing, because that one points the
+     * way the tap goes.
+     */
+    actionIconLeading: Boolean = false,
+    /**
      * Extra controls at the end of the same row, before [actionLabel]. The
      * playlists chapter puts Import here so it sits beside New; on its own row
      * below the header it read as the first item of the list, and left the two
@@ -845,18 +853,34 @@ private fun ChapterHeader(
         )
         trailing?.invoke()
         if (actionLabel != null && onAction != null) {
+            if (trailing != null) {
+                // A deliberate gap: the two buttons' own content padding left
+                // Import and New reading as one run of text.
+                Spacer(modifier = Modifier.width(4.dp))
+            }
             TextButton(
                 onClick = onAction,
                 // Compact, so a second action can share the row on a narrow
                 // phone without squeezing the title.
                 contentPadding = PaddingValues(horizontal = 8.dp)
             ) {
+                if (actionIconLeading) {
+                    Icon(
+                        imageVector = actionIcon,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    // The Import button's icon-to-label gap, so the pair match.
+                    Spacer(modifier = Modifier.width(6.dp))
+                }
                 Text(actionLabel)
-                Icon(
-                    imageVector = actionIcon,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
+                if (!actionIconLeading) {
+                    Icon(
+                        imageVector = actionIcon,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
             }
         }
     }
