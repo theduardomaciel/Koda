@@ -24,9 +24,10 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.MusicNote
-import androidx.compose.material.icons.rounded.Download
-import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.DownloadDone
+import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.Smartphone
 import androidx.compose.material.icons.rounded.Lyrics
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
@@ -58,6 +59,7 @@ import com.ivor.ivormusic.ui.components.queueDragLongPress
 import com.ivor.ivormusic.ui.components.rememberQueueRemoval
 import com.ivor.ivormusic.ui.components.rememberQueueReorderState
 import com.ivor.ivormusic.ui.components.rememberFocusedQueueListState
+import com.ivor.ivormusic.ui.components.rememberIsOnline
 import com.ivor.ivormusic.ui.components.SongArtwork
 import com.ivor.ivormusic.data.LyricsResult
 import com.ivor.ivormusic.data.isUnknownArtist
@@ -256,6 +258,8 @@ private fun ExpressiveNowPlayingView(
     onSurfaceVariantColor: Color,
     stableShapes: IconButtonShapes
 ) {
+    // A download needs a connection; removing one does not.
+    val isOnline = rememberIsOnline()
     // State for toggling between album art and lyrics
     var showLyrics by remember { mutableStateOf(false) }
     val playerHaptics = rememberPlayerHaptics()
@@ -798,7 +802,7 @@ private fun ExpressiveNowPlayingView(
                 ToggleButton(
                     checked = isDownloaded || isDownloading,
                     onCheckedChange = { if (!isDownloading) onDownloadToggle() },
-                    enabled = !isLocalOriginal,
+                    enabled = !isLocalOriginal && (isDownloaded || isOnline),
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight(),
@@ -816,7 +820,7 @@ private fun ExpressiveNowPlayingView(
                             color = LocalContentColor.current
                         )
                         else -> Icon(
-                            imageVector = if (isDownloaded) Icons.Rounded.CheckCircle else Icons.Rounded.Download,
+                            imageVector = if (isDownloaded) Icons.Rounded.DownloadDone else Icons.Rounded.Download,
                             contentDescription = if (isDownloaded) stringResource(R.string.song_options_downloaded) else stringResource(R.string.song_options_download),
                             modifier = Modifier.size(22.dp)
                         )

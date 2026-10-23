@@ -204,6 +204,7 @@
     <string name="song_options_download">Download</string>
     <string name="song_options_download_subtitle">Keep on this device</string>
     <string name="song_options_downloaded">Downloaded</string>
+    <string name="song_options_download_offline">Connect to download</string>
     <string name="song_options_go_to_artist">Go to %1$s</string>
     <string name="song_options_not_interested">Not interested</string>
     <string name="song_options_not_interested_subtitle">Stop recommending this song</string>
@@ -596,14 +597,8 @@
     <string name="sp_save_listening_history">Save Listening History</string>
     <string name="sp_streaming_quality">Streaming quality</string>
     <string name="sp_quality_per_network">Quality per network</string>
-    <string name="sp_block_streaming_mobile">Don\'t stream on mobile data</string>
-    <string name="sp_block_streaming_mobile_on">Streaming off, Wi-Fi only</string>
-    <string name="sp_block_streaming_mobile_off">Streaming allowed</string>
-    <string name="si_block_streaming_mobile">Stops music and video from streaming over mobile data. Downloads still work unless you block those too.</string>
-    <string name="sp_block_downloads_mobile">Don\'t download on mobile data</string>
-    <string name="sp_block_downloads_mobile_on">Downloads blocked, use Wi-Fi</string>
-    <string name="sp_block_downloads_mobile_off">Downloads allowed</string>
-    <string name="si_block_downloads_mobile">Keeps downloads off mobile data. A download already running pauses when you switch to mobile data, and can be resumed on Wi-Fi.</string>
+    <string name="sp_mobile_data_off_label">Off on mobile data</string>
+    <string name="qd_no_mobile_data">Don\'t use mobile data</string>
     <string name="sp_quality_network_hint">Koda picks these based on the connection in use</string>
     <string name="sp_music_quality">Music quality</string>
     <string name="sp_video_quality">Video quality</string>
@@ -691,11 +686,11 @@
     <string name="qd_video_wifi">Video Quality on Wi-Fi</string>
     <string name="qd_video_wifi_desc">Videos start at this quality on Wi-Fi when available, falling back to the closest lower one.</string>
     <string name="qd_video_mobile">Video Quality on Mobile Data</string>
-    <string name="qd_video_mobile_desc">Videos start at this quality on mobile data when available, falling back to the closest lower one.</string>
+    <string name="qd_video_mobile_desc">Videos start at this quality on mobile data when available, falling back to the closest lower one. Choosing Don\'t use mobile data stops all streaming on cellular.</string>
     <string name="qd_music_wifi">Music Quality on Wi-Fi</string>
     <string name="qd_music_wifi_desc">Songs stream at this quality on Wi-Fi.</string>
     <string name="qd_music_mobile">Music Quality on Mobile Data</string>
-    <string name="qd_music_mobile_desc">Songs stream at this quality on mobile data.</string>
+    <string name="qd_music_mobile_desc">Songs stream at this quality on mobile data. Choosing Don\'t use mobile data stops all streaming on cellular.</string>
 
     <!-- Android Auto help -->
     <string name="auto_help_subtitle">Why Koda may not appear in your car</string>
@@ -1049,7 +1044,10 @@
     <string name="in_progress">In progress</string>
     <string name="dl_failed">Failed</string>
     <string name="dl_mobile_data_off">Downloads off on mobile data</string>
-    <string name="pd_mobile_data_block">Downloads are turned off on mobile data. Connect to Wi-Fi or change this in Mobile data settings.</string>
+    <string name="pd_mobile_data_block">Downloads are turned off on mobile data. Connect to Wi-Fi, or change it in Storage settings.</string>
+    <string name="pd_offline_block">You\'re offline. Connect to the internet to download.</string>
+    <string name="pd_offline_short">Offline</string>
+    <string name="pd_controls_locked">Settings are locked while this download runs.</string>
     <string name="remove_download_q">Remove download?</string>
     <string name="remove_download_body">This deletes the saved copy from this device. You can download it again later.</string>
     <string name="dl_waiting">Waiting</string>
@@ -1765,6 +1763,12 @@
     <string name="album_sort_last_played">Last played</string>
     <string name="album_sort_az">A-Z</string>
     <string name="album_sort_za">Z-A</string>
+    <string name="lib_offline_no_playlists">No playlists available offline</string>
+    <string name="lib_offline_no_playlists_body">Download a playlist to keep it here when you\'re offline.</string>
+    <string name="lib_offline_no_albums">No albums available offline</string>
+    <string name="lib_offline_no_albums_body">Download an album or its songs to keep it here when you\'re offline.</string>
+    <string name="lib_offline_no_songs">No music available offline</string>
+    <string name="lib_offline_no_songs_body">Download songs to listen when you\'re offline.</string>
     <string name="lib_group_sort_cd">Sort by %1$s</string>
     <string name="pip_back_10">Back 10 seconds</string>
     <string name="pip_forward_10">Forward 10 seconds</string>

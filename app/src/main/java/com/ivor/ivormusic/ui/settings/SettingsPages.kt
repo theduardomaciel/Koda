@@ -1070,9 +1070,6 @@ internal fun PlaybackSettingsPage(
     videoQualityWifi: String,
     videoQualityMobile: String,
     blockStreamingOnMobileData: Boolean,
-    onBlockStreamingOnMobileDataToggle: (Boolean) -> Unit,
-    blockDownloadsOnMobileData: Boolean,
-    onBlockDownloadsOnMobileDataToggle: (Boolean) -> Unit,
     preferHdr: Boolean,
     onPreferHdrToggle: (Boolean) -> Unit,
     frameInterpolation: Boolean,
@@ -1267,38 +1264,6 @@ internal fun PlaybackSettingsPage(
         }
 
         item {
-            SettingsSection(title = stringResource(R.string.mobile_data)) {
-                SettingsCard {
-                    SettingsToggleRow(
-                        icon = Icons.Rounded.SignalCellularAlt,
-                        title = stringResource(R.string.sp_block_streaming_mobile),
-                        subtitle = if (blockStreamingOnMobileData) {
-                            stringResource(R.string.sp_block_streaming_mobile_on)
-                        } else {
-                            stringResource(R.string.sp_block_streaming_mobile_off)
-                        },
-                        enabled = blockStreamingOnMobileData,
-                        onToggle = onBlockStreamingOnMobileDataToggle,
-                        explanation = stringResource(R.string.si_block_streaming_mobile)
-                    )
-                    SettingsDivider()
-                    SettingsToggleRow(
-                        icon = Icons.Rounded.Download,
-                        title = stringResource(R.string.sp_block_downloads_mobile),
-                        subtitle = if (blockDownloadsOnMobileData) {
-                            stringResource(R.string.sp_block_downloads_mobile_on)
-                        } else {
-                            stringResource(R.string.sp_block_downloads_mobile_off)
-                        },
-                        enabled = blockDownloadsOnMobileData,
-                        onToggle = onBlockDownloadsOnMobileDataToggle,
-                        explanation = stringResource(R.string.si_block_downloads_mobile)
-                    )
-                }
-            }
-        }
-
-        item {
             SettingsSection(title = stringResource(R.string.sp_streaming_quality)) {
                 SettingsCard {
                     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
@@ -1382,9 +1347,13 @@ internal fun PlaybackSettingsPage(
                     SettingsRow(
                         icon = Icons.Rounded.MusicNote,
                         title = stringResource(R.string.sp_music_quality),
-                        subtitle = musicQualityLabel(
-                            if (showingWifi) musicQualityWifi else musicQualityMobile
-                        ),
+                        subtitle = if (!showingWifi && blockStreamingOnMobileData) {
+                            stringResource(R.string.sp_mobile_data_off_label)
+                        } else {
+                            musicQualityLabel(
+                                if (showingWifi) musicQualityWifi else musicQualityMobile
+                            )
+                        },
                         onClick = {
                             onOpenQualityPicker(
                                 if (showingWifi) QualityDialogTarget.MUSIC_WIFI
@@ -1399,9 +1368,13 @@ internal fun PlaybackSettingsPage(
                     SettingsRow(
                         icon = Icons.Rounded.VideoLibrary,
                         title = stringResource(R.string.sp_video_quality),
-                        subtitle = videoQualityLabel(
-                            if (showingWifi) videoQualityWifi else videoQualityMobile
-                        ),
+                        subtitle = if (!showingWifi && blockStreamingOnMobileData) {
+                            stringResource(R.string.sp_mobile_data_off_label)
+                        } else {
+                            videoQualityLabel(
+                                if (showingWifi) videoQualityWifi else videoQualityMobile
+                            )
+                        },
                         onClick = {
                             onOpenQualityPicker(
                                 if (showingWifi) QualityDialogTarget.VIDEO_WIFI
@@ -2260,18 +2233,37 @@ internal fun StorageSettingsPage(
                         ThemePreferences.DOWNLOAD_MUSIC_QUALITY_HIGH,
                         ThemePreferences.DOWNLOAD_MUSIC_QUALITY_SAVER
                     )
+                    // The same row also carries the mobile-data guard, rather
+                    // than a second toggle elsewhere: this is where a user
+                    // already decides how much a download costs. Selecting a
+                    // quality turns downloads back on; the stored quality is
+                    // kept while "don't use mobile data" is chosen.
+                    val downloadPrefs = remember(downloadContext) { ThemePreferences(downloadContext) }
+                    val downloadsBlocked by downloadPrefs.blockDownloadsOnMobileData.collectAsState()
                     SettingsChoiceRow(
                         icon = Icons.Rounded.GraphicEq,
                         title = stringResource(R.string.sp_download_music_quality),
                         subtitle = stringResource(R.string.sp_download_music_quality_sub),
                         labels = listOf(
                             stringResource(R.string.sd_quality_high),
-                            stringResource(R.string.sd_quality_saver)
+                            stringResource(R.string.sd_quality_saver),
+                            // Shorter than the dialog's wording: this is a
+                            // third of a segmented row on a narrow phone.
+                            stringResource(R.string.sp_mobile_data_off_label)
                         ),
-                        selectedIndex = downloadQualities.indexOf(downloadQuality),
-                        onSelect = {
-                            downloadQuality = downloadQualities[it]
-                            ThemePreferences.setDownloadMusicQuality(downloadContext, downloadQuality)
+                        selectedIndex = if (downloadsBlocked) 2
+                            else downloadQualities.indexOf(downloadQuality),
+                        onSelect = { index ->
+                            if (index == 2) {
+                                downloadPrefs.setBlockDownloadsOnMobileData(true)
+                            } else {
+                                downloadPrefs.setBlockDownloadsOnMobileData(false)
+                                downloadQuality = downloadQualities[index]
+                                ThemePreferences.setDownloadMusicQuality(
+                                    downloadContext,
+                                    downloadQuality
+                                )
+                            }
                         }
                     )
                     SettingsToggleRow(

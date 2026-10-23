@@ -265,7 +265,6 @@ class MainActivity : ComponentActivity() {
             val onboardingCompleted by themeViewModel.onboardingCompleted.collectAsState()
             val localOnlyMode by themeViewModel.localOnlyMode.collectAsState()
             val blockStreamingOnMobileData by themeViewModel.blockStreamingOnMobileData.collectAsState()
-            val blockDownloadsOnMobileData by themeViewModel.blockDownloadsOnMobileData.collectAsState()
             
             val cacheEnabled by themeViewModel.cacheEnabled.collectAsState()
             val videoCacheEnabled by themeViewModel.videoCacheEnabled.collectAsState()
@@ -375,8 +374,6 @@ class MainActivity : ComponentActivity() {
                         onMotionArtworkWifiOnlyToggle = themeViewModel::setMotionArtworkWifiOnly,
                         blockStreamingOnMobileData = blockStreamingOnMobileData,
                         onBlockStreamingOnMobileDataToggle = themeViewModel::setBlockStreamingOnMobileData,
-                        blockDownloadsOnMobileData = blockDownloadsOnMobileData,
-                        onBlockDownloadsOnMobileDataToggle = themeViewModel::setBlockDownloadsOnMobileData,
                         motionArtworkQuality = motionArtworkQuality,
                         onMotionArtworkQualityChange = themeViewModel::setMotionArtworkQuality,
                         waveformSeekBar = waveformSeekBar,
@@ -756,8 +753,6 @@ fun MusicApp(
     onMotionArtworkWifiOnlyToggle: (Boolean) -> Unit,
     blockStreamingOnMobileData: Boolean,
     onBlockStreamingOnMobileDataToggle: (Boolean) -> Unit,
-    blockDownloadsOnMobileData: Boolean,
-    onBlockDownloadsOnMobileDataToggle: (Boolean) -> Unit,
     motionArtworkQuality: MotionArtworkQuality,
     onMotionArtworkQualityChange: (MotionArtworkQuality) -> Unit,
     waveformSeekBar: Boolean,
@@ -1558,8 +1553,6 @@ fun MusicApp(
                     onLocalOnlyModeToggle = onLocalOnlyModeToggle,
                     blockStreamingOnMobileData = blockStreamingOnMobileData,
                     onBlockStreamingOnMobileDataToggle = onBlockStreamingOnMobileDataToggle,
-                    blockDownloadsOnMobileData = blockDownloadsOnMobileData,
-                    onBlockDownloadsOnMobileDataToggle = onBlockDownloadsOnMobileDataToggle,
                     uiScale = uiScale,
                     onUiScaleChange = onUiScaleChange,
                     lyricsConfiguration = lyricsConfiguration,

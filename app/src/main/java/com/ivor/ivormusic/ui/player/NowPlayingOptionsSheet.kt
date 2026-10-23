@@ -72,6 +72,7 @@ import com.ivor.ivormusic.data.SongSource
 import com.ivor.ivormusic.data.ThemePreferences
 import com.ivor.ivormusic.data.isUnknownAlbum
 import com.ivor.ivormusic.data.isUnknownArtist
+import com.ivor.ivormusic.ui.components.rememberIsOnline
 import com.ivor.ivormusic.util.MediaVolumeState
 import com.ivor.ivormusic.util.rememberMediaVolume
 import kotlin.math.roundToInt
@@ -180,6 +181,7 @@ fun NowPlayingOptionsSheet(
     val isDownloaded = remember(downloadedSongs, song.id) { viewModel.isDownloaded(song.id) }
     val isDownloading = remember(downloadingIds, song.id) { viewModel.isDownloading(song.id) }
     val isLocalOriginal = remember(song.id) { viewModel.isLocalOriginal(song) }
+    val isOnline = rememberIsOnline()
 
     val artist = song.artist.takeIf { !isUnknownArtist(it) }
     // A device file's album name is the key the Library groups by, so it opens
@@ -303,7 +305,7 @@ fun NowPlayingOptionsSheet(
                         // Already done or already working: the tile still reads
                         // as the state it is in rather than going grey, which a
                         // selected container says on its own.
-                        enabled = !isDownloaded && !isDownloading,
+                        enabled = !isDownloaded && !isDownloading && isOnline,
                         loading = isDownloading,
                         modifier = Modifier.weight(1f),
                         onClick = {

@@ -60,6 +60,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
@@ -83,6 +84,7 @@ import com.ivor.ivormusic.data.Song
 import com.ivor.ivormusic.data.SongSource
 import com.ivor.ivormusic.data.ThemePreferences
 import com.ivor.ivormusic.data.VideoItem
+import com.ivor.ivormusic.ui.components.rememberIsOnline
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -147,6 +149,7 @@ fun MusicPlaylistDownloadAction(
     val repositoryScope = rememberCoroutineScope()
     val downloadedSongs by repository.downloadedSongs.collectAsState()
     val progress by repository.downloadProgress.collectAsState()
+    val isOnline = rememberIsOnline()
     var showSheet by remember(playlistTitle) { mutableStateOf(false) }
 
     val eligibleSongs = remember(songs) {
@@ -183,7 +186,9 @@ fun MusicPlaylistDownloadAction(
         kind = PlaylistDownloadKind.MUSIC,
         snapshot = snapshot,
         totalItemCount = songs.size,
-        enabled = songs.isNotEmpty(),
+        // Completing an already-downloaded playlist only writes the local
+        // snapshot, which needs no connection.
+        enabled = songs.isNotEmpty() && (isOnline || snapshot.isComplete),
         onClick = {
             if (snapshot.isComplete) {
                 repositoryScope.launch {
@@ -237,6 +242,7 @@ fun VideoPlaylistDownloadAction(
     val repository = remember(context) { DownloadRepository.getInstance(context) }
     val downloadedVideos by repository.downloadedVideos.collectAsState()
     val progress by repository.downloadProgress.collectAsState()
+    val isOnline = rememberIsOnline()
     var showSheet by remember(playlistTitle) { mutableStateOf(false) }
 
     val eligibleVideos = remember(videos) {
@@ -272,7 +278,7 @@ fun VideoPlaylistDownloadAction(
         kind = PlaylistDownloadKind.VIDEO,
         snapshot = snapshot,
         totalItemCount = videos.size,
-        enabled = videos.isNotEmpty(),
+        enabled = videos.isNotEmpty() && isOnline,
         onClick = { showSheet = true },
         modifier = modifier
     )
@@ -399,6 +405,11 @@ private fun PlaylistDownloadSheet(
     var queueFailed by remember { mutableStateOf(false) }
     val localOnly = remember { ThemePreferences.isLocalOnly(context) }
     val mobileDataBlocked = remember { ThemePreferences.isDownloadBlockedOnMobileData(context) }
+    val offline = !rememberIsOnline()
+    // Options are baked into each request at enqueue, so changing them while
+    // the batch runs would only affect songs not yet queued. Locked instead:
+    // one batch, one answer, no half-at-128/half-at-48 downloads.
+    val controlsLocked = snapshot.activeCount > 0
 
     LaunchedEffect(queued) {
         if (queued) {
@@ -546,6 +557,17 @@ private fun PlaylistDownloadSheet(
                     }
                 }
 
+                if (controlsLocked) {
+                    item {
+                        Text(
+                            text = stringResource(R.string.pd_controls_locked),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+
                 if (kind == PlaylistDownloadKind.VIDEO) {
                     item {
                         Column(
@@ -573,6 +595,7 @@ private fun PlaylistDownloadSheet(
                                             stringResource(R.string.pd_best_available)
                                         } else quality,
                                         selected = selectedQuality == quality,
+                                        enabled = !controlsLocked,
                                         onClick = { selectedQuality = quality }
                                     )
                                 }
@@ -580,7 +603,9 @@ private fun PlaylistDownloadSheet(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { rememberQuality = !rememberQuality }
+                                    .clickable(enabled = !controlsLocked) {
+                                        rememberQuality = !rememberQuality
+                                    }
                                     .padding(vertical = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -598,7 +623,8 @@ private fun PlaylistDownloadSheet(
                                 }
                                 Switch(
                                     checked = rememberQuality,
-                                    onCheckedChange = { rememberQuality = it }
+                                    onCheckedChange = { rememberQuality = it },
+                                    enabled = !controlsLocked
                                 )
                             }
                         }
@@ -624,6 +650,7 @@ private fun PlaylistDownloadSheet(
                             MusicQualityPicker(
                                 selected = musicQuality,
                                 onSelect = { musicQuality = it },
+                                enabled = !controlsLocked,
                                 info = { option ->
                                     MusicQualityCardInfo(
                                         detail = if (option == ThemePreferences.DOWNLOAD_MUSIC_QUALITY_SAVER) {
@@ -648,6 +675,7 @@ private fun PlaylistDownloadSheet(
                                 title = stringResource(R.string.sd_lyrics),
                                 subtitle = stringResource(R.string.sd_lyrics_sub),
                                 checked = saveLyrics,
+                                enabled = !controlsLocked,
                                 onCheckedChange = { saveLyrics = it }
                             )
                             DownloadOptionSwitch(
@@ -655,17 +683,18 @@ private fun PlaylistDownloadSheet(
                                 title = stringResource(R.string.sd_remember),
                                 subtitle = stringResource(R.string.sd_remember_sub),
                                 checked = rememberQuality,
+                                enabled = !controlsLocked,
                                 onCheckedChange = { rememberQuality = it }
                             )
                         }
                     }
                 }
 
-                if (snapshot.skippedCount > 0 || localOnly || mobileDataBlocked) {
+                if (snapshot.skippedCount > 0 || localOnly || mobileDataBlocked || offline) {
                     item {
                         Surface(
                             shape = RoundedCornerShape(16.dp),
-                            color = if (localOnly || mobileDataBlocked) MaterialTheme.colorScheme.errorContainer
+                            color = if (localOnly || mobileDataBlocked || offline) MaterialTheme.colorScheme.errorContainer
                                 else MaterialTheme.colorScheme.secondaryContainer,
                             modifier = Modifier.fillMaxWidth()
                         ) {
@@ -677,12 +706,13 @@ private fun PlaylistDownloadSheet(
                                 Icon(
                                     imageVector = Icons.Rounded.ErrorOutline,
                                     contentDescription = null,
-                                    tint = if (localOnly || mobileDataBlocked) MaterialTheme.colorScheme.onErrorContainer
+                                    tint = if (localOnly || mobileDataBlocked || offline) MaterialTheme.colorScheme.onErrorContainer
                                         else MaterialTheme.colorScheme.onSecondaryContainer
                                 )
                                 Text(
                                     text = when {
                                         localOnly -> stringResource(R.string.pd_local_only_block)
+                                        offline -> stringResource(R.string.pd_offline_block)
                                         mobileDataBlocked -> stringResource(R.string.pd_mobile_data_block)
                                         kind == PlaylistDownloadKind.VIDEO ->
                                             stringResource(R.string.pd_skipped_live, itemCountLabel(snapshot.skippedCount, kind))
@@ -690,7 +720,7 @@ private fun PlaylistDownloadSheet(
                                             stringResource(R.string.pd_skipped_no_source, itemCountLabel(snapshot.skippedCount, kind))
                                     },
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = if (localOnly || mobileDataBlocked) MaterialTheme.colorScheme.onErrorContainer
+                                    color = if (localOnly || mobileDataBlocked || offline) MaterialTheme.colorScheme.onErrorContainer
                                         else MaterialTheme.colorScheme.onSecondaryContainer,
                                     modifier = Modifier.weight(1f)
                                 )
@@ -768,7 +798,8 @@ private fun PlaylistDownloadSheet(
                             }
                         }
                     },
-                    enabled = (snapshot.remainingCount > 0 || !snapshot.allPagesLoaded) && !queued && !queueing && !localOnly && !mobileDataBlocked,
+                    enabled = (snapshot.remainingCount > 0 || !snapshot.allPagesLoaded) &&
+                        !queued && !queueing && !localOnly && !mobileDataBlocked && !offline,
                     shapes = ButtonDefaults.shapes(),
                     modifier = Modifier
                         .padding(horizontal = 20.dp, vertical = 16.dp)
@@ -781,6 +812,7 @@ private fun PlaylistDownloadSheet(
                             stringResource(R.string.pd_loading_full)
                         } else stringResource(R.string.pd_adding)
                         localOnly -> stringResource(R.string.local_only_title)
+                        offline -> stringResource(R.string.pd_offline_short)
                         mobileDataBlocked -> stringResource(R.string.dl_mobile_data_off)
                         snapshot.isComplete -> stringResource(R.string.pd_already_complete)
                         !snapshot.allPagesLoaded -> stringResource(R.string.pd_download_full)
@@ -832,7 +864,8 @@ private fun itemCountLabel(count: Int, kind: PlaylistDownloadKind): String =
 private fun BatchQualityPill(
     label: String,
     selected: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    enabled: Boolean = true
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
@@ -851,7 +884,9 @@ private fun BatchQualityPill(
         color = color,
         modifier = Modifier
             .scale(scale)
+            .alpha(if (enabled) 1f else 0.45f)
             .clickable(
+                enabled = enabled,
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = onClick

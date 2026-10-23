@@ -51,7 +51,6 @@ import androidx.compose.material.icons.rounded.MoneyOff
 import androidx.compose.material.icons.rounded.Cookie
 import androidx.compose.material.icons.rounded.DirectionsCar
 import androidx.compose.material.icons.rounded.Dashboard
-import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.ScreenRotation
 import androidx.compose.material.icons.rounded.FilterList
 import androidx.compose.material.icons.rounded.FlashOn
@@ -497,7 +496,10 @@ internal fun buildSettingsSearchIndex(
     entry(
         "music_q_mobile", stringResource(R.string.sp_music_quality_mobile), stringResource(R.string.settings_playback_and_quality),
         Icons.Rounded.SignalCellularAlt,
-        listOf("bitrate", "audio", "cellular", "data saver", "roaming", "kbps")
+        listOf(
+            "bitrate", "audio", "cellular", "data saver", "roaming", "kbps",
+            "mobile data", "no mobile data", "offline", "off", "block data", "wifi only"
+        )
     ) { onOpenQualityPicker(QualityDialogTarget.MUSIC_MOBILE) }
     entry(
         "video_q_wifi", stringResource(R.string.sp_video_quality_wifi), stringResource(R.string.settings_playback_and_quality),
@@ -507,24 +509,12 @@ internal fun buildSettingsSearchIndex(
     entry(
         "video_q_mobile", stringResource(R.string.sp_video_quality_mobile), stringResource(R.string.settings_playback_and_quality),
         Icons.Rounded.SignalCellularAlt,
-        listOf("resolution", "cellular", "data", "1080p", "720p", "480p", "360p", "240p", "144p", "data saver", "roaming")
+        listOf(
+            "resolution", "cellular", "data", "1080p", "720p", "480p", "360p", "240p", "144p",
+            "data saver", "roaming", "mobile data", "no mobile data", "offline", "off",
+            "block data", "wifi only"
+        )
     ) { onOpenQualityPicker(QualityDialogTarget.VIDEO_MOBILE) }
-    entry(
-        "block_streaming_mobile", stringResource(R.string.sp_block_streaming_mobile),
-        stringResource(R.string.settings_playback_and_quality), Icons.Rounded.SignalCellularAlt,
-        listOf(
-            "mobile data", "cellular", "stream", "streaming", "data saver", "wifi only",
-            "offline", "block data", "stop data"
-        )
-    ) { onOpenPage(SettingsPage.PLAYBACK) }
-    entry(
-        "block_downloads_mobile", stringResource(R.string.sp_block_downloads_mobile),
-        stringResource(R.string.settings_playback_and_quality), Icons.Rounded.Download,
-        listOf(
-            "mobile data", "cellular", "download", "data saver", "wifi only",
-            "block data", "stop data"
-        )
-    ) { onOpenPage(SettingsPage.PLAYBACK) }
     entry(
         "prefer_hdr", stringResource(R.string.sp_prefer_hdr), stringResource(R.string.settings_playback_and_quality),
         Icons.Rounded.HdrOn,
@@ -708,7 +698,8 @@ internal fun buildSettingsSearchIndex(
         "download_music_quality", stringResource(R.string.sp_download_music_quality), "Storage and cache", Icons.Rounded.GraphicEq,
         listOf(
             "download quality", "bitrate", "kbps", "aac", "data saver", "file size",
-            "offline quality", "song download"
+            "offline quality", "song download", "mobile data", "no mobile data",
+            "cellular", "offline", "off", "block data", "wifi only", "stop data"
         )
     ) { onOpenPage(SettingsPage.STORAGE) }
     entry(

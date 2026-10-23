@@ -77,6 +77,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -117,6 +118,7 @@ import com.ivor.ivormusic.ui.components.queueDragLongPress
 import com.ivor.ivormusic.ui.components.rememberQueueRemoval
 import com.ivor.ivormusic.ui.components.rememberQueueReorderState
 import com.ivor.ivormusic.ui.components.rememberFocusedQueueListState
+import com.ivor.ivormusic.ui.components.rememberIsOnline
 import kotlin.math.abs
 
 /**
@@ -315,6 +317,9 @@ private fun EditorialNowPlayingView(
     field: Color,
     accent: Color
 ) {
+    // A download needs a connection. Downloaded songs can still be removed
+    // offline, so the chip only goes unavailable for a song not on the device.
+    val isOnline = rememberIsOnline()
     Column(modifier = Modifier.fillMaxSize()) {
 
         // ========== TOP BAR ==========
@@ -633,7 +638,8 @@ private fun EditorialNowPlayingView(
                     checked = isDownloaded || isDownloading,
                     onClick = { if (!isDownloading && !isLocalOriginal) onDownloadToggle() },
                     accent = accent,
-                    field = field
+                    field = field,
+                    enabled = isLocalOriginal || isDownloaded || isOnline
                 ) {
                     when {
                         isLocalOriginal -> Icon(
@@ -830,14 +836,18 @@ internal fun EditorialChip(
     onClick: () -> Unit,
     accent: Color,
     field: Color,
+    enabled: Boolean = true,
     content: @Composable () -> Unit
 ) {
     Surface(
         onClick = onClick,
+        enabled = enabled,
         shape = CircleShape,
         color = if (checked) accent else Color.Transparent,
         contentColor = if (checked) field else accent,
-        modifier = Modifier.size(48.dp)
+        modifier = Modifier
+            .size(48.dp)
+            .then(if (enabled) Modifier else Modifier.alpha(0.38f))
     ) {
         Box(contentAlignment = Alignment.Center) {
             content()

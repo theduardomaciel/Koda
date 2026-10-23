@@ -83,6 +83,8 @@ internal fun MusicQualityPicker(
     onSelect: (String) -> Unit,
     info: (String) -> MusicQualityCardInfo,
     modifier: Modifier = Modifier,
+    /** False locks the choice, e.g. while a batch using it is already running. */
+    enabled: Boolean = true,
 ) {
     Row(
         modifier = modifier
@@ -97,6 +99,7 @@ internal fun MusicQualityPicker(
             info = info(ThemePreferences.DOWNLOAD_MUSIC_QUALITY_HIGH),
             selected = selected == ThemePreferences.DOWNLOAD_MUSIC_QUALITY_HIGH,
             onClick = { onSelect(ThemePreferences.DOWNLOAD_MUSIC_QUALITY_HIGH) },
+            enabled = enabled,
             modifier = Modifier
                 .weight(1f)
                 .fillMaxHeight()
@@ -107,6 +110,7 @@ internal fun MusicQualityPicker(
             info = info(ThemePreferences.DOWNLOAD_MUSIC_QUALITY_SAVER),
             selected = selected == ThemePreferences.DOWNLOAD_MUSIC_QUALITY_SAVER,
             onClick = { onSelect(ThemePreferences.DOWNLOAD_MUSIC_QUALITY_SAVER) },
+            enabled = enabled,
             modifier = Modifier
                 .weight(1f)
                 .fillMaxHeight()
@@ -123,6 +127,7 @@ private fun MusicQualityCard(
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     val haptics = rememberKodaHaptics()
     val interactionSource = remember { MutableInteractionSource() }
@@ -162,11 +167,11 @@ private fun MusicQualityCard(
                 scaleX = scale
                 scaleY = scale
             }
-            .alpha(if (info.available) 1f else 0.45f)
+            .alpha(if (info.available && enabled) 1f else 0.45f)
             .clip(shape)
             .selectable(
                 selected = selected,
-                enabled = info.available,
+                enabled = info.available && enabled,
                 role = Role.RadioButton,
                 interactionSource = interactionSource,
                 indication = null,
@@ -255,6 +260,8 @@ internal fun DownloadOptionSwitch(
     onCheckedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
     tonal: Boolean = true,
+    /** False locks the choice, e.g. while a batch using it is already running. */
+    enabled: Boolean = true,
 ) {
     val haptics = rememberKodaHaptics()
     val shape = RoundedCornerShape(20.dp)
@@ -264,9 +271,11 @@ internal fun DownloadOptionSwitch(
             else MaterialTheme.colorScheme.surfaceContainer,
         modifier = modifier
             .fillMaxWidth()
+            .alpha(if (enabled) 1f else 0.45f)
             .clip(shape)
             .toggleable(
                 value = checked,
+                enabled = enabled,
                 role = Role.Switch,
                 onValueChange = {
                     haptics.toggle(it)
@@ -299,7 +308,7 @@ internal fun DownloadOptionSwitch(
             }
             Spacer(Modifier.width(12.dp))
             // The tile is the control; the switch only shows its state.
-            Switch(checked = checked, onCheckedChange = null)
+            Switch(checked = checked, onCheckedChange = null, enabled = enabled)
         }
     }
 }

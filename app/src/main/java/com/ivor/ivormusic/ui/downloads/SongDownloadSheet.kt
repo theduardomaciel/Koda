@@ -45,6 +45,7 @@ import com.ivor.ivormusic.data.MusicDownloadOptions
 import com.ivor.ivormusic.data.Song
 import com.ivor.ivormusic.data.ThemePreferences
 import com.ivor.ivormusic.ui.components.SongArtwork
+import com.ivor.ivormusic.ui.components.rememberIsOnline
 import java.util.Locale
 
 /**
@@ -80,14 +81,17 @@ fun SongDownloadSheet(
     var formats by remember(song.id) { mutableStateOf<List<DownloadAudioFormat>?>(null) }
     var fallbackBytes by remember(song.id) { mutableStateOf<Map<String, Long?>>(emptyMap()) }
 
-    // The whole sheet is a download: on a blocked metered connection it must
-    // not resolve stream sizes either, and the confirm cannot be offered.
+    // The whole sheet is a download: on a blocked metered connection or with
+    // no connection at all it must not resolve stream sizes either, and the
+    // confirm cannot be offered.
+    val offline = !rememberIsOnline()
     val blockedByMobileData = remember(song.id) {
         ThemePreferences.isDownloadBlockedOnMobileData(context)
     }
+    val downloadBlocked = offline || blockedByMobileData
 
-    LaunchedEffect(song.id, blockedByMobileData) {
-        if (blockedByMobileData) {
+    LaunchedEffect(song.id, downloadBlocked) {
+        if (downloadBlocked) {
             formats = emptyList()
             return@LaunchedEffect
         }
@@ -98,8 +102,8 @@ fun SongDownloadSheet(
             quality = resolved.first().quality
         }
     }
-    LaunchedEffect(song.id, formats, quality, blockedByMobileData) {
-        if (!blockedByMobileData && formats?.isEmpty() == true && quality !in fallbackBytes) {
+    LaunchedEffect(song.id, formats, quality, downloadBlocked) {
+        if (!downloadBlocked && formats?.isEmpty() == true && quality !in fallbackBytes) {
             val bytes = repository.estimateSongDownloadBytes(song, quality)
             fallbackBytes = fallbackBytes + (quality to bytes)
         }
@@ -216,7 +220,7 @@ fun SongDownloadSheet(
                 modifier = Modifier.padding(top = 12.dp)
             )
 
-            if (blockedByMobileData) {
+            if (downloadBlocked) {
                 Spacer(Modifier.height(16.dp))
                 Surface(
                     shape = RoundedCornerShape(16.dp),
@@ -234,7 +238,10 @@ fun SongDownloadSheet(
                             tint = MaterialTheme.colorScheme.onErrorContainer
                         )
                         Text(
-                            text = stringResource(R.string.pd_mobile_data_block),
+                            text = stringResource(
+                                if (offline) R.string.pd_offline_block
+                                else R.string.pd_mobile_data_block
+                            ),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onErrorContainer,
                             modifier = Modifier.weight(1f)
@@ -253,7 +260,7 @@ fun SongDownloadSheet(
                     }
                     onConfirm(MusicDownloadOptions(quality = quality, saveLyrics = saveLyrics))
                 },
-                enabled = !sizePending && !blockedByMobileData,
+                enabled = !sizePending && !downloadBlocked,
                 shape = RoundedCornerShape(20.dp),
                 modifier = Modifier
                     .fillMaxWidth()

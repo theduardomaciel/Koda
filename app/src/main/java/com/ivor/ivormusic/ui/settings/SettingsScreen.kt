@@ -331,8 +331,6 @@ fun SettingsScreen(
     onMotionArtworkWifiOnlyToggle: (Boolean) -> Unit,
     blockStreamingOnMobileData: Boolean = false,
     onBlockStreamingOnMobileDataToggle: (Boolean) -> Unit = {},
-    blockDownloadsOnMobileData: Boolean = false,
-    onBlockDownloadsOnMobileDataToggle: (Boolean) -> Unit = {},
     motionArtworkQuality: MotionArtworkQuality,
     onMotionArtworkQualityChange: (MotionArtworkQuality) -> Unit,
     waveformSeekBar: Boolean,
@@ -959,9 +957,6 @@ fun SettingsScreen(
             videoQualityWifi = videoQualityWifi,
             videoQualityMobile = videoQualityMobile,
             blockStreamingOnMobileData = blockStreamingOnMobileData,
-            onBlockStreamingOnMobileDataToggle = onBlockStreamingOnMobileDataToggle,
-            blockDownloadsOnMobileData = blockDownloadsOnMobileData,
-            onBlockDownloadsOnMobileDataToggle = onBlockDownloadsOnMobileDataToggle,
             preferHdr = preferHdr,
             onPreferHdrToggle = onPreferHdrToggle,
             frameInterpolation = frameInterpolation,
@@ -1389,8 +1384,16 @@ fun SettingsScreen(
         StreamQualityDialog(
             target = target,
             currentQuality = currentQuality,
-            onQualitySelected = {
-                onQualitySelected(it)
+            offSelected = target.isMobile && blockStreamingOnMobileData,
+            onQualitySelected = { choice ->
+                // "Off" is the permission, not a quality: it leaves the stored
+                // rung untouched so turning streaming back on restores it.
+                if (choice == MOBILE_DATA_OFF) {
+                    onBlockStreamingOnMobileDataToggle(true)
+                } else {
+                    onBlockStreamingOnMobileDataToggle(false)
+                    onQualitySelected(choice)
+                }
                 qualityDialogTarget = null
             },
             onDismiss = { qualityDialogTarget = null }
@@ -2338,6 +2341,12 @@ internal fun SegmentedChoiceRow(
     }
 }
 
+/**
+ * The "do not spend mobile data" choice, offered only by the mobile dialogs.
+ * Never stored as a quality: choosing it sets the streaming guard instead.
+ */
+private const val MOBILE_DATA_OFF = "__mobile_data_off__"
+
 /** One per-network quality picker the Settings screen can open. */
 internal enum class QualityDialogTarget(
     @StringRes val titleRes: Int,
@@ -2363,7 +2372,11 @@ internal enum class QualityDialogTarget(
         titleRes = R.string.qd_music_mobile,
         descriptionRes = R.string.qd_music_mobile_desc,
         isMusic = true
-    )
+    );
+
+    /** The mobile variants also offer [MOBILE_DATA_OFF]. */
+    val isMobile: Boolean
+        get() = this == VIDEO_MOBILE || this == MUSIC_MOBILE
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -2371,6 +2384,7 @@ internal enum class QualityDialogTarget(
 private fun StreamQualityDialog(
     target: QualityDialogTarget,
     currentQuality: String,
+    offSelected: Boolean,
     onQualitySelected: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -2436,16 +2450,23 @@ private fun StreamQualityDialog(
                         lineHeight = 18.sp,
                         modifier = Modifier.padding(bottom = 12.dp)
                     )
-                    val options = if (target.isMusic) ThemePreferences.MUSIC_QUALITY_OPTIONS
+                    val baseOptions = if (target.isMusic) ThemePreferences.MUSIC_QUALITY_OPTIONS
                         else ThemePreferences.VIDEO_QUALITY_OPTIONS
+                    val options = if (target.isMobile) baseOptions + MOBILE_DATA_OFF
+                        else baseOptions
                     SegmentedGroup(options) { index, count, option ->
                         SegmentedChoiceRow(
-                            selected = option == currentQuality,
+                            selected = if (option == MOBILE_DATA_OFF) offSelected
+                                else !offSelected && option == currentQuality,
                             onClick = { onQualitySelected(option) },
                             index = index,
                             count = count,
-                            label = if (target.isMusic) musicQualityOptionLabel(option)
-                                else videoQualityLabel(option)
+                            label = when {
+                                option == MOBILE_DATA_OFF ->
+                                    stringResource(R.string.qd_no_mobile_data)
+                                target.isMusic -> musicQualityOptionLabel(option)
+                                else -> videoQualityLabel(option)
+                            }
                         )
                     }
                 }

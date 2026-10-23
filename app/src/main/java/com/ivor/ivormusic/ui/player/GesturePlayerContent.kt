@@ -66,6 +66,7 @@ import com.ivor.ivormusic.ui.components.queueDragLongPress
 import com.ivor.ivormusic.ui.components.rememberQueueRemoval
 import com.ivor.ivormusic.ui.components.rememberQueueReorderState
 import com.ivor.ivormusic.ui.components.rememberFocusedQueueListState
+import com.ivor.ivormusic.ui.components.rememberIsOnline
 import com.ivor.ivormusic.ui.components.SongArtwork
 import com.ivor.ivormusic.data.LyricsResult
 import com.ivor.ivormusic.data.isUnknownAlbum
@@ -661,6 +662,8 @@ private fun GesturePlayerToolbar(
     primaryColor: Color,
     onSurfaceVariantColor: Color
 ) {
+    // A download needs a connection; removing one does not.
+    val isOnline = rememberIsOnline()
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -727,6 +730,7 @@ private fun GesturePlayerToolbar(
                 } else {
                     IconToggleButton(
                         checked = isDownloaded,
+                        enabled = isDownloaded || isOnline,
                         onCheckedChange = { onToggleDownload() }
                     ) {
                         if (isDownloading) {
@@ -736,7 +740,7 @@ private fun GesturePlayerToolbar(
                             )
                         } else {
                             Icon(
-                                imageVector = if (isDownloaded) Icons.Rounded.CheckCircle else Icons.Rounded.Download,
+                                imageVector = if (isDownloaded) Icons.Rounded.DownloadDone else Icons.Rounded.Download,
                                 contentDescription = if (isDownloaded) stringResource(R.string.song_options_downloaded) else stringResource(R.string.song_options_download)
                             )
                         }

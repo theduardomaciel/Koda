@@ -821,8 +821,14 @@ class DownloadRepository private constructor(private val context: Context) {
         // Refused before anything is queued. Written straight into the progress
         // map rather than through updateProgress, which would post one failure
         // notification per track of a blocked playlist download.
-        if (ThemePreferences.isDownloadBlockedOnMobileData(context)) {
-            KLog.w(TAG, "Download refused: downloads over mobile data are turned off")
+        val offline = !hasValidatedNetwork(context)
+        val blockedByMobileData = ThemePreferences.isDownloadBlockedOnMobileData(context)
+        if (offline || blockedByMobileData) {
+            KLog.w(
+                TAG,
+                if (offline) "Download refused: no network"
+                else "Download refused: downloads over mobile data are turned off"
+            )
             // Anything already tracked keeps its own state: a paused item must
             // stay resumable, and a queued one will pause itself when it
             // reaches the worker.

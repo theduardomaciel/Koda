@@ -784,13 +784,17 @@ enum class AlbumSort(
     RecentlyAdded(R.string.lib_group_sort_recent, Icons.Rounded.NewReleases),
     LastPlayed(R.string.album_sort_last_played, Icons.Rounded.History),
     NameAsc(R.string.album_sort_az, Icons.Rounded.SortByAlpha),
-    NameDesc(R.string.album_sort_za, Icons.Rounded.SortByAlpha);
+    NameDesc(R.string.album_sort_za, Icons.Rounded.SortByAlpha),
+    MostSongs(R.string.lib_group_sort_songs, Icons.Rounded.LibraryMusic),
+    MostPlayed(R.string.lib_group_sort_played, Icons.Rounded.TrendingUp);
 
     fun <T> apply(
         items: List<T>,
         name: (T) -> String,
         addedAt: (T) -> Long? = { null },
         lastPlayedAt: (T) -> Long = { 0L },
+        trackCount: (T) -> Int = { 0 },
+        plays: (T) -> Int = { 0 },
     ): List<T> {
         val byName = compareBy<T> { name(it).lowercase() }
         return when (this) {
@@ -803,6 +807,12 @@ enum class AlbumSort(
             LastPlayed -> items.sortedWith(
                 compareByDescending<T> { lastPlayedAt(it) }.then(byName)
             )
+            MostSongs -> items.sortedWith(
+                compareByDescending<T> { trackCount(it) }.then(byName)
+            )
+            MostPlayed -> items.sortedWith(
+                compareByDescending<T> { plays(it) }.then(byName)
+            )
         }
     }
 
@@ -811,8 +821,9 @@ enum class AlbumSort(
             RecentlyAdded.name -> RecentlyAdded
             LastPlayed.name -> LastPlayed
             NameDesc.name -> NameDesc
-            // "Name" was the old LibraryGroupSort default; MostSongs and
-            // MostPlayed are no longer offered for albums.
+            MostSongs.name -> MostSongs
+            MostPlayed.name -> MostPlayed
+            // "Name" was the old LibraryGroupSort default.
             else -> NameAsc
         }
     }
@@ -1248,7 +1259,8 @@ fun LibraryMainScreen(
                             onReadyOfflineClick = onReadyOfflineClick,
                             contentPadding = contentPadding,
                             onSongLongPress = onSongLongPress,
-                            listState = allSongsListState
+                            listState = allSongsListState,
+                            offline = !isOnline
                         )
                     }
                     LibraryTab.Playlists -> {
@@ -1285,7 +1297,8 @@ fun LibraryMainScreen(
                             isLoggedIn = isYouTubeConnected,
                             importAction = { PlaylistImportButton(viewModel) },
                             onCreatePlaylist = onCreatePlaylist,
-                            fromVideoMode = viewModel.videoPlaylistsForMusic.collectAsState().value
+                            fromVideoMode = viewModel.videoPlaylistsForMusic.collectAsState().value,
+                            offline = !isOnline
                         )
                     }
                     LibraryTab.Artists -> {
@@ -1417,6 +1430,7 @@ fun LibraryMainScreen(
                         val albumSortName by themePreferences.libraryAlbumSort.collectAsState()
                         val albumSort = remember(albumSortName) { AlbumSort.from(albumSortName) }
                         val albumLastPlayed by viewModel.albumLastPlayed.collectAsState()
+                        val albumPlayCounts by viewModel.albumPlayCounts.collectAsState()
                         // Signed in and online, this is the album list the
                         // account saved. Offline a remote list cannot resolve,
                         // so the tab draws what is on the device instead: the
@@ -1430,7 +1444,8 @@ fun LibraryMainScreen(
                                 isLoading = isAccountLibraryLoading,
                                 sort = albumSort,
                                 onSortChange = { themePreferences.setLibraryAlbumSort(it.name) },
-                                lastPlayedByAlbum = albumLastPlayed
+                                lastPlayedByAlbum = albumLastPlayed,
+                                albumPlayCounts = albumPlayCounts
                             )
                         } else {
                             // Downloaded snapshots also carry local originals
@@ -1453,7 +1468,9 @@ fun LibraryMainScreen(
                                 contentPadding = contentPadding,
                                 sort = albumSort,
                                 onSortChange = { themePreferences.setLibraryAlbumSort(it.name) },
-                                lastPlayedByAlbum = albumLastPlayed
+                                lastPlayedByAlbum = albumLastPlayed,
+                                playCounts = playCounts,
+                                offline = !isOnline
                             )
                         }
                     }
@@ -1492,7 +1509,9 @@ fun AllSongsList(
     onReadyOfflineClick: () -> Unit,
     contentPadding: PaddingValues,
     onSongLongPress: ((Song) -> Unit)? = null,
-    listState: LazyListState = rememberLazyListState()
+    listState: LazyListState = rememberLazyListState(),
+    /** Empty state wording: offline means "nothing downloaded", not "no songs". */
+    offline: Boolean = false
 ) {
     val todayLabel = stringResource(R.string.sc_today)
     val yesterdayLabel = stringResource(R.string.lh_yesterday)
@@ -1670,8 +1689,12 @@ fun AllSongsList(
             item(key = "empty_state") {
                 EmptyLibraryState(
                     icon = Icons.Rounded.MusicNote,
-                    title = stringResource(R.string.library_empty_title),
-                    subtitle = stringResource(R.string.library_empty_subtitle)
+                    title = stringResource(
+                        if (offline) R.string.lib_offline_no_songs else R.string.library_empty_title
+                    ),
+                    subtitle = stringResource(
+                        if (offline) R.string.lib_offline_no_songs_body else R.string.library_empty_subtitle
+                    )
                 )
             }
         } else {
@@ -1976,7 +1999,9 @@ fun PlaylistsGrid(
     /** The empty state's own way out: it tells the user to make a playlist. */
     onCreatePlaylist: () -> Unit,
     /** Video mode's device playlists; see HomeViewModel.videoPlaylistsForMusic. */
-    fromVideoMode: List<PlaylistDisplayItem> = emptyList()
+    fromVideoMode: List<PlaylistDisplayItem> = emptyList(),
+    /** Empty state wording: offline means "nothing downloaded", not "none exist". */
+    offline: Boolean = false
 ) {
     var showHiddenSheet by remember { mutableStateOf(false) }
 
@@ -2044,8 +2069,14 @@ fun PlaylistsGrid(
             item(key = "playlists_empty", span = { GridItemSpan(maxLineSpan) }) {
                 EmptyLibraryState(
                     icon = Icons.AutoMirrored.Rounded.PlaylistAdd,
-                    title = stringResource(R.string.spotlight_empty_no_playlists),
-                    subtitle = stringResource(R.string.library_start_playlist_hint),
+                    title = stringResource(
+                        if (offline) R.string.lib_offline_no_playlists
+                        else R.string.spotlight_empty_no_playlists
+                    ),
+                    subtitle = stringResource(
+                        if (offline) R.string.lib_offline_no_playlists_body
+                        else R.string.library_start_playlist_hint
+                    ),
                     action = {
                         Button(onClick = onCreatePlaylist, shapes = ButtonDefaults.shapes()) {
                             Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
@@ -2515,11 +2546,15 @@ fun AlbumsGrid(
     sort: AlbumSort = AlbumSort.NameAsc,
     onSortChange: (AlbumSort) -> Unit = {},
     /** Album name (lowercase) to the last time a track from it played. */
-    lastPlayedByAlbum: Map<String, Long> = emptyMap()
+    lastPlayedByAlbum: Map<String, Long> = emptyMap(),
+    /** Song id to its play count, for "Most played". */
+    playCounts: Map<String, Int> = emptyMap(),
+    /** Empty state wording: offline means "nothing downloaded", not "no albums". */
+    offline: Boolean = false
 ) {
     // Filter BEFORE building grid items — filtering inside the item lambda
     // leaves blank holes in the grid for skipped albums.
-    val albums = remember(songs, sort, lastPlayedByAlbum) {
+    val albums = remember(songs, sort, lastPlayedByAlbum, playCounts) {
         sort.apply(
             songs.filterNot { isUnknownAlbum(it.album) }.groupSongsByAlbum(),
             name = { (album, _) -> album },
@@ -2529,15 +2564,21 @@ fun AlbumsGrid(
             },
             lastPlayedAt = { (album, _) ->
                 lastPlayedByAlbum[album.trim().lowercase(java.util.Locale.ROOT)] ?: 0L
-            }
+            },
+            trackCount = { (_, tracks) -> tracks.size },
+            plays = { (_, tracks) -> tracks.sumOf { playCounts[it.id] ?: 0 } }
         )
     }
 
     if (albums.isEmpty()) {
         EmptyLibraryState(
             icon = Icons.Rounded.Album,
-            title = stringResource(R.string.no_albums_yet),
-            subtitle = stringResource(R.string.no_albums_yet_subtitle)
+            title = stringResource(
+                if (offline) R.string.lib_offline_no_albums else R.string.no_albums_yet
+            ),
+            subtitle = stringResource(
+                if (offline) R.string.lib_offline_no_albums_body else R.string.no_albums_yet_subtitle
+            )
         )
         return
     }
@@ -2662,6 +2703,8 @@ fun AccountAlbumsGrid(
     onSortChange: (AlbumSort) -> Unit = {},
     /** Album id to the last time one of its tracks played. */
     lastPlayedByAlbum: Map<String, Long> = emptyMap(),
+    /** Album id (or normalised name) to its play count, for "Most played". */
+    albumPlayCounts: Map<String, Int> = emptyMap(),
     /** Remove from the account's library. Null where there is no account. */
     onRemoveSaved: ((PlaylistDisplayItem) -> Unit)? = null
 ) {
@@ -2683,7 +2726,7 @@ fun AccountAlbumsGrid(
     // The account serves this list in the order the albums were saved, newest
     // first, and carries no date. Its position is therefore the only recency
     // evidence there is; "Recently added" keeps that order.
-    val sorted = remember(albums, sort, lastPlayedByAlbum) {
+    val sorted = remember(albums, sort, lastPlayedByAlbum, albumPlayCounts) {
         val savedRank = albums.withIndex().associate { (index, album) ->
             album.id to (albums.size - index).toLong()
         }
@@ -2691,7 +2734,11 @@ fun AccountAlbumsGrid(
             albums,
             name = { it.name },
             addedAt = { savedRank[it.id] },
-            lastPlayedAt = { lastPlayedByAlbum[it.id] ?: 0L }
+            lastPlayedAt = { lastPlayedByAlbum[it.id] ?: 0L },
+            // The saved-albums page carries no track count; -1 is "did not
+            // say", which must sort as nothing rather than above a real count.
+            trackCount = { it.itemCount.coerceAtLeast(0) },
+            plays = { albumPlayCounts[it.id] ?: 0 }
         )
     }
 

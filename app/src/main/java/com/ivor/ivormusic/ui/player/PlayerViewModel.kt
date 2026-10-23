@@ -15,6 +15,7 @@ import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
 import com.ivor.ivormusic.data.Song
 import com.ivor.ivormusic.data.ThemePreferences
+import com.ivor.ivormusic.data.hasValidatedNetwork
 import com.ivor.ivormusic.data.MusicQueueItem
 import com.ivor.ivormusic.data.QUEUE_START_ABSENT
 import com.ivor.ivormusic.data.arrangedBy
@@ -1739,7 +1740,12 @@ class PlayerViewModel(private val context: Context) : ViewModel() {
     fun toggleDownload(song: Song) {
         if (downloadRepository.isDownloaded(song.id)) {
             _pendingDownloadRemoval.value = song
-        } else if (!downloadRepository.isLocalOriginal(song) && !isDownloading(song.id)) {
+        } else if (!downloadRepository.isLocalOriginal(song) &&
+            !isDownloading(song.id) &&
+            // The surfaces disable the control offline, but a race with losing
+            // the connection must not open a sheet whose only action is refused.
+            hasValidatedNetwork(context)
+        ) {
             _pendingSongDownload.value = song
         }
     }

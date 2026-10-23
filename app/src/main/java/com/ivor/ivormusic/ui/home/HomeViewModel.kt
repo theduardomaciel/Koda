@@ -852,6 +852,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val _albumLastPlayed = MutableStateFlow<Map<String, Long>>(emptyMap())
     val albumLastPlayed: StateFlow<Map<String, Long>> = _albumLastPlayed.asStateFlow()
 
+    // Plays per album, for the Albums tab's "Most played". Same keys as
+    // albumLastPlayed, so the account's ids and the grouped names both answer.
+    private val _albumPlayCounts = MutableStateFlow<Map<String, Int>>(emptyMap())
+    val albumPlayCounts: StateFlow<Map<String, Int>> = _albumPlayCounts.asStateFlow()
+
     // Songs sitting in the stream cache in full, so they play with no network.
     // See ReadyOfflineRepository for why this is a state rather than a playlist.
     private val readyOfflineRepository =
@@ -972,6 +977,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             val history = statsRepository.loadHistory() // newest first
             _playCounts.value = history.groupingBy { it.songId }.eachCount()
             val albumLastPlayed = HashMap<String, Long>()
+            val albumPlayCounts = HashMap<String, Int>()
             for (entry in history) {
                 val nameKey = entry.album.trim().lowercase(java.util.Locale.ROOT)
                 val keys = listOfNotNull(
@@ -980,9 +986,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 )
                 for (key in keys) {
                     albumLastPlayed[key] = maxOf(albumLastPlayed[key] ?: 0L, entry.timestamp)
+                    albumPlayCounts[key] = (albumPlayCounts[key] ?: 0) + 1
                 }
             }
             _albumLastPlayed.value = albumLastPlayed
+            _albumPlayCounts.value = albumPlayCounts
             _recentAlbums.value = recentAlbumsFrom(history)
             val artists = topArtistsFrom(history, System.currentTimeMillis())
             if (artists != _topArtists.value || _artistPhotos.value.isEmpty()) {
