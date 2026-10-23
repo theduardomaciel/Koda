@@ -684,10 +684,13 @@ fun HomeScreen(
     var updateResult by remember { mutableStateOf<UpdateResult?>(null) }
     // Held separately so the pill's label survives its exit animation
     var latestVersion by remember { mutableStateOf("") }
-    // A dismissed pill stays away until a newer release turns up. Without this
-    // the badge is the one floating thing on Home with no way to put it down:
-    // "Later" only quiets the dialog, and the pill came back on the next check.
-    var updateBadgeDismissed by remember { mutableStateOf(false) }
+    // A dismissed pill stays away for the rest of the session, and comes back
+    // only if a newer release turns up in it. Session-scoped on purpose: the
+    // badge is a shortcut, not a decision, so it does not deserve a preference
+    // of its own ("Later" already has one), and a fresh launch can show it
+    // again.
+    var dismissedUpdateBadgeVersion by
+        androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
 
     val updateContext = androidx.compose.ui.platform.LocalContext.current
     val updatePrompts = remember(updateContext) {
@@ -734,7 +737,6 @@ fun HomeScreen(
             updateResult = result
             if (result is UpdateResult.UpdateAvailable) {
                 latestVersion = result.latestVersion
-                updateBadgeDismissed = updatePrompts.isBadgeDismissed(result.latestVersion)
                 if (updatePrompts.shouldPromptFor(result.latestVersion)) showUpdatePrompt = true
             }
         }
@@ -2010,7 +2012,8 @@ fun HomeScreen(
         // overlays (shared bottomOverlayInset) rather than the top bar, where it
         // used to sit on top of the settings/profile icons.
         androidx.compose.animation.AnimatedVisibility(
-            visible = updateResult is UpdateResult.UpdateAvailable && !updateBadgeDismissed,
+            visible = updateResult is UpdateResult.UpdateAvailable &&
+                latestVersion != dismissedUpdateBadgeVersion,
             enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.scaleIn(
                 initialScale = 0.8f,
                 animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec()
@@ -2070,8 +2073,7 @@ fun HomeScreen(
                         modifier = Modifier
                             .size(32.dp)
                             .clickable {
-                                updatePrompts.markBadgeDismissed(latestVersion)
-                                updateBadgeDismissed = true
+                                dismissedUpdateBadgeVersion = latestVersion
                             }
                             .padding(8.dp)
                     )
