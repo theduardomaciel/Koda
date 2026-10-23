@@ -45,8 +45,8 @@ import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.rounded.Bedtime
-import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.DownloadDone
 import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Lyrics
@@ -168,6 +168,17 @@ fun EditorialPlayerSheetContent(
     val isFavorite by viewModel.isCurrentSongLiked.collectAsState()
     val lyricsResult by viewModel.lyricsResult.collectAsState()
     val isLoadingMore by viewModel.isLoadingMore.collectAsState()
+    // Collected rather than read through the ViewModel: a download that
+    // finishes while this screen is open has to move the chip from spinner to
+    // "downloaded" without waiting for an unrelated recomposition.
+    val downloadedSongs by viewModel.downloadedSongs.collectAsState()
+    val downloadingIds by viewModel.downloadingIds.collectAsState()
+    val isDownloaded = remember(currentSong, downloadedSongs) {
+        currentSong?.let { song -> downloadedSongs.any { it.id == song.id } } ?: false
+    }
+    val isDownloading = remember(currentSong, downloadingIds) {
+        currentSong?.let { song -> song.id in downloadingIds } ?: false
+    }
 
     var showQueue by remember { mutableStateOf(false) }
     var showLyrics by remember { mutableStateOf(false) }
@@ -237,8 +248,8 @@ fun EditorialPlayerSheetContent(
                     onToggleRepeat = { viewModel.toggleRepeat() },
                     onFavoriteToggle = { viewModel.toggleCurrentSongLike() },
                     onDownloadToggle = { currentSong?.let { viewModel.toggleDownload(it) } },
-                    isDownloaded = currentSong?.let { viewModel.isDownloaded(it.id) } ?: false,
-                    isDownloading = currentSong?.let { viewModel.isDownloading(it.id) } ?: false,
+                    isDownloaded = isDownloaded,
+                    isDownloading = isDownloading,
                     isLocalOriginal = currentSong?.let { viewModel.isLocalOriginal(it) } ?: false,
                     onCollapse = onCollapse,
                     onShowQueue = { showQueue = true },
@@ -634,7 +645,10 @@ private fun EditorialNowPlayingView(
                             color = field
                         )
                         else -> Icon(
-                            if (isDownloaded) Icons.Rounded.CheckCircle else Icons.Rounded.Download,
+                            // DownloadDone, not CheckCircle: a check reads as
+                            // "done" on an action chip whose tap removes the
+                            // file, which is what made the control confusing.
+                            if (isDownloaded) Icons.Rounded.DownloadDone else Icons.Rounded.Download,
                             if (isDownloaded) stringResource(R.string.song_options_downloaded) else stringResource(R.string.song_options_download),
                             modifier = Modifier.size(20.dp)
                         )

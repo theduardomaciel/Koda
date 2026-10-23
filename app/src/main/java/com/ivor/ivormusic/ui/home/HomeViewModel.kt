@@ -829,6 +829,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     // Downloads
     private val downloadRepository = com.ivor.ivormusic.data.DownloadRepository.getInstance(application)
     val downloadedSongs = downloadRepository.downloadedSongs
+    // The playlists and albums explicitly downloaded, for the Library's
+    // offline filter. A saved reference is not in here until it is downloaded.
+    val downloadedPlaylists = downloadRepository.playlistStore.playlists
     val downloadedVideos = downloadRepository.downloadedVideos
     val downloadingIds = downloadRepository.downloadingIds
     val downloadProgress = downloadRepository.downloadProgress
@@ -841,6 +844,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     // same history read as the recents rail rather than a second file load.
     private val _playCounts = MutableStateFlow<Map<String, Int>>(emptyMap())
     val playCounts: StateFlow<Map<String, Int>> = _playCounts.asStateFlow()
+
+    // Last time an album was played, from the same history read. Keyed by
+    // browse id (the account's saved albums) and by normalised name (albums
+    // grouped from songs), because those two lists identify an album
+    // differently and both sorts have to answer.
+    private val _albumLastPlayed = MutableStateFlow<Map<String, Long>>(emptyMap())
+    val albumLastPlayed: StateFlow<Map<String, Long>> = _albumLastPlayed.asStateFlow()
 
     // Songs sitting in the stream cache in full, so they play with no network.
     // See ReadyOfflineRepository for why this is a state rather than a playlist.
@@ -961,6 +971,18 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val history = statsRepository.loadHistory() // newest first
             _playCounts.value = history.groupingBy { it.songId }.eachCount()
+            val albumLastPlayed = HashMap<String, Long>()
+            for (entry in history) {
+                val nameKey = entry.album.trim().lowercase(java.util.Locale.ROOT)
+                val keys = listOfNotNull(
+                    entry.albumId?.takeIf { it.isNotBlank() },
+                    nameKey.takeIf { it.isNotEmpty() },
+                )
+                for (key in keys) {
+                    albumLastPlayed[key] = maxOf(albumLastPlayed[key] ?: 0L, entry.timestamp)
+                }
+            }
+            _albumLastPlayed.value = albumLastPlayed
             _recentAlbums.value = recentAlbumsFrom(history)
             val artists = topArtistsFrom(history, System.currentTimeMillis())
             if (artists != _topArtists.value || _artistPhotos.value.isEmpty()) {

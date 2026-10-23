@@ -398,6 +398,7 @@ private fun PlaylistDownloadSheet(
     var queueing by remember { mutableStateOf(false) }
     var queueFailed by remember { mutableStateOf(false) }
     val localOnly = remember { ThemePreferences.isLocalOnly(context) }
+    val mobileDataBlocked = remember { ThemePreferences.isDownloadBlockedOnMobileData(context) }
 
     LaunchedEffect(queued) {
         if (queued) {
@@ -660,11 +661,11 @@ private fun PlaylistDownloadSheet(
                     }
                 }
 
-                if (snapshot.skippedCount > 0 || localOnly) {
+                if (snapshot.skippedCount > 0 || localOnly || mobileDataBlocked) {
                     item {
                         Surface(
                             shape = RoundedCornerShape(16.dp),
-                            color = if (localOnly) MaterialTheme.colorScheme.errorContainer
+                            color = if (localOnly || mobileDataBlocked) MaterialTheme.colorScheme.errorContainer
                                 else MaterialTheme.colorScheme.secondaryContainer,
                             modifier = Modifier.fillMaxWidth()
                         ) {
@@ -676,19 +677,20 @@ private fun PlaylistDownloadSheet(
                                 Icon(
                                     imageVector = Icons.Rounded.ErrorOutline,
                                     contentDescription = null,
-                                    tint = if (localOnly) MaterialTheme.colorScheme.onErrorContainer
+                                    tint = if (localOnly || mobileDataBlocked) MaterialTheme.colorScheme.onErrorContainer
                                         else MaterialTheme.colorScheme.onSecondaryContainer
                                 )
                                 Text(
                                     text = when {
                                         localOnly -> stringResource(R.string.pd_local_only_block)
+                                        mobileDataBlocked -> stringResource(R.string.pd_mobile_data_block)
                                         kind == PlaylistDownloadKind.VIDEO ->
                                             stringResource(R.string.pd_skipped_live, itemCountLabel(snapshot.skippedCount, kind))
                                         else ->
                                             stringResource(R.string.pd_skipped_no_source, itemCountLabel(snapshot.skippedCount, kind))
                                     },
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = if (localOnly) MaterialTheme.colorScheme.onErrorContainer
+                                    color = if (localOnly || mobileDataBlocked) MaterialTheme.colorScheme.onErrorContainer
                                         else MaterialTheme.colorScheme.onSecondaryContainer,
                                     modifier = Modifier.weight(1f)
                                 )
@@ -766,7 +768,7 @@ private fun PlaylistDownloadSheet(
                             }
                         }
                     },
-                    enabled = (snapshot.remainingCount > 0 || !snapshot.allPagesLoaded) && !queued && !queueing && !localOnly,
+                    enabled = (snapshot.remainingCount > 0 || !snapshot.allPagesLoaded) && !queued && !queueing && !localOnly && !mobileDataBlocked,
                     shapes = ButtonDefaults.shapes(),
                     modifier = Modifier
                         .padding(horizontal = 20.dp, vertical = 16.dp)
@@ -779,6 +781,7 @@ private fun PlaylistDownloadSheet(
                             stringResource(R.string.pd_loading_full)
                         } else stringResource(R.string.pd_adding)
                         localOnly -> stringResource(R.string.local_only_title)
+                        mobileDataBlocked -> stringResource(R.string.dl_mobile_data_off)
                         snapshot.isComplete -> stringResource(R.string.pd_already_complete)
                         !snapshot.allPagesLoaded -> stringResource(R.string.pd_download_full)
                         snapshot.remainingCount == 0 && snapshot.activeCount > 0 -> stringResource(R.string.dl_preparing)

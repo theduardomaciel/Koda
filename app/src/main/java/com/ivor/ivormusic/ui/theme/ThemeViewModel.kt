@@ -30,10 +30,16 @@ class ThemeViewModel(application: Application) : AndroidViewModel(application) {
     val ambientBackground: StateFlow<Boolean> = themePreferences.ambientBackground
     val motionArtwork: StateFlow<Boolean> = themePreferences.motionArtwork
     val motionArtworkWifiOnly: StateFlow<Boolean> = themePreferences.motionArtworkWifiOnly
+    val blockStreamingOnMobileData: StateFlow<Boolean> = themePreferences.blockStreamingOnMobileData
+    val blockDownloadsOnMobileData: StateFlow<Boolean> = themePreferences.blockDownloadsOnMobileData
     val motionArtworkQuality: StateFlow<MotionArtworkQuality> = themePreferences.motionArtworkQuality
     val waveformSeekBar: StateFlow<Boolean> = themePreferences.waveformSeekBar
     fun setMotionArtwork(enabled: Boolean) = themePreferences.setMotionArtwork(enabled)
     fun setMotionArtworkWifiOnly(enabled: Boolean) = themePreferences.setMotionArtworkWifiOnly(enabled)
+    fun setBlockStreamingOnMobileData(enabled: Boolean) =
+        themePreferences.setBlockStreamingOnMobileData(enabled)
+    fun setBlockDownloadsOnMobileData(enabled: Boolean) =
+        themePreferences.setBlockDownloadsOnMobileData(enabled)
     fun setMotionArtworkQuality(quality: MotionArtworkQuality) = themePreferences.setMotionArtworkQuality(quality)
     fun setWaveformSeekBar(enabled: Boolean) = themePreferences.setWaveformSeekBar(enabled)
 

@@ -818,6 +818,32 @@ class DownloadRepository private constructor(private val context: Context) {
     )
 
     private suspend fun enqueue(requests: List<DownloadRequest>) {
+        // Refused before anything is queued. Written straight into the progress
+        // map rather than through updateProgress, which would post one failure
+        // notification per track of a blocked playlist download.
+        if (ThemePreferences.isDownloadBlockedOnMobileData(context)) {
+            KLog.w(TAG, "Download refused: downloads over mobile data are turned off")
+            // Anything already tracked keeps its own state: a paused item must
+            // stay resumable, and a queued one will pause itself when it
+            // reaches the worker.
+            val tracked = buildSet {
+                addAll(_downloadQueue.value.map { it.id })
+                addAll(pausedRequests.keys)
+                activeId?.let(::add)
+            }
+            val current = _downloadProgress.value.toMutableMap()
+            requests
+                .filter {
+                    it.id.isNotBlank() && it.id !in tracked && !isDownloadedOfType(it.id, it.type)
+                }
+                .forEach { request ->
+                    current[request.id] =
+                        DownloadProgress(request.id, request, 0f, DownloadStatus.FAILED)
+                }
+            _downloadProgress.value = current
+            return
+        }
+
         val accepted = queueMutex.withLock {
             val existing = _downloadQueue.value.map { it.id }.toSet()
             val additions = requests.filter { request ->
@@ -909,6 +935,29 @@ class DownloadRepository private constructor(private val context: Context) {
     }
 
     /**
+     * Stop a transfer because the user does not allow downloads on mobile data.
+     *
+     * Registered as paused rather than failed on purpose: [drainQueue] keeps
+     * the checkpoint of a paused request, so the file already fetched is not
+     * thrown away and a resume on Wi-Fi continues from that byte.
+     */
+    private fun pauseForMobileData(request: DownloadRequest) {
+        val entry = _downloadProgress.value[request.id]
+        pausedRequests[request.id] = request
+        updateProgress(
+            request,
+            entry?.progress ?: 0f,
+            DownloadStatus.PAUSED,
+            entry?.bytesDownloaded ?: 0L,
+            entry?.totalBytes ?: 0L,
+        )
+    }
+
+    /** Thrown inside a transfer when the mobile-data guard turns it off. */
+    private class MobileDataBlockedException :
+        java.io.IOException("Downloads over mobile data are turned off")
+
+    /**
      * Run one download, retrying transient failures.
      *
      * Each attempt re-resolves the stream URL rather than reusing the previous
@@ -926,6 +975,15 @@ class DownloadRepository private constructor(private val context: Context) {
         var lastError: Throwable? = null
 
         for (attempt in 1..MAX_ATTEMPTS) {
+            // A queued download can reach the front long after it was accepted,
+            // and the connection may have changed meanwhile. Checked per
+            // attempt so a blocked transfer gives up at once instead of
+            // spending its retries against the same refusal.
+            if (ThemePreferences.isDownloadBlockedOnMobileData(context)) {
+                KLog.w(TAG, "Pausing ${request.title}: downloads over mobile data are turned off")
+                pauseForMobileData(request)
+                return
+            }
             try {
                 val ok = if (request.isVideo) {
                     attemptVideoDownload(request)
@@ -933,6 +991,13 @@ class DownloadRepository private constructor(private val context: Context) {
                     attemptMusicDownload(request)
                 }
                 if (ok) return
+            } catch (e: MobileDataBlockedException) {
+                // The connection changed under an in-flight transfer. Paused,
+                // not failed: the bytes already written stay in the checkpoint,
+                // so resuming on Wi-Fi carries on from where it stopped.
+                KLog.w(TAG, "Paused ${request.title}: downloads over mobile data are turned off")
+                pauseForMobileData(request)
+                return
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -1347,6 +1412,13 @@ class DownloadRepository private constructor(private val context: Context) {
             out.seek(position)
             while (totalBytes <= 0 || position < totalBytes) {
                 kotlinx.coroutines.currentCoroutineContext().ensureActive()
+                // Checked per chunk, not only per task: a transfer that started
+                // on Wi-Fi must stop as soon as the phone falls back to mobile
+                // data, which is exactly the unwanted usage the setting exists
+                // to prevent.
+                if (ThemePreferences.isDownloadBlockedOnMobileData(context)) {
+                    throw MobileDataBlockedException()
+                }
                 val call = client.newCall(
                     Request.Builder().url(url)
                         .header("User-Agent", userAgent)

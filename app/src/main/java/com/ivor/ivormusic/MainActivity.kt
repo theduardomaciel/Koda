@@ -264,6 +264,8 @@ class MainActivity : ComponentActivity() {
                 themeViewModel.privateDownloadsEnabled.collectAsState()
             val onboardingCompleted by themeViewModel.onboardingCompleted.collectAsState()
             val localOnlyMode by themeViewModel.localOnlyMode.collectAsState()
+            val blockStreamingOnMobileData by themeViewModel.blockStreamingOnMobileData.collectAsState()
+            val blockDownloadsOnMobileData by themeViewModel.blockDownloadsOnMobileData.collectAsState()
             
             val cacheEnabled by themeViewModel.cacheEnabled.collectAsState()
             val videoCacheEnabled by themeViewModel.videoCacheEnabled.collectAsState()
@@ -371,6 +373,10 @@ class MainActivity : ComponentActivity() {
                         onMotionArtworkToggle = themeViewModel::setMotionArtwork,
                         motionArtworkWifiOnly = motionArtworkWifiOnly,
                         onMotionArtworkWifiOnlyToggle = themeViewModel::setMotionArtworkWifiOnly,
+                        blockStreamingOnMobileData = blockStreamingOnMobileData,
+                        onBlockStreamingOnMobileDataToggle = themeViewModel::setBlockStreamingOnMobileData,
+                        blockDownloadsOnMobileData = blockDownloadsOnMobileData,
+                        onBlockDownloadsOnMobileDataToggle = themeViewModel::setBlockDownloadsOnMobileData,
                         motionArtworkQuality = motionArtworkQuality,
                         onMotionArtworkQualityChange = themeViewModel::setMotionArtworkQuality,
                         waveformSeekBar = waveformSeekBar,
@@ -748,6 +754,10 @@ fun MusicApp(
     onMotionArtworkToggle: (Boolean) -> Unit,
     motionArtworkWifiOnly: Boolean,
     onMotionArtworkWifiOnlyToggle: (Boolean) -> Unit,
+    blockStreamingOnMobileData: Boolean,
+    onBlockStreamingOnMobileDataToggle: (Boolean) -> Unit,
+    blockDownloadsOnMobileData: Boolean,
+    onBlockDownloadsOnMobileDataToggle: (Boolean) -> Unit,
     motionArtworkQuality: MotionArtworkQuality,
     onMotionArtworkQualityChange: (MotionArtworkQuality) -> Unit,
     waveformSeekBar: Boolean,
@@ -1126,6 +1136,7 @@ fun MusicApp(
     val isVideoPlaying by videoPlayerViewModel.isPlaying.collectAsState()
     val isShortsPlaying by shortsPlayerViewModel.isPlaying.collectAsState()
     val pendingSongDownload by playerViewModel.pendingSongDownload.collectAsState()
+    val pendingDownloadRemoval by playerViewModel.pendingDownloadRemoval.collectAsState()
     androidx.compose.runtime.LaunchedEffect(isMusicPlaying) {
         if (isMusicPlaying) {
             videoPlayerViewModel.pause()
@@ -1545,6 +1556,10 @@ fun MusicApp(
                     onNavigateToLicenses = { navController.navigate("licenses") },
                     localOnlyMode = localOnlyMode,
                     onLocalOnlyModeToggle = onLocalOnlyModeToggle,
+                    blockStreamingOnMobileData = blockStreamingOnMobileData,
+                    onBlockStreamingOnMobileDataToggle = onBlockStreamingOnMobileDataToggle,
+                    blockDownloadsOnMobileData = blockDownloadsOnMobileData,
+                    onBlockDownloadsOnMobileDataToggle = onBlockDownloadsOnMobileDataToggle,
                     uiScale = uiScale,
                     onUiScaleChange = onUiScaleChange,
                     lyricsConfiguration = lyricsConfiguration,
@@ -1849,6 +1864,17 @@ fun MusicApp(
             )
         }
 
+        // Removing a downloaded copy is destructive and is what the player's
+        // "Downloaded" state means on tap, so it asks first. One host here
+        // covers every player style and the song options sheet.
+        pendingDownloadRemoval?.let { song ->
+            com.ivor.ivormusic.ui.downloads.RemoveDownloadDialog(
+                songTitle = song.title,
+                onConfirm = playerViewModel::confirmPendingDownloadRemoval,
+                onDismiss = playerViewModel::dismissPendingDownloadRemoval
+            )
+        }
+
         // Undo for "don't recommend", and word of a song that could not be
         // played, app-wide and last in the stack.
         //
@@ -1992,6 +2018,8 @@ private fun AppSnackbarHost(
                     context.getString(R.string.music_failed_stopped, title)
                 PlayerViewModel.PlaybackFailure.Outcome.REFUSED ->
                     context.getString(R.string.music_failed_refused)
+                PlayerViewModel.PlaybackFailure.Outcome.MOBILE_DATA_BLOCKED ->
+                    context.getString(R.string.music_failed_mobile_data)
             }
             snackbarHostState.showSnackbar(
                 message = message,

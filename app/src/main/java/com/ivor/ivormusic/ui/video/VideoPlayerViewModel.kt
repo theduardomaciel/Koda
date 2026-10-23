@@ -1276,10 +1276,13 @@ class VideoPlayerViewModel(application: android.app.Application) : AndroidViewMo
                     _exoPlayer?.pause()
                     _playbackError.value = Exception(
                         context.getString(
-                            if (hadPlayableBytes) {
-                                com.ivor.ivormusic.R.string.video_cached_portion_ended
-                            } else {
-                                com.ivor.ivormusic.R.string.video_not_cached_offline
+                            when {
+                                ThemePreferences.isStreamingBlockedOnMobileData(context) ->
+                                    com.ivor.ivormusic.R.string.video_mobile_data_blocked
+                                hadPlayableBytes ->
+                                    com.ivor.ivormusic.R.string.video_cached_portion_ended
+                                else ->
+                                    com.ivor.ivormusic.R.string.video_not_cached_offline
                             }
                         )
                     )
@@ -1934,7 +1937,9 @@ class VideoPlayerViewModel(application: android.app.Application) : AndroidViewMo
     }
 
     private fun networkPlaybackAllowed(): Boolean =
-        !ThemePreferences.isLocalOnly(context) && hasValidatedNetwork(context)
+        !ThemePreferences.isLocalOnly(context) &&
+            !ThemePreferences.isStreamingBlockedOnMobileData(context) &&
+            hasValidatedNetwork(context)
 
     /** HTTP status behind a source error, or null when it was not an HTTP failure. */
     private fun httpResponseCode(error: PlaybackException): Int? {

@@ -76,7 +76,7 @@ class PlayerViewModel(private val context: Context) : ViewModel() {
 
     /** A song MusicService could not play, and what it did about it. */
     data class PlaybackFailure(val title: String?, val outcome: Outcome) {
-        enum class Outcome { SKIPPED, STOPPED, REFUSED }
+        enum class Outcome { SKIPPED, STOPPED, REFUSED, MOBILE_DATA_BLOCKED }
     }
 
     /**
@@ -506,6 +506,8 @@ class PlayerViewModel(private val context: Context) : ViewModel() {
                     val outcome = when (args.getString(MusicService.ARG_FAILED_OUTCOME)) {
                         MusicService.FAILURE_STOPPED -> PlaybackFailure.Outcome.STOPPED
                         MusicService.FAILURE_REFUSED -> PlaybackFailure.Outcome.REFUSED
+                        MusicService.FAILURE_MOBILE_DATA_BLOCKED ->
+                            PlaybackFailure.Outcome.MOBILE_DATA_BLOCKED
                         else -> PlaybackFailure.Outcome.SKIPPED
                     }
                     _playbackFailures.tryEmit(
@@ -1713,6 +1715,16 @@ class PlayerViewModel(private val context: Context) : ViewModel() {
     private val _pendingSongDownload = MutableStateFlow<Song?>(null)
     val pendingSongDownload: StateFlow<Song?> = _pendingSongDownload.asStateFlow()
 
+    /**
+     * A downloaded song waiting for "Remove download?".
+     *
+     * Held here rather than in each player style: every style's download
+     * control means "remove" once the song is saved, and a per-style dialog
+     * would leave whichever one was missed deleting silently.
+     */
+    private val _pendingDownloadRemoval = MutableStateFlow<Song?>(null)
+    val pendingDownloadRemoval: StateFlow<Song?> = _pendingDownloadRemoval.asStateFlow()
+
     /** Resolve the album behind a YouTube song id (one music /next call). */
     suspend fun getSongAlbumRef(videoId: String): com.ivor.ivormusic.data.SongAlbumRef? {
         return try {
@@ -1726,12 +1738,20 @@ class PlayerViewModel(private val context: Context) : ViewModel() {
 
     fun toggleDownload(song: Song) {
         if (downloadRepository.isDownloaded(song.id)) {
-            viewModelScope.launch {
-                downloadRepository.deleteDownload(song.id)
-            }
+            _pendingDownloadRemoval.value = song
         } else if (!downloadRepository.isLocalOriginal(song) && !isDownloading(song.id)) {
             _pendingSongDownload.value = song
         }
+    }
+
+    fun confirmPendingDownloadRemoval() {
+        val song = _pendingDownloadRemoval.value ?: return
+        _pendingDownloadRemoval.value = null
+        viewModelScope.launch { downloadRepository.deleteDownload(song.id) }
+    }
+
+    fun dismissPendingDownloadRemoval() {
+        _pendingDownloadRemoval.value = null
     }
 
     fun dismissPendingSongDownload() {

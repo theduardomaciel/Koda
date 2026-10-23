@@ -393,7 +393,8 @@ object CacheManager {
     /** Blocking, bounded Shorts warm. Call on IO; cancellation stops further reads. */
     suspend fun cacheVideoRange(context: Context, dataSpec: DataSpec) {
         if (!ThemePreferences.isShortsCacheEnabled(context) ||
-            !ThemePreferences.isPlaybackPreloadEnabled(context)) return
+            !ThemePreferences.isPlaybackPreloadEnabled(context) ||
+            ThemePreferences.isStreamingBlockedOnMobileData(context)) return
         val factory = synchronized(this) {
             initializeVideoCache(context.applicationContext)
             createVideoCacheDataSourceFactory(context, shorts = true)
@@ -467,7 +468,11 @@ object CacheManager {
      */
     fun createPerClientHttpFactory(context: Context): DataSource.Factory =
         ChunkedStreamDataSource.Factory {
-            !ThemePreferences.isLocalOnly(context)
+            // Per open(), like Local Only: a switch to mobile data mid-song
+            // stops the next chunk instead of letting the stream quietly
+            // spend the user's data allowance.
+            !ThemePreferences.isLocalOnly(context) &&
+                !ThemePreferences.isStreamingBlockedOnMobileData(context)
         }
 
     /**

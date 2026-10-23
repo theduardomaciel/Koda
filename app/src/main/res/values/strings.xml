@@ -210,6 +210,8 @@
     <string name="music_failed_skipped">Couldn\'t play %1$s. Skipped to the next song.</string>
     <string name="music_failed_stopped">Couldn\'t play %1$s.</string>
     <string name="music_failed_refused">YouTube is refusing playback on this network right now. Try again in a few minutes.</string>
+    <string name="music_failed_mobile_data">Streaming over mobile data is turned off.</string>
+    <string name="video_mobile_data_blocked">Streaming over mobile data is turned off.</string>
     <string name="music_failed_untitled">this song</string>
     <string name="song_options_block_artist">Don\'t recommend %1$s</string>
 
@@ -594,6 +596,14 @@
     <string name="sp_save_listening_history">Save Listening History</string>
     <string name="sp_streaming_quality">Streaming quality</string>
     <string name="sp_quality_per_network">Quality per network</string>
+    <string name="sp_block_streaming_mobile">Don\'t stream on mobile data</string>
+    <string name="sp_block_streaming_mobile_on">Streaming off, Wi-Fi only</string>
+    <string name="sp_block_streaming_mobile_off">Streaming allowed</string>
+    <string name="si_block_streaming_mobile">Stops music and video from streaming over mobile data. Downloads still work unless you block those too.</string>
+    <string name="sp_block_downloads_mobile">Don\'t download on mobile data</string>
+    <string name="sp_block_downloads_mobile_on">Downloads blocked, use Wi-Fi</string>
+    <string name="sp_block_downloads_mobile_off">Downloads allowed</string>
+    <string name="si_block_downloads_mobile">Keeps downloads off mobile data. A download already running pauses when you switch to mobile data, and can be resumed on Wi-Fi.</string>
     <string name="sp_quality_network_hint">Koda picks these based on the connection in use</string>
     <string name="sp_music_quality">Music quality</string>
     <string name="sp_video_quality">Video quality</string>
@@ -1038,6 +1048,10 @@
     <string name="stop_all">Stop all</string>
     <string name="in_progress">In progress</string>
     <string name="dl_failed">Failed</string>
+    <string name="dl_mobile_data_off">Downloads off on mobile data</string>
+    <string name="pd_mobile_data_block">Downloads are turned off on mobile data. Connect to Wi-Fi or change this in Mobile data settings.</string>
+    <string name="remove_download_q">Remove download?</string>
+    <string name="remove_download_body">This deletes the saved copy from this device. You can download it again later.</string>
     <string name="dl_waiting">Waiting</string>
     <string name="dl_preparing">Preparing</string>
     <string name="dl_finishing">Finishing up</string>
@@ -1748,6 +1762,9 @@
     <string name="lib_group_sort_songs">Most songs</string>
     <string name="lib_group_sort_played">Most played</string>
     <string name="lib_group_sort_recent">Recently added</string>
+    <string name="album_sort_last_played">Last played</string>
+    <string name="album_sort_az">A-Z</string>
+    <string name="album_sort_za">Z-A</string>
     <string name="lib_group_sort_cd">Sort by %1$s</string>
     <string name="pip_back_10">Back 10 seconds</string>
     <string name="pip_forward_10">Forward 10 seconds</string>

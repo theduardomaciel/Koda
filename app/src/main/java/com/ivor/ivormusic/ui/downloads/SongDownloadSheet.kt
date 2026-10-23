@@ -17,12 +17,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Lyrics
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -78,7 +80,17 @@ fun SongDownloadSheet(
     var formats by remember(song.id) { mutableStateOf<List<DownloadAudioFormat>?>(null) }
     var fallbackBytes by remember(song.id) { mutableStateOf<Map<String, Long?>>(emptyMap()) }
 
-    LaunchedEffect(song.id) {
+    // The whole sheet is a download: on a blocked metered connection it must
+    // not resolve stream sizes either, and the confirm cannot be offered.
+    val blockedByMobileData = remember(song.id) {
+        ThemePreferences.isDownloadBlockedOnMobileData(context)
+    }
+
+    LaunchedEffect(song.id, blockedByMobileData) {
+        if (blockedByMobileData) {
+            formats = emptyList()
+            return@LaunchedEffect
+        }
         val resolved = repository.songDownloadFormats(song)
         formats = resolved
         // A song with one stream only: do not leave the missing one selected.
@@ -86,8 +98,8 @@ fun SongDownloadSheet(
             quality = resolved.first().quality
         }
     }
-    LaunchedEffect(song.id, formats, quality) {
-        if (formats?.isEmpty() == true && quality !in fallbackBytes) {
+    LaunchedEffect(song.id, formats, quality, blockedByMobileData) {
+        if (!blockedByMobileData && formats?.isEmpty() == true && quality !in fallbackBytes) {
             val bytes = repository.estimateSongDownloadBytes(song, quality)
             fallbackBytes = fallbackBytes + (quality to bytes)
         }
@@ -204,6 +216,33 @@ fun SongDownloadSheet(
                 modifier = Modifier.padding(top = 12.dp)
             )
 
+            if (blockedByMobileData) {
+                Spacer(Modifier.height(16.dp))
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.ErrorOutline,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                        Text(
+                            text = stringResource(R.string.pd_mobile_data_block),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+
             Spacer(Modifier.height(20.dp))
 
             Button(
@@ -214,7 +253,7 @@ fun SongDownloadSheet(
                     }
                     onConfirm(MusicDownloadOptions(quality = quality, saveLyrics = saveLyrics))
                 },
-                enabled = !sizePending,
+                enabled = !sizePending && !blockedByMobileData,
                 shape = RoundedCornerShape(20.dp),
                 modifier = Modifier
                     .fillMaxWidth()

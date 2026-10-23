@@ -1069,6 +1069,10 @@ internal fun PlaybackSettingsPage(
     musicQualityMobile: String,
     videoQualityWifi: String,
     videoQualityMobile: String,
+    blockStreamingOnMobileData: Boolean,
+    onBlockStreamingOnMobileDataToggle: (Boolean) -> Unit,
+    blockDownloadsOnMobileData: Boolean,
+    onBlockDownloadsOnMobileDataToggle: (Boolean) -> Unit,
     preferHdr: Boolean,
     onPreferHdrToggle: (Boolean) -> Unit,
     frameInterpolation: Boolean,
@@ -1257,6 +1261,38 @@ internal fun PlaybackSettingsPage(
                         enabled = discordPresence,
                         onToggle = onDiscordPresenceToggle,
                         explanation = stringResource(R.string.si_discord)
+                    )
+                }
+            }
+        }
+
+        item {
+            SettingsSection(title = stringResource(R.string.mobile_data)) {
+                SettingsCard {
+                    SettingsToggleRow(
+                        icon = Icons.Rounded.SignalCellularAlt,
+                        title = stringResource(R.string.sp_block_streaming_mobile),
+                        subtitle = if (blockStreamingOnMobileData) {
+                            stringResource(R.string.sp_block_streaming_mobile_on)
+                        } else {
+                            stringResource(R.string.sp_block_streaming_mobile_off)
+                        },
+                        enabled = blockStreamingOnMobileData,
+                        onToggle = onBlockStreamingOnMobileDataToggle,
+                        explanation = stringResource(R.string.si_block_streaming_mobile)
+                    )
+                    SettingsDivider()
+                    SettingsToggleRow(
+                        icon = Icons.Rounded.Download,
+                        title = stringResource(R.string.sp_block_downloads_mobile),
+                        subtitle = if (blockDownloadsOnMobileData) {
+                            stringResource(R.string.sp_block_downloads_mobile_on)
+                        } else {
+                            stringResource(R.string.sp_block_downloads_mobile_off)
+                        },
+                        enabled = blockDownloadsOnMobileData,
+                        onToggle = onBlockDownloadsOnMobileDataToggle,
+                        explanation = stringResource(R.string.si_block_downloads_mobile)
                     )
                 }
             }

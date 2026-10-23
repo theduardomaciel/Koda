@@ -327,6 +327,20 @@ class ThemePreferences(context: Context) {
     private val _localOnlyMode = MutableStateFlow(getLocalOnlyModePreference())
     val localOnlyMode: StateFlow<Boolean> = _localOnlyMode.asStateFlow()
 
+    // Two separate guards rather than one "offline on mobile data" switch:
+    // streaming is implicit and can run for hours, while a download is a
+    // deliberate, sized action. Someone who saves music on cellular on purpose
+    // should not have to turn the whole guard off to do it.
+    private val _blockStreamingOnMobileData =
+        MutableStateFlow(getBlockStreamingOnMobileDataPreference())
+    val blockStreamingOnMobileData: StateFlow<Boolean> =
+        _blockStreamingOnMobileData.asStateFlow()
+
+    private val _blockDownloadsOnMobileData =
+        MutableStateFlow(getBlockDownloadsOnMobileDataPreference())
+    val blockDownloadsOnMobileData: StateFlow<Boolean> =
+        _blockDownloadsOnMobileData.asStateFlow()
+
     private val _timeLimitEnabled = MutableStateFlow(getTimeLimitEnabledPreference())
     val timeLimitEnabled: StateFlow<Boolean> = _timeLimitEnabled.asStateFlow()
 
@@ -527,6 +541,10 @@ class ThemePreferences(context: Context) {
                 _privateDownloadsEnabled.value = getPrivateDownloadsEnabledPreference()
             KEY_ONBOARDING_COMPLETED -> _onboardingCompleted.value = getOnboardingCompletedPreference()
             KEY_LOCAL_ONLY_MODE -> _localOnlyMode.value = getLocalOnlyModePreference()
+            KEY_BLOCK_STREAMING_ON_MOBILE_DATA ->
+                _blockStreamingOnMobileData.value = getBlockStreamingOnMobileDataPreference()
+            KEY_BLOCK_DOWNLOADS_ON_MOBILE_DATA ->
+                _blockDownloadsOnMobileData.value = getBlockDownloadsOnMobileDataPreference()
             KEY_TIME_LIMIT_ENABLED -> _timeLimitEnabled.value = getTimeLimitEnabledPreference()
             KEY_TIME_LIMIT_BUDGETS -> _timeLimitBudgets.value = getTimeLimitBudgetsPreference()
             KEY_LIBRARY_SORT_OPTION -> _librarySortOption.value = getLibrarySortOptionPreference()
@@ -1086,6 +1104,10 @@ class ThemePreferences(context: Context) {
         private const val KEY_MANUAL_SCAN_ENABLED = "manual_scan_enabled"
         private const val KEY_ONBOARDING_COMPLETED = "onboarding_completed"
         private const val KEY_LOCAL_ONLY_MODE = "local_only_mode"
+        private const val KEY_BLOCK_STREAMING_ON_MOBILE_DATA =
+            "block_streaming_on_mobile_data"
+        private const val KEY_BLOCK_DOWNLOADS_ON_MOBILE_DATA =
+            "block_downloads_on_mobile_data"
 
         private const val KEY_TIME_LIMIT_ENABLED = "time_limit_enabled"
         private const val KEY_TIME_LIMIT_BUDGETS = "time_limit_budgets"
@@ -1144,6 +1166,24 @@ class ThemePreferences(context: Context) {
         fun isLocalOnly(context: Context): Boolean =
             context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .getBoolean(KEY_LOCAL_ONLY_MODE, false)
+
+        /**
+         * Whether playback must refuse to touch the network. Read fresh at each
+         * data-source open, so flipping the switch stops the very next stream
+         * and switching to mobile data mid-song stops the next chunk.
+         *
+         * Metered is the same predicate the per-network quality choice uses, so
+         * a metered hotspot is protected too; an unknown network reads as
+         * unmetered and playback is not broken by a state we cannot see.
+         */
+        fun isStreamingBlockedOnMobileData(context: Context): Boolean =
+            isNetworkMetered(context) && context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getBoolean(KEY_BLOCK_STREAMING_ON_MOBILE_DATA, false)
+
+        /** Same contract as [isStreamingBlockedOnMobileData], for the download queue. */
+        fun isDownloadBlockedOnMobileData(context: Context): Boolean =
+            isNetworkMetered(context) && context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getBoolean(KEY_BLOCK_DOWNLOADS_ON_MOBILE_DATA, false)
 
         /**
          * Static fresh read for the orientation policy, which is applied from
@@ -2646,6 +2686,22 @@ class ThemePreferences(context: Context) {
     fun setLocalOnlyMode(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_LOCAL_ONLY_MODE, enabled).apply()
         _localOnlyMode.value = enabled
+    }
+
+    private fun getBlockStreamingOnMobileDataPreference(): Boolean =
+        prefs.getBoolean(KEY_BLOCK_STREAMING_ON_MOBILE_DATA, false)
+
+    private fun getBlockDownloadsOnMobileDataPreference(): Boolean =
+        prefs.getBoolean(KEY_BLOCK_DOWNLOADS_ON_MOBILE_DATA, false)
+
+    fun setBlockStreamingOnMobileData(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_BLOCK_STREAMING_ON_MOBILE_DATA, enabled).apply()
+        _blockStreamingOnMobileData.value = enabled
+    }
+
+    fun setBlockDownloadsOnMobileData(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_BLOCK_DOWNLOADS_ON_MOBILE_DATA, enabled).apply()
+        _blockDownloadsOnMobileData.value = enabled
     }
 
     // ---------------- Daily time limit ----------------

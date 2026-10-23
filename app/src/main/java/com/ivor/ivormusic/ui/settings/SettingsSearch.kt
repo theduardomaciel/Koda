@@ -51,6 +51,7 @@ import androidx.compose.material.icons.rounded.MoneyOff
 import androidx.compose.material.icons.rounded.Cookie
 import androidx.compose.material.icons.rounded.DirectionsCar
 import androidx.compose.material.icons.rounded.Dashboard
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.ScreenRotation
 import androidx.compose.material.icons.rounded.FilterList
 import androidx.compose.material.icons.rounded.FlashOn
@@ -508,6 +509,22 @@ internal fun buildSettingsSearchIndex(
         Icons.Rounded.SignalCellularAlt,
         listOf("resolution", "cellular", "data", "1080p", "720p", "480p", "360p", "240p", "144p", "data saver", "roaming")
     ) { onOpenQualityPicker(QualityDialogTarget.VIDEO_MOBILE) }
+    entry(
+        "block_streaming_mobile", stringResource(R.string.sp_block_streaming_mobile),
+        stringResource(R.string.settings_playback_and_quality), Icons.Rounded.SignalCellularAlt,
+        listOf(
+            "mobile data", "cellular", "stream", "streaming", "data saver", "wifi only",
+            "offline", "block data", "stop data"
+        )
+    ) { onOpenPage(SettingsPage.PLAYBACK) }
+    entry(
+        "block_downloads_mobile", stringResource(R.string.sp_block_downloads_mobile),
+        stringResource(R.string.settings_playback_and_quality), Icons.Rounded.Download,
+        listOf(
+            "mobile data", "cellular", "download", "data saver", "wifi only",
+            "block data", "stop data"
+        )
+    ) { onOpenPage(SettingsPage.PLAYBACK) }
     entry(
         "prefer_hdr", stringResource(R.string.sp_prefer_hdr), stringResource(R.string.settings_playback_and_quality),
         Icons.Rounded.HdrOn,

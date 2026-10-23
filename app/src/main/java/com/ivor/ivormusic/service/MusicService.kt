@@ -392,6 +392,9 @@ class MusicService : MediaLibraryService() {
         /** The error URI host [performResolution] uses when its whole budget ran out. */
         private const val RESOLUTION_TIMEOUT_HOST = "resolution_timeout"
 
+        /** The error URI host [performResolution] uses when streaming is blocked on mobile data. */
+        private const val MOBILE_DATA_BLOCKED_HOST = "mobile_data_blocked"
+
         /**
          * Broadcast to controllers when a song could not be played, so the
          * app can say so instead of the queue silently jumping. Carries
@@ -407,6 +410,8 @@ class MusicService : MediaLibraryService() {
         const val FAILURE_STOPPED = "stopped"
         /** YouTube's bot check refused it; the player stays on the song. */
         const val FAILURE_REFUSED = "refused"
+        /** The user turned streaming off on mobile data; the player stays on the song. */
+        const val FAILURE_MOBILE_DATA_BLOCKED = "mobile_data_blocked"
 
         // --- Sleep timer: the contract with PlayerViewModel ---
 
@@ -1401,6 +1406,10 @@ class MusicService : MediaLibraryService() {
 
     private fun prefetchUpcomingSongs() {
         if (!ThemePreferences.isPlaybackPreloadEnabled(this)) return
+        // Every item this would resolve is a network stream. Warming them on a
+        // connection the user turned streaming off for is exactly the data
+        // they asked not to spend, and playback would refuse them anyway.
+        if (ThemePreferences.isStreamingBlockedOnMobileData(this)) return
         // Up to three full resolutions for songs not yet reached, each of which
         // the bot check would refuse the same way. The song the user is on
         // still resolves through validateAndPlayCurrentItem.
@@ -1482,6 +1491,7 @@ class MusicService : MediaLibraryService() {
      */
     private fun warmStreamCache(videoId: String, uri: Uri?) {
         if (!ThemePreferences.isPlaybackPreloadEnabled(this)) return
+        if (ThemePreferences.isStreamingBlockedOnMobileData(this)) return
         val factory = cacheDataSourceFactory ?: return
         if (!isCacheEnabled || uri == null) return
         if (uri.scheme != "http" && uri.scheme != "https") return
@@ -1587,6 +1597,16 @@ class MusicService : MediaLibraryService() {
         // 4. Network with Retry
         // YouTubeRepository owns the visionOS-first client fallback. This layer
         // bounds the whole resolution and handles playback-time re-resolution.
+        // Refused before the first request when the user turned streaming off
+        // on mobile data: the player stays on the song and says why, rather
+        // than retrying a stream it will never be allowed to open.
+        if (ThemePreferences.isStreamingBlockedOnMobileData(this)) {
+            KLog.w(TAG, "Resolution: streaming over mobile data is turned off for $videoId")
+            return buildMediaItemWithUri(
+                originalItem,
+                Uri.parse("error://$MOBILE_DATA_BLOCKED_HOST/$videoId")
+            )
+        }
         return try {
             val result = withTimeoutOrNull(RESOLVE_TIMEOUT_MS) {
                 youtubeRepository.getStreamUrl(videoId)
@@ -1701,6 +1721,14 @@ class MusicService : MediaLibraryService() {
         if (uri?.scheme == "error" && uri.host == RESOLUTION_TIMEOUT_HOST) {
             KLog.e(TAG, "Error: resolution for $videoId used its whole budget. Skipping.")
             skipAfterFailure(currentItem)
+            return
+        }
+
+        // Streaming was refused by the mobile-data guard. Retrying would only
+        // re-resolve into the same refusal, so hold the song and explain it.
+        if (uri?.scheme == "error" && uri.host == MOBILE_DATA_BLOCKED_HOST) {
+            KLog.w(TAG, "Error: streaming for $videoId is blocked on mobile data")
+            announcePlaybackFailure(currentItem, FAILURE_MOBILE_DATA_BLOCKED)
             return
         }
 
