@@ -49,6 +49,7 @@ import com.ivor.ivormusic.data.TrackLoudnessStore
 import com.ivor.ivormusic.data.AccountLikedSongsRepository
 import com.ivor.ivormusic.data.LikedSongsRepository
 import com.ivor.ivormusic.data.PlaylistDisplayItem
+import com.ivor.ivormusic.data.MusicPlaylistPager
 import com.ivor.ivormusic.data.MusicQueueItem
 import com.ivor.ivormusic.data.PlaybackSessionRepository
 import com.ivor.ivormusic.data.Song
@@ -82,6 +83,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
@@ -261,6 +264,12 @@ class MusicService : MediaLibraryService() {
                 mediaLibrarySession?.notifyChildrenChanged(id, playlists.size, null)
             }
         } })
+
+    // Auto asks for page N of a playlist; the pager keeps that playlist's
+    // forward cursor instead of re-walking from page one for every request.
+    // Cleared with the other browse caches on a profile switch.
+    private val playlistPagers = mutableMapOf<String, MusicPlaylistPager>()
+    private val playlistPagersLock = Mutex()
     // A stalled online load must not occupy the slots needed to read local music.
     private val localBrowseSongs: MediaBrowseCache<String, List<Song>> = MediaBrowseCache(resolveScope,
         ttlForValue = { if (it.isEmpty()) 15_000L else 5 * 60 * 1000L },
@@ -287,6 +296,8 @@ class MusicService : MediaLibraryService() {
         private const val PREFETCH_AHEAD_COUNT = 3
         private const val MAX_RESOLVED_URI_ENTRIES = 128
         private const val MAX_WARMED_IDS = 256
+        /** Playlists kept open in the Auto browse tree before the oldest cursor is dropped. */
+        private const val MAX_PLAYLIST_PAGERS = 8
         // Covers the direct visionOS call and the NewPipe fallback behind it;
         // their individual requests are also bounded by OkHttp.
         //
@@ -623,6 +634,7 @@ class MusicService : MediaLibraryService() {
                     localBrowseSongs.clear()
                     browsePlaylists.clear()
                     browseSearchResults.clear()
+                    playlistPagersLock.withLock { playlistPagers.clear() }
                     youtubeRepository.clearSessionScopedInstanceCaches()
 
                     // Playback deliberately continues - the queue's streams are
@@ -2412,6 +2424,19 @@ class MusicService : MediaLibraryService() {
             if (parentId == "root") {
                 return Futures.immediateFuture(LibraryResult.ofItemList(mediaBrowsePage(getRootItems(), page, pageSize), params))
             }
+            if (parentId.startsWith("PLAYLIST_")) {
+                return browseResult {
+                    val items = playlistBrowsePage(parentId, page, pageSize)
+                    if (items != null) {
+                        LibraryResult.ofItemList(items, params)
+                    } else {
+                        // The page-by-page read could not start; the whole-list
+                        // path still has the NewPipe escape.
+                        val fallback = fetchChildrenForId(parentId)
+                        LibraryResult.ofItemList(mediaBrowsePage(fallback, page, pageSize), params)
+                    }
+                }
+            }
             return browseResult {
                 val items = fetchChildrenForId(parentId)
                 LibraryResult.ofItemList(mediaBrowsePage(items, page, pageSize), params)
@@ -2551,6 +2576,40 @@ class MusicService : MediaLibraryService() {
                 .setIsPlayable(false)
                 .build())
             .build()
+
+    /**
+     * One page of a playlist's children for Auto, read forward only as far as
+     * the requested page needs. Null when the first page could not be read.
+     *
+     * The lock serializes pager advances; Auto asks one parent at a time, so it
+     * is cheaper than duplicating a cursor per request.
+     */
+    private suspend fun playlistBrowsePage(
+        parentId: String,
+        page: Int,
+        pageSize: Int,
+    ): List<MediaItem>? {
+        val playlistId = parentId.removePrefix("PLAYLIST_")
+        val needed = ((page.toLong() + 1L) * pageSize)
+            .coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+        val from = (page.toLong() * pageSize)
+            .coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+        return playlistPagersLock.withLock {
+            // Page zero is a fresh browse: let a later refresh see edits rather
+            // than a session kept from the last one.
+            if (page == 0) playlistPagers.remove(parentId)
+            if (parentId !in playlistPagers && playlistPagers.size >= MAX_PLAYLIST_PAGERS) {
+                playlistPagers.keys.firstOrNull()?.let(playlistPagers::remove)
+            }
+            val pager = playlistPagers.getOrPut(parentId) {
+                MusicPlaylistPager(
+                    isMix = playlistId.removePrefix("VL").startsWith("RD"),
+                ) { continuation -> youtubeRepository.getPlaylistPage(playlistId, continuation) }
+            }
+            val songs = pager.itemsThrough(needed) ?: return@withLock null
+            songs.drop(from).take(pageSize).map(::mapSongToMediaItem)
+        }
+    }
 
     private suspend fun fetchChildrenForId(parentId: String): List<MediaItem> = when (parentId) {
         "LIBRARY" -> getLibraryItems()
