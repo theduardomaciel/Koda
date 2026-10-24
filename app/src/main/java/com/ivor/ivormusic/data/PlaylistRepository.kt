@@ -37,12 +37,17 @@ class PlaylistRepository(private val context: Context) {
     init {
         if (!playlistDir.exists()) playlistDir.mkdirs()
         if (!coversDir.exists()) coversDir.mkdirs()
-        loadPlaylists()
     }
 
+    /**
+     * Read every playlist file into the flow.
+     *
+     * Not called from construction: each record embeds its whole song list, so
+     * parsing a large library is disk and JSON work that must not run on the
+     * thread building the ViewModel. [refreshPlaylists] and the write methods
+     * call it on IO.
+     */
     private fun loadPlaylists() {
-        // Load on background thread logic should be called from coroutine, but for init we do minimal
-        // We'll expose suspend functions for ops
         val files = playlistDir.listFiles { _, name -> name.endsWith(".json") }
         val loaded = files?.mapNotNull { file ->
             try {

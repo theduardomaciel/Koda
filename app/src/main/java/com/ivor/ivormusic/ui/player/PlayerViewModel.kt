@@ -343,6 +343,9 @@ class PlayerViewModel(private val context: Context) : ViewModel() {
         startBufferingWatchdog()
         seedRecentSongs()
         observeProfileSwitches()
+        // Read the device playlists off the constructor thread so the
+        // add-to-playlist sheet has them ready.
+        viewModelScope.launch { playlistRepository.refreshPlaylists() }
         // The heart can be flipped from outside this ViewModel - the media
         // notification's like button, or another screen's instance - so it
         // follows the shared store rather than only song changes.

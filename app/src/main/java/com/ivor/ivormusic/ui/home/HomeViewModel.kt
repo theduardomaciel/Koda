@@ -1549,6 +1549,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private var shortsFeedLoadedAtMs = 0L
 
     init {
+        // Local playlists load off the constructor thread; the store embeds
+        // every playlist's songs, so this is not main-thread work.
+        viewModelScope.launch { playlistRepository.refreshPlaylists() }
         observeLocalVideoHistory()
         observeSubscriptionFeedWarmup()
         checkYouTubeConnection()
