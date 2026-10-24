@@ -496,8 +496,9 @@ fun SearchScreen(
     }
 
     // Resolve a pasted YouTube link (video, playlist or channel) off the normal
-    // search path. A watch link resolves through one watch-next call; a playlist
-    // link loads its items. Retriggered by the retry button via linkRetryToken.
+    // search path. A watch link resolves through one watch-next call; a list
+    // with no page of its own previews its first page. Retriggered by the
+    // retry button via linkRetryToken.
     LaunchedEffect(parsedLink, videoMode, linkRetryToken) {
         if (parsedLink == null) {
             linkState = LinkLookupState.Idle
@@ -551,7 +552,11 @@ fun SearchScreen(
                 else LinkLookupState.PlaylistVideosResult(videos)
             }
             parsedLink.playlistId != null -> {
-                val playlistSongs = viewModel.resolvePlaylistSongsFromLink(parsedLink.playlistId)
+                // Only a list with no page of its own reaches here - a mix or
+                // a private list. Preview its first page instead of walking
+                // every continuation before showing anything.
+                val page = viewModel.fetchPlaylistPage(parsedLink.playlistId, null)
+                val playlistSongs = page?.songs.orEmpty()
                 if (playlistSongs.isEmpty()) LinkLookupState.Error
                 else LinkLookupState.PlaylistSongsResult(playlistSongs)
             }

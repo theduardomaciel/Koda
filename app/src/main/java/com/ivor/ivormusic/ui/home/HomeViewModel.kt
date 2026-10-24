@@ -4483,15 +4483,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Resolve a pasted playlist link into songs (music mode). */
-    suspend fun resolvePlaylistSongsFromLink(playlistId: String): List<Song> {
-        return try {
-            youtubeRepository.getPlaylist(playlistId)
-        } catch (e: Exception) {
-            emptyList()
-        }
-    }
-
     /** Resolve a pasted playlist link into videos (video mode). */
     suspend fun resolvePlaylistVideosFromLink(playlistId: String): List<VideoItem> {
         return try {
