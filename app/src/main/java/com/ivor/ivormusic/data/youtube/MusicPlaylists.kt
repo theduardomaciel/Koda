@@ -331,33 +331,38 @@ internal class MusicPlaylists(
     )
 
     /**
-     * WEB_REMIX playlist browse, including every continuation.
+     * Every page of a playlist, for callers that need the whole list (a queue,
+     * a download). Each step goes through [getPlaylistPage], so a full walk and
+     * the detail screen's demand-paged walk agree on how a page is fetched and
+     * parsed.
      *
      * Account cookies are attached by [MusicApi.browseMusic] and [MusicApi.fetchContinuation]
      * when there is a session and omitted when there is not, so this one walker
      * serves both: a public playlist pages to its end anonymously, and an owned
      * or private one needs the session that those two helpers already apply.
      */
-    private fun getBrowsePlaylistSongs(playlistId: String): PlaylistLoadResult {
-        val browseId = if (playlistId.startsWith("VL") || playlistId.startsWith("FE")) {
-            playlistId
-        } else {
-            "VL$playlistId"
-        }
-        val isMix = browseId.removePrefix("VL").startsWith("RD")
+    private suspend fun getBrowsePlaylistSongs(playlistId: String): PlaylistLoadResult {
+        val isMix = playlistId.removePrefix("VL").startsWith("RD")
         val allSongs = mutableListOf<Song>()
         val seenTokens = mutableSetOf<String>()
-        var json = musicApi.browseMusic(browseId)
-            ?: return PlaylistLoadResult(emptyList(), complete = false)
+        var continuation: String? = null
 
         while (true) {
-            if (json.isBlank()) return PlaylistLoadResult(allSongs, complete = false)
-            val page = parseSongsFromInternalJson(json, preserveDuplicates = true)
+            val page = getPlaylistPage(playlistId, continuation)
+            if (page == null) {
+                if (continuation != null) {
+                    KLog.w(
+                        YOUTUBE_TAG,
+                        "Authenticated playlist continuation failed for $playlistId after ${allSongs.size} songs"
+                    )
+                }
+                return PlaylistLoadResult(allSongs, complete = false)
+            }
             if (isMix) {
                 // A mix is topped up as it is read and repeats songs to do it;
                 // a repeat there is filler, not a second occurrence.
                 val seen = allSongs.mapTo(HashSet()) { it.id }
-                page.filterTo(allSongs) { seen.add(it.id) }
+                page.songs.filterTo(allSongs) { seen.add(it.id) }
                 // [verified October 2026] A mix's chain need not end: one
                 // personal mix still offered a token after 110 pages and 2,600
                 // songs, and the walk below would follow it for as long as the
@@ -367,7 +372,7 @@ internal class MusicPlaylists(
                     return PlaylistLoadResult(allSongs.take(MIX_SONG_CEILING), complete = true)
                 }
             } else {
-                allSongs += page
+                allSongs += page.songs
             }
             if (seenTokens.size >= MAX_PLAYLIST_PAGES) {
                 // Past YouTube's 5,000-item playlist limit at 100 rows a page:
@@ -375,20 +380,13 @@ internal class MusicPlaylists(
                 KLog.w(YOUTUBE_TAG, "Stopped playlist $playlistId at ${allSongs.size} songs, page limit")
                 return PlaylistLoadResult(allSongs, complete = true)
             }
-            val token = extractPlaylistContinuationToken(json)
+            val token = page.continuation
                 ?: return PlaylistLoadResult(allSongs, complete = true)
             if (!seenTokens.add(token)) {
                 KLog.w(YOUTUBE_TAG, "Repeated playlist continuation for $playlistId")
                 return PlaylistLoadResult(allSongs, complete = false)
             }
-            json = musicApi.fetchContinuation(token)
-            if (json.isEmpty()) {
-                KLog.w(
-                    YOUTUBE_TAG,
-                    "Authenticated playlist continuation failed for $playlistId after ${allSongs.size} songs"
-                )
-                return PlaylistLoadResult(allSongs, complete = false)
-            }
+            continuation = token
         }
     }
 
