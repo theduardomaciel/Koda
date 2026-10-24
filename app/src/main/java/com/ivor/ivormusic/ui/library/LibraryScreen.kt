@@ -4284,6 +4284,15 @@ fun PlaylistDetailScreen(
     } else {
         songs.size
     }
+    // No total is published for a playlist we have only partly read. Say
+    // "100+" rather than presenting the loaded prefix as the whole list.
+    val headerTrackCountApproximate = canPaginate && pageState.hasMore &&
+        resolvedPlaylist.itemCount <= songs.size
+    val headerTracksLabel = if (headerTrackCountApproximate && songs.isNotEmpty()) {
+        pluralStringResource(R.plurals.n_tracks_plus, songs.size, songs.size)
+    } else {
+        pluralStringResource(R.plurals.n_tracks, headerTrackCount, headerTrackCount)
+    }
     val allTracksLoaded = !canPaginate ||
         (!pageState.hasMore && !pageState.isLoading && !isFetching.value)
 
@@ -5318,7 +5327,7 @@ fun PlaylistDetailScreen(
                                 if (isAlbum) kindLabel else stringResource(R.string.label_playlist),
                                 resolvedPlaylist.uploaderName.takeIf { isAlbum && it.isNotBlank() },
                                 releaseYear?.toString()?.takeIf { isAlbum },
-                                pluralStringResource(R.plurals.n_tracks, headerTrackCount, headerTrackCount),
+                                headerTracksLabel,
                                 totalDurationLabel
                             ).joinToString("  ·  "),
                             style = MaterialTheme.typography.labelLarge,
@@ -5462,7 +5471,7 @@ fun PlaylistDetailScreen(
             if (!isSearchActive && !isFetching.value && songs.isNotEmpty()) {
                 item {
                     TrackSectionHeader(
-                        countLabel = pluralStringResource(R.plurals.n_tracks, headerTrackCount, headerTrackCount),
+                        countLabel = headerTracksLabel,
                         manageEnabled = isReorderMode,
                         canEdit = canEditSongs,
                         onToggleEdit = {

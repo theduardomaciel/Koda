@@ -2569,4 +2569,8 @@
     <item quantity="one">%1$d faixa</item>
     <item quantity="other">%1$d faixas</item>
 </plurals>
+<plurals name="n_tracks_plus">
+    <item quantity="one">%1$d+ faixa</item>
+    <item quantity="other">%1$d+ faixas</item>
+</plurals>
 </resources>

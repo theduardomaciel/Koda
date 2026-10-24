@@ -2645,4 +2645,8 @@
         <item quantity="one">%1$d track</item>
         <item quantity="other">%1$d tracks</item>
     </plurals>
+    <plurals name="n_tracks_plus">
+        <item quantity="one">%1$d+ track</item>
+        <item quantity="other">%1$d+ tracks</item>
+    </plurals>
 </resources>
