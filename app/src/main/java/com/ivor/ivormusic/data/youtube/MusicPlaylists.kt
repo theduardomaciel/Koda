@@ -2,6 +2,7 @@ package com.ivor.ivormusic.data.youtube
 
 import com.ivor.ivormusic.data.LikedMusicPage
 import com.ivor.ivormusic.data.MusicMetadata
+import com.ivor.ivormusic.data.MusicPlaylistPage
 import com.ivor.ivormusic.data.PlaylistDisplayItem
 import com.ivor.ivormusic.data.SessionManager
 import com.ivor.ivormusic.data.Song
@@ -17,7 +18,7 @@ import org.json.JSONObject
 import org.schabi.newpipe.extractor.stream.StreamInfoItem
 
 /** Songs a generated mix (`RD...`) is read to; its continuation chain need not end. */
-private const val MIX_SONG_CEILING = 500
+internal const val MIX_SONG_CEILING = 500
 
 /** Continuation pages any playlist walk follows before it stops. */
 private const val MAX_PLAYLIST_PAGES = 80
@@ -60,6 +61,42 @@ internal class MusicPlaylists(
 
         // For other playlists, use internal method
         getPlaylistInternal(playlistId)
+    }
+
+    /**
+     * Fetch exactly one page of a playlist for the detail screen.
+     *
+     * The first page browses the playlist; later pages follow the cursor that
+     * page returned. Unlike [getPlaylistInternal] this never walks the chain:
+     * a 490-track playlist becomes five requests that each render as they
+     * arrive, instead of five requests before the screen shows anything.
+     */
+    suspend fun getPlaylistPage(
+        playlistId: String,
+        continuation: String? = null,
+    ): MusicPlaylistPage? = withContext(Dispatchers.IO) {
+        try {
+            val json = if (continuation != null) {
+                musicApi.fetchContinuation(continuation)
+            } else {
+                val browseId = if (playlistId.startsWith("VL") || playlistId.startsWith("FE")) {
+                    playlistId
+                } else {
+                    "VL$playlistId"
+                }
+                musicApi.browseMusic(browseId) ?: return@withContext null
+            }
+            if (json.isBlank()) return@withContext null
+            MusicPlaylistPage(
+                songs = parseSongsFromInternalJson(json, preserveDuplicates = true),
+                continuation = extractPlaylistContinuationToken(json),
+            )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            KLog.e(YOUTUBE_TAG, "Error fetching playlist page $playlistId", e)
+            null
+        }
     }
 
     /**

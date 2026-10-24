@@ -114,6 +114,8 @@ import com.ivor.ivormusic.data.VideoQueue
 import com.ivor.ivormusic.data.googleImageAtSize
 import com.ivor.ivormusic.ui.artist.PlaySplitButton
 import com.ivor.ivormusic.ui.components.DismissibleSnackbarHost
+import com.ivor.ivormusic.ui.components.LoadPageAtEnd
+import com.ivor.ivormusic.ui.components.PageLoadFooter
 import com.ivor.ivormusic.ui.components.VideoThumbnail
 import com.ivor.ivormusic.ui.components.VideoThumbnailBadge
 import com.ivor.ivormusic.ui.downloads.VideoPlaylistDownloadAction
@@ -173,7 +175,7 @@ fun VideoPlaylistDetail(
     val pageState by viewModel.playlistPageState.collectAsState()
     val listState = rememberLazyListState()
     LaunchedEffect(playlist.playlistId) { listState.scrollToItem(0) }
-    LoadVideoPageAtEnd(listState, videos.size, pageState) {
+    LoadPageAtEnd(listState, videos.size, pageState) {
         viewModel.loadMorePlaylistVideos(playlist.playlistId)
     }
     DisposableEffect(playlist.playlistId) {
@@ -653,7 +655,7 @@ fun VideoPlaylistDetail(
                             }
                         }
                         item(key = "playlist_next_page") {
-                            VideoPageFooter(pageState) {
+                            PageLoadFooter(pageState) {
                                 if (pageState.hasMore) viewModel.loadMorePlaylistVideos(playlist.playlistId)
                                 else viewModel.loadPlaylistVideos(playlist.playlistId)
                             }

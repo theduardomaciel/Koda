@@ -35,6 +35,29 @@ class PlaylistRowIdentityTest {
         assertEquals(listOf("set-1", "set-other", "set-2"), attached.map { it.setVideoId })
     }
 
+    @Test
+    fun `appending a page keys repeats against the rows already loaded`() {
+        val firstPage = playlistSongRows(listOf(song("same", "One")), "playlist_test")
+        val attached = firstPage.map { it.copy(setVideoId = "set-1") }
+
+        val appended = appendPlaylistSongRows(
+            attached,
+            listOf(song("same", "Two"), song("other", "Other")),
+            "playlist_test"
+        )
+
+        assertEquals(3, appended.size)
+        assertNotEquals(appended[0].key, appended[1].key)
+        assertEquals("set-1", appended[0].setVideoId)
+        assertEquals(
+            playlistSongRows(
+                listOf(song("same", "One"), song("same", "Two"), song("other", "Other")),
+                "playlist_test"
+            ).map { it.key },
+            appended.map { it.key },
+        )
+    }
+
     private fun song(id: String, title: String) = Song(
         id = id,
         title = title,

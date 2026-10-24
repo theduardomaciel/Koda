@@ -25,6 +25,24 @@ internal fun playlistSongRows(
     return songs.mapIndexed { index, song -> PlaylistSongRow(keys[index], song) }
 }
 
+/**
+ * Append a fetched page to the rows already on screen.
+ *
+ * Keys are occurrence-scoped, so the new songs are keyed against everything
+ * loaded already. Keying the page alone would restart the occurrence count and
+ * give a repeated song the same key as its first-page copy. Existing rows are
+ * kept as they are, including any setVideoId attached while reordering.
+ */
+internal fun appendPlaylistSongRows(
+    existing: List<PlaylistSongRow>,
+    songs: List<Song>,
+    keyPrefix: String
+): List<PlaylistSongRow> {
+    if (songs.isEmpty()) return existing
+    val all = playlistSongRows(existing.map { it.song } + songs, keyPrefix)
+    return existing + all.drop(existing.size)
+}
+
 /** Attach occurrence-ordered InnerTube row ids without collapsing duplicates. */
 internal fun attachPlaylistSetVideoIds(
     rows: List<PlaylistSongRow>,

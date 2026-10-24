@@ -40,6 +40,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import com.ivor.ivormusic.ui.components.ExpressivePullToRefresh
+import com.ivor.ivormusic.ui.components.LoadPageAtEnd
+import com.ivor.ivormusic.ui.components.PageLoadFooter
 import com.ivor.ivormusic.ui.components.SkeletonList
 import com.ivor.ivormusic.ui.components.VideoCardSkeleton
 import androidx.compose.runtime.Composable
@@ -77,7 +79,7 @@ fun VideoHistoryContent(
     val historyListLayout = com.ivor.ivormusic.ui.video.LocalVideoListLayout.current
     val pageState by viewModel.historyPageState.collectAsState()
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
-    LoadVideoPageAtEnd(listState, historyVideos.size, pageState, viewModel::loadMoreYouTubeHistory)
+    LoadPageAtEnd(listState, historyVideos.size, pageState, viewModel::loadMoreYouTubeHistory)
     androidx.compose.runtime.DisposableEffect(viewModel) {
         onDispose { viewModel.stopHistoryPagination() }
     }
@@ -255,7 +257,7 @@ fun VideoHistoryContent(
             
             if (!isHistoryLoading) {
                 item(key = "history_next_page") {
-                    VideoPageFooter(pageState) {
+                    PageLoadFooter(pageState) {
                         if (pageState.hasMore) viewModel.loadMoreYouTubeHistory()
                         else viewModel.loadYouTubeHistory()
                     }

@@ -1,4 +1,4 @@
-package com.ivor.ivormusic.ui.video
+package com.ivor.ivormusic.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -24,9 +24,9 @@ import androidx.compose.ui.unit.dp
 import com.ivor.ivormusic.R
 import com.ivor.ivormusic.data.PageLoadState
 
-/** Only detail screens own this effect. A Library preview cannot advance a cursor. */
+/** Requests the next page once the visible window reaches the end of the list. */
 @Composable
-internal fun LoadVideoPageAtEnd(
+internal fun LoadPageAtEnd(
     listState: LazyListState,
     itemCount: Int,
     pageState: PageLoadState,
@@ -53,7 +53,7 @@ internal fun LoadVideoPageAtEnd(
 /** Failure retains the cursor and earlier rows; retry is an explicit action. */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-internal fun VideoPageFooter(state: PageLoadState, onLoadMore: () -> Unit) {
+internal fun PageLoadFooter(state: PageLoadState, onLoadMore: () -> Unit) {
     if (!state.isLoading && !state.hasMore && !state.failed) return
     Column(
         modifier = Modifier.fillMaxWidth().padding(16.dp),

@@ -291,6 +291,12 @@ class YouTubeRepository(private val context: Context) {
 
     suspend fun getPlaylist(playlistId: String): List<Song> = musicPlaylists.getPlaylist(playlistId)
 
+    /** One page of a playlist; the detail screen follows the cursor as it scrolls. */
+    suspend fun getPlaylistPage(
+        playlistId: String,
+        continuation: String?,
+    ): MusicPlaylistPage? = musicPlaylists.getPlaylistPage(playlistId, continuation)
+
     suspend fun getAlbumSongs(browseId: String): List<Song> = musicPlaylists.getAlbumSongs(browseId)
 
     /** One page of the account's Liked Music (cached; see [AccountLikedSongsRepository]). */

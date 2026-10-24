@@ -3507,6 +3507,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         return userPlaylists.value
     }
 
+    /** One page of a remote playlist; the detail screen appends as it scrolls. */
+    suspend fun fetchPlaylistPage(
+        playlistId: String,
+        continuation: String?
+    ): com.ivor.ivormusic.data.MusicPlaylistPage? =
+        youtubeRepository.getPlaylistPage(playlistId, continuation)
+
     suspend fun fetchPlaylistSongs(playlistId: String): List<Song> {
         val online = canReachAccount()
         val downloadedPlaylist = downloadRepository.playlistStore.playlists.value.find { it.id == playlistId }
