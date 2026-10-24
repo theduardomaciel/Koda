@@ -31,8 +31,8 @@ import org.json.JSONObject
 private const val HOME_PAGES_FOR_PICKS = 3
 
 /**
- * Home pages walked for the generated mixes. They have sat on the second and
- * third pages; the walk stops early once the "Mixed for you" shelf arrives.
+ * Home pages walked for the generated mixes and the Quick picks shelf, which
+ * can follow them. The walk stops early once both have arrived.
  */
 private const val HOME_PAGES_FOR_MIXES = 4
 
@@ -61,8 +61,12 @@ internal class MusicBrowse(
      * They used to be two independent walks: each started at page 1 and
      * followed the same section continuations, so pages 1-3 were fetched twice
      * on every Home load. This reads each page once, publishes the songs as
-     * soon as they are usable (Quick picks, or the page budget), then keeps
-     * going for the shelves that carry the mixes.
+     * soon as they are usable (Quick picks, or the card fallback once the page
+     * budget is spent), then keeps going for the shelves that carry the mixes.
+     *
+     * Quick picks can sit after the mix shelves. Because this walk reads those
+     * pages anyway, a later arrival upgrades the fallback instead of being
+     * thrown away.
      */
     private suspend fun walkHome(
         includeMixes: Boolean,
@@ -75,15 +79,24 @@ internal class MusicBrowse(
         }
 
         var songsPublished = false
-        suspend fun publishSongs(picks: List<Song>, cards: List<Song>) {
-            if (songsPublished) return
+        var picksPublished = false
+        suspend fun publishSongs(
+            picks: List<Song>,
+            cards: List<Song>,
+            allowUpgrade: Boolean,
+        ) {
+            val upgrading = allowUpgrade && picks.isNotEmpty()
+            if (songsPublished && (!upgrading || picksPublished)) return
             val items = usableHomeRecommendations(
                 listOf(picks, cards),
                 limit = HOME_RECOMMENDATION_POOL
             )
-            KLog.d(YOUTUBE_TAG, "Parsed ${items.size} songs from Home")
-            onSongs(fillHomeRecommendations(items))
+            val filled = fillHomeRecommendations(items)
+            if (songsPublished && filled.isEmpty()) return
+            KLog.d(YOUTUBE_TAG, "Parsed ${filled.size} songs from Home")
+            onSongs(filled)
             songsPublished = true
+            picksPublished = picks.isNotEmpty()
         }
 
         try {
@@ -91,7 +104,7 @@ internal class MusicBrowse(
             var json = musicApi.fetchInternalApi("FEmusic_home")
             if (json.isEmpty()) {
                 KLog.e(YOUTUBE_TAG, "Empty response from FEmusic_home")
-                publishSongs(emptyList(), emptyList())
+                publishSongs(emptyList(), emptyList(), allowUpgrade = false)
                 return@withContext emptyList()
             }
 
@@ -108,24 +121,35 @@ internal class MusicBrowse(
                 foundMixedForYou = foundMixedForYou || page.hasMixedForYouShelf
                 pages++
                 // Quick picks is no longer on Home's first page, which opens
-                // with Listen again; publish once the rows arrive or once the
-                // page budget is spent, then keep going for the mix shelves.
-                if (picks.isNotEmpty() || pages >= HOME_PAGES_FOR_PICKS) {
-                    publishSongs(picks, cards)
+                // with Listen again. Publish the card fallback once the page
+                // budget is spent, but let picks replace it when a later page
+                // of this same walk carries them.
+                if (includeMixes) {
+                    if (picks.isNotEmpty()) {
+                        publishSongs(picks, cards, allowUpgrade = true)
+                    } else if (pages >= HOME_PAGES_FOR_PICKS) {
+                        publishSongs(picks, cards, allowUpgrade = false)
+                    }
+                } else if (picks.isNotEmpty() || pages >= HOME_PAGES_FOR_PICKS) {
+                    publishSongs(picks, cards, allowUpgrade = false)
                 }
                 if (!includeMixes) break
-                if (foundMixedForYou || pages >= HOME_PAGES_FOR_MIXES) break
+                if (pages >= HOME_PAGES_FOR_MIXES) break
+                // With picks in hand the canonical shelf ends the walk. While
+                // they are missing, keep reading: the picks shelf can sit one
+                // page past it, and the rail prefers picks to the fallback.
+                if (foundMixedForYou && picks.isNotEmpty()) break
                 val token = homeSectionContinuationToken(json) ?: break
                 json = musicApi.fetchContinuation(token)
             }
-            publishSongs(picks, cards)
+            publishSongs(picks, cards, allowUpgrade = includeMixes)
             KLog.d(YOUTUBE_TAG, "Read ${mixes.size} Home mixes across $pages pages")
             mixes.distinctBy { it.id }
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (e: Exception) {
             KLog.e(YOUTUBE_TAG, "Error fetching Home", e)
-            publishSongs(emptyList(), emptyList())
+            publishSongs(emptyList(), emptyList(), allowUpgrade = false)
             emptyList()
         }
     }
