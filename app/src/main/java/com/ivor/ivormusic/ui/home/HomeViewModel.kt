@@ -1545,6 +1545,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { playlistRepository.refreshPlaylists() }
         seedCachedHome()
         seedCachedLibrary()
+        observeHomeStyle()
         observeLocalVideoHistory()
         observeSubscriptionFeedWarmup()
         checkYouTubeConnection()
@@ -3387,26 +3388,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         recommendationsLoadJob = viewModelScope.launch {
             _isLoading.value = true
             try {
-                if (sessionManager.isLoggedIn()) {
-                    // The same walk publishes the songs and returns the mixes:
-                    // Home no longer fetches its first pages twice.
-                    val mixes = youtubeRepository.getHomeFeed { songs ->
-                        if (publishHomeRecommendations(songs, rotate = false)) {
-                            recommendationsLoadedAtMs = System.currentTimeMillis()
-                        }
-                    }
-                    if (mixes.isNotEmpty()) _homeMixes.value = mixes
-                } else {
-                    // Not logged in: personalize from the local taste profile
-                    // (play history, likes, searches). Falls back to trending
-                    // internally when there's no listening data yet.
-                    val fetched = recommendationEngine.getHomeRecommendations(
-                        limit = com.ivor.ivormusic.data.HOME_RECOMMENDATION_POOL
-                    )
-                    if (publishHomeRecommendations(fetched, rotate = false)) {
-                        recommendationsLoadedAtMs = System.currentTimeMillis()
-                    }
-                }
+                loadHomeSongs(rotate = false)
             } catch (e: Exception) {
                 // The feed keeps whatever it already had - both branches above
                 // only assign a non-empty result - so a failure here is not
@@ -3417,6 +3399,60 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             } finally {
                 _isLoading.value = false
             }
+        }
+    }
+
+    /**
+     * One Home load. Spotlight has no mix rail, so it reads only the song half;
+     * switching back to Classic triggers a reload through [observeHomeStyle].
+     */
+    private suspend fun loadHomeSongs(rotate: Boolean) {
+        if (!sessionManager.isLoggedIn()) {
+            // Personalize from the local taste profile (play history, likes,
+            // searches); falls back to trending when there is no data yet.
+            val fetched = recommendationEngine.getHomeRecommendations(
+                limit = com.ivor.ivormusic.data.HOME_RECOMMENDATION_POOL
+            )
+            if (publishHomeRecommendations(fetched, rotate)) {
+                recommendationsLoadedAtMs = System.currentTimeMillis()
+            }
+            return
+        }
+        if (themePreferences.spotlightHome.value) {
+            val fetched = youtubeRepository.getRecommendations()
+            if (publishHomeRecommendations(fetched, rotate)) {
+                recommendationsLoadedAtMs = System.currentTimeMillis()
+            }
+            _homeMixes.value = emptyList()
+        } else {
+            // The same walk publishes the songs and returns the mixes: Home
+            // no longer fetches its first pages twice.
+            val mixes = youtubeRepository.getHomeFeed { songs ->
+                if (publishHomeRecommendations(songs, rotate)) {
+                    recommendationsLoadedAtMs = System.currentTimeMillis()
+                }
+            }
+            if (mixes.isNotEmpty()) _homeMixes.value = mixes
+        }
+    }
+
+    /**
+     * Classic Home is the only screen with a mix rail. A switch back to it
+     * reloads with mixes; a switch to Spotlight drops them rather than keeping
+     * a rail nothing reads.
+     */
+    private fun observeHomeStyle() {
+        viewModelScope.launch {
+            themePreferences.spotlightHome
+                .drop(1)
+                .distinctUntilChanged()
+                .collect { spotlight ->
+                    if (spotlight) {
+                        _homeMixes.value = emptyList()
+                    } else if (sessionManager.isLoggedIn()) {
+                        loadYouTubeRecommendations(force = true)
+                    }
+                }
         }
     }
 
@@ -3799,12 +3835,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                         // list, and the same three covers read as nothing having
                         // happened.
                         try {
-                            val mixes = youtubeRepository.getHomeFeed { songs ->
-                                if (publishHomeRecommendations(songs, rotate = true)) {
-                                    recommendationsLoadedAtMs = System.currentTimeMillis()
-                                }
-                            }
-                            if (mixes.isNotEmpty()) _homeMixes.value = mixes
+                            loadHomeSongs(rotate = true)
                         } catch (e: kotlinx.coroutines.CancellationException) {
                             throw e
                         } catch (e: Exception) { }
