@@ -42,6 +42,34 @@ class HomeMixesParserTest {
             .put("contents", JSONArray().apply { items.forEach { put(it) } }),
     )
 
+    private fun songRow(title: String, videoId: String) = JSONObject().put(
+        "musicResponsiveListItemRenderer",
+        JSONObject()
+            .put(
+                "flexColumns",
+                JSONArray().put(
+                    JSONObject().put(
+                        "musicResponsiveListItemFlexColumnRenderer",
+                        JSONObject().put("text", text(title)),
+                    ),
+                ),
+            )
+            .put(
+                "navigationEndpoint",
+                JSONObject().put("watchEndpoint", JSONObject().put("videoId", videoId)),
+            ),
+    )
+
+    private fun songCard(title: String, videoId: String) = JSONObject().put(
+        "musicTwoRowItemRenderer",
+        JSONObject()
+            .put("title", text(title))
+            .put(
+                "navigationEndpoint",
+                JSONObject().put("watchEndpoint", JSONObject().put("videoId", videoId)),
+            ),
+    )
+
     private fun home(vararg sections: JSONObject) = JSONObject()
         .put(
             "contents",
@@ -71,7 +99,7 @@ class HomeMixesParserTest {
 
     @Test
     fun readsTheNamedMixShelfAndThePersonalMixedForYouShelf() {
-        val page = parseHomeMixes(
+        val page = parseHomeContent(
             home(
                 section(
                     "Fresh finds, old favorites",
@@ -85,7 +113,7 @@ class HomeMixesParserTest {
                 section(
                     "Mixed for you",
                     card("My Supermix", "VLRDTMAK5uy_supermix"),
-                    card("Melancolia Suave", "VLRDTMAK5uy_melancolia"),
+                    card("Morning Focus", "VLRDTMAK5uy_melancolia"),
                 ),
                 section(
                     "Bons sonhos",
@@ -101,7 +129,7 @@ class HomeMixesParserTest {
                 "Archive Mix",
                 "New Release Mix",
                 "My Supermix",
-                "Melancolia Suave",
+                "Morning Focus",
             ),
             page.mixes.map { it.name },
         )
@@ -121,7 +149,7 @@ class HomeMixesParserTest {
 
     @Test
     fun aPageWithoutTheCanonicalShelfKeepsOnlyNamesThatSayMix() {
-        val page = parseHomeMixes(
+        val page = parseHomeContent(
             home(
                 section(
                     "Fresh finds, old favorites",
@@ -137,7 +165,7 @@ class HomeMixesParserTest {
 
     @Test
     fun radioCardsOutsideTheMixShelvesAreNotMixesForYou() {
-        val page = parseHomeMixes(
+        val page = parseHomeContent(
             home(
                 section(
                     "Indie & alternative",
@@ -155,7 +183,7 @@ class HomeMixesParserTest {
 
     @Test
     fun duplicateMixIdsAreKeptOnce() {
-        val page = parseHomeMixes(
+        val page = parseHomeContent(
             home(
                 section("Fresh finds, old favorites", card("Discover Mix", "VLRDTMAK5uy_discover")),
                 section("Mixed for you", card("Discover Mix", "VLRDTMAK5uy_discover")),
@@ -163,5 +191,21 @@ class HomeMixesParserTest {
         )
 
         assertEquals(listOf("Discover Mix"), page.mixes.map { it.name })
+    }
+
+    @Test
+    fun onePageYieldsRowsCardsAndMixesTogether() {
+        val page = parseHomeContent(
+            home(
+                section("Quick picks", songRow("Pick", "pick1")),
+                section("Listen again", songCard("Card", "card1")),
+                section("Mixed for you", card("Morning Focus", "VLRDTMAK5uy_melancolia")),
+            ),
+        )
+
+        assertEquals(listOf("Pick"), page.rows.map { it.title })
+        assertEquals(listOf("Card"), page.cards.map { it.title })
+        assertEquals(listOf("Morning Focus"), page.mixes.map { it.name })
+        assertTrue(page.hasMixedForYouShelf)
     }
 }

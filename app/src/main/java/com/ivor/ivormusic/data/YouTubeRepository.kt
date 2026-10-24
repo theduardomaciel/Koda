@@ -262,8 +262,12 @@ class YouTubeRepository(private val context: Context) {
 
     suspend fun getRecommendations(): List<Song> = musicBrowse.getRecommendations()
 
-    /** YouTube Music's generated mixes, which Home carries but the library does not. */
-    suspend fun getHomeMixes(): List<PlaylistDisplayItem> = musicBrowse.getHomeMixes()
+    /**
+     * Home's songs and generated mixes from one walk. [onSongs] is called as
+     * soon as the song half is usable, before the mix shelves are read.
+     */
+    suspend fun getHomeFeed(onSongs: (List<Song>) -> Unit): List<PlaylistDisplayItem> =
+        musicBrowse.getHomeFeed(onSongs)
 
     suspend fun getMusicShelves(browseId: String, params: String? = null): MusicShelfPage? =
         musicBrowse.getMusicShelves(browseId, params)

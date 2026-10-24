@@ -56,96 +56,93 @@ internal class MusicBrowse(
     private val likedSongsPreview: () -> List<Song>,
 ) {
     /**
-     * Get personalized recommendations (Quick Picks / Home).
-     * Uses Internal YTM API with Cookies for personalized content.
+     * One walk of FEmusic_home, for Classic Home's songs and generated mixes.
+     *
+     * They used to be two independent walks: each started at page 1 and
+     * followed the same section continuations, so pages 1-3 were fetched twice
+     * on every Home load. This reads each page once, publishes the songs as
+     * soon as they are usable (Quick picks, or the page budget), then keeps
+     * going for the shelves that carry the mixes.
      */
-    suspend fun getRecommendations(): List<Song> = withContext(Dispatchers.IO) {
+    private suspend fun walkHome(
+        includeMixes: Boolean,
+        onSongs: (List<Song>) -> Unit,
+    ): List<PlaylistDisplayItem> = withContext(Dispatchers.IO) {
         if (!sessionManager.isLoggedIn()) {
             KLog.d(YOUTUBE_TAG, "Not logged in, falling back to popular search")
-            return@withContext musicSearch.search("trending music 2026", FILTER_SONGS)
+            onSongs(musicSearch.search("trending music 2026", FILTER_SONGS))
+            return@withContext emptyList()
         }
 
-        try {
-            // Fetch personalized home page content
-            KLog.d(YOUTUBE_TAG, "Fetching personalized recommendations from FEmusic_home")
-            var json = musicApi.fetchInternalApi("FEmusic_home")
-
-            if (json.isEmpty()) {
-                KLog.e(YOUTUBE_TAG, "Empty response from FEmusic_home")
-                return@withContext fillHomeRecommendations(emptyList())
-            }
-
-            // Quick picks is no longer on Home's first page, which opens with
-            // Listen again; reading only that page made recommendations the
-            // songs already played. Follow the shelves until Quick picks
-            // arrives, usually one continuation, and lead with it.
-            val picks = mutableListOf<Song>()
-            val cards = mutableListOf<Song>()
-            var pages = 0
-            while (json.isNotEmpty()) {
-                val (rows, songCards) = parseHomeSongs(json)
-                picks += rows
-                cards += songCards
-                pages++
-                if (picks.isNotEmpty() || pages >= HOME_PAGES_FOR_PICKS) break
-                val token = homeSectionContinuationToken(json) ?: break
-                json = musicApi.fetchContinuation(token)
-            }
-
-            // More than Home shows at once, so a refresh has songs to rotate to.
+        var songsPublished = false
+        suspend fun publishSongs(picks: List<Song>, cards: List<Song>) {
+            if (songsPublished) return
             val items = usableHomeRecommendations(
                 listOf(picks, cards),
                 limit = HOME_RECOMMENDATION_POOL
             )
-            KLog.d(
-                YOUTUBE_TAG,
-                "Parsed ${items.size} songs from recommendations (${picks.size} picks, $pages pages)"
-            )
-
-            // Classic Home needs three valid entries for its three artwork
-            // shapes. A partially parsed response is still useful, but it must
-            // be filled rather than accepted as complete.
-            fillHomeRecommendations(items)
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (e: Exception) {
-            KLog.e(YOUTUBE_TAG, "Error fetching recommendations", e)
-            fillHomeRecommendations(emptyList())
+            KLog.d(YOUTUBE_TAG, "Parsed ${items.size} songs from Home")
+            onSongs(fillHomeRecommendations(items))
+            songsPublished = true
         }
-    }
 
-    /**
-     * YouTube Music's own mixes, read from Home.
-     *
-     * The account's library carries only "Discover Mix", so the rest of the
-     * rail has to come from the shelves that generate them. The walk follows
-     * Home's section continuations and stops once "Mixed for you" is on the
-     * page, which is where the personal set lives.
-     */
-    suspend fun getHomeMixes(): List<PlaylistDisplayItem> = withContext(Dispatchers.IO) {
-        if (!sessionManager.isLoggedIn()) return@withContext emptyList()
         try {
+            KLog.d(YOUTUBE_TAG, "Fetching personalized content from FEmusic_home")
             var json = musicApi.fetchInternalApi("FEmusic_home")
-            if (json.isEmpty()) return@withContext emptyList()
+            if (json.isEmpty()) {
+                KLog.e(YOUTUBE_TAG, "Empty response from FEmusic_home")
+                publishSongs(emptyList(), emptyList())
+                return@withContext emptyList()
+            }
+
+            val picks = mutableListOf<Song>()
+            val cards = mutableListOf<Song>()
             val mixes = mutableListOf<PlaylistDisplayItem>()
             var pages = 0
-            while (json.isNotEmpty() && pages < HOME_PAGES_FOR_MIXES) {
-                val page = parseHomeMixes(json)
+            var foundMixedForYou = false
+            while (json.isNotEmpty()) {
+                val page = parseHomeContent(json)
+                picks += page.rows
+                cards += page.cards
                 mixes += page.mixes
+                foundMixedForYou = foundMixedForYou || page.hasMixedForYouShelf
                 pages++
-                if (page.hasMixedForYouShelf) break
+                // Quick picks is no longer on Home's first page, which opens
+                // with Listen again; publish once the rows arrive or once the
+                // page budget is spent, then keep going for the mix shelves.
+                if (picks.isNotEmpty() || pages >= HOME_PAGES_FOR_PICKS) {
+                    publishSongs(picks, cards)
+                }
+                if (!includeMixes) break
+                if (foundMixedForYou || pages >= HOME_PAGES_FOR_MIXES) break
                 val token = homeSectionContinuationToken(json) ?: break
                 json = musicApi.fetchContinuation(token)
             }
+            publishSongs(picks, cards)
             KLog.d(YOUTUBE_TAG, "Read ${mixes.size} Home mixes across $pages pages")
             mixes.distinctBy { it.id }
-        } catch (e: CancellationException) {
-            throw e
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (e: Exception) {
-            KLog.e(YOUTUBE_TAG, "Could not fetch Home mixes", e)
+            KLog.e(YOUTUBE_TAG, "Error fetching Home", e)
+            publishSongs(emptyList(), emptyList())
             emptyList()
         }
     }
+
+    suspend fun getRecommendations(): List<Song> {
+        var songs = emptyList<Song>()
+        walkHome(includeMixes = false) { songs = it }
+        return songs
+    }
+
+    /**
+     * Classic Home's feed: songs through [onSongs] as they become usable, and
+     * the generated mixes once the walk reaches the shelf that carries the
+     * personal set.
+     */
+    suspend fun getHomeFeed(onSongs: (List<Song>) -> Unit): List<PlaylistDisplayItem> =
+        walkHome(includeMixes = true, onSongs)
 
     private suspend fun fillHomeRecommendations(primary: List<Song>): List<Song> {
         if (primary.size >= 3) return primary

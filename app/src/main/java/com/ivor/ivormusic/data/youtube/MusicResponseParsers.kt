@@ -59,29 +59,60 @@ internal fun parseSongsFromInternalJson(
 }
 
 /**
- * One FEmusic_home page's songs, split by how Home draws them: list rows
- * first, cards second. The only carousel of list rows is Quick picks,
- * YouTube Music's recommendations; song cards are mostly Listen again and
- * similar shelves of what was already played, so they only fill in after.
+ * One FEmusic_home page, read once for both halves of Classic Home.
+ *
+ * Songs are split by how Home draws them: list rows first (Quick picks), cards
+ * second (Listen again and similar). The cards only fill in after the rows.
+ *
+ * YouTube Music's own mixes live on Home rather than in the account's library:
+ * `FEmusic_liked_playlists` returns only "Discover Mix" for an account, while
+ * the rest arrive on "Fresh finds, old favorites" ("Replay Mix", "Archive
+ * Mix", "New Release Mix") and under "Mixed for you" ("My Supermix" plus a
+ * personal set whose names carry no "mix" word at all).
+ *
+ * Every generated mix is a radio playlist, so its browse id is `RD...` once
+ * the `VL` prefix is gone. That id is the machine-made signal; the title is
+ * only used to keep curated radios on other shelves ("Indie Lullaby",
+ * "Alternative All Day") out of the rail. Inside "Mixed for you" every card
+ * is taken regardless of title, because those names are generated per account
+ * and are not matchable.
  */
-internal fun parseHomeSongs(json: String): Pair<List<Song>, List<Song>> {
+internal data class HomePageContent(
+    val rows: List<Song>,
+    val cards: List<Song>,
+    val mixes: List<PlaylistDisplayItem>,
+    /** Whether this page carried the "Mixed for you" shelf, which ends the walk. */
+    val hasMixedForYouShelf: Boolean,
+)
+
+internal fun parseHomeContent(json: String): HomePageContent {
     val rows = mutableListOf<Song>()
     val cards = mutableListOf<Song>()
+    val mixes = mutableListOf<PlaylistDisplayItem>()
+    var hasMixedForYouShelf = false
     try {
-        val contents = findRootContents(JSONObject(json)) ?: return Pair(emptyList(), emptyList())
+        val contents = findRootContents(JSONObject(json))
+            ?: return HomePageContent(emptyList(), emptyList(), emptyList(), false)
         for (i in 0 until contents.length()) {
-            val shelf = contents.optJSONObject(i) ?: continue
-            for (item in parseItemsFromShelf(shelf)) {
+            val section = contents.optJSONObject(i) ?: continue
+            val shelf = shelfTitle(section).orEmpty()
+            val mixedForYou = shelf.contains("mixed for you", ignoreCase = true)
+            if (mixedForYou) hasMixedForYouShelf = true
+            for (item in parseItemsFromShelf(section)) {
                 item.optJSONObject("musicResponsiveListItemRenderer")
                     ?.let(::parseResponsiveListItem)?.let(rows::add)
-                item.optJSONObject("musicTwoRowItemRenderer")
-                    ?.let(::parseTwoRowItem)?.let(cards::add)
+                val card = item.optJSONObject("musicTwoRowItemRenderer") ?: continue
+                parseTwoRowItem(card)?.let(cards::add)
+                val playlist = twoRowPlaylist(card) ?: continue
+                if (!playlist.id.startsWith("RD")) continue
+                if (!mixedForYou && !isHomeMixName(playlist.name)) continue
+                mixes += playlist
             }
         }
     } catch (e: Exception) {
-        KLog.e(YOUTUBE_TAG, "Could not parse music Home songs", e)
+        KLog.e(YOUTUBE_TAG, "Could not parse a music Home page", e)
     }
-    return Pair(rows, cards)
+    return HomePageContent(rows, cards, mixes.distinctBy { it.id }, hasMixedForYouShelf)
 }
 
 /**
@@ -155,53 +186,6 @@ internal fun parsePlaylistsFromInternalJson(json: String): List<PlaylistDisplayI
         KLog.e(YOUTUBE_TAG, "Could not parse music playlist shelf", e)
     }
     return playlists 
-}
-
-/**
- * YouTube Music's own mixes, which live on Home rather than in the account's
- * library.
- *
- * `FEmusic_liked_playlists` returns only "Discover Mix" for an account; the
- * rest arrive on Home's "Fresh finds, old favorites" shelf ("Replay Mix",
- * "Archive Mix", "New Release Mix") and under "Mixed for you" ("My Supermix"
- * plus a personal set whose names carry no "mix" word at all).
- *
- * Every generated mix is a radio playlist, so its browse id is `RD...` once
- * the `VL` prefix is gone. That id is the machine-made signal; the title is
- * only used to keep curated radios on other shelves ("Indie Lullaby",
- * "Alternative All Day") out of the rail. Inside "Mixed for you" every card
- * is taken regardless of title, because those names are generated per account
- * and are not matchable.
- */
-internal data class HomeMixPage(
-    val mixes: List<PlaylistDisplayItem>,
-    /** Whether this page carried the "Mixed for you" shelf, which ends the walk. */
-    val hasMixedForYouShelf: Boolean,
-)
-
-internal fun parseHomeMixes(json: String): HomeMixPage {
-    val mixes = mutableListOf<PlaylistDisplayItem>()
-    var hasMixedForYouShelf = false
-    try {
-        val root = JSONObject(json)
-        val contents = findRootContents(root) ?: return HomeMixPage(emptyList(), false)
-        for (i in 0 until contents.length()) {
-            val section = contents.optJSONObject(i) ?: continue
-            val title = shelfTitle(section).orEmpty()
-            val mixedForYou = title.contains("mixed for you", ignoreCase = true)
-            if (mixedForYou) hasMixedForYouShelf = true
-            parseItemsFromShelf(section).forEach { item ->
-                val card = item.optJSONObject("musicTwoRowItemRenderer") ?: return@forEach
-                val playlist = twoRowPlaylist(card) ?: return@forEach
-                if (!playlist.id.startsWith("RD")) return@forEach
-                if (!mixedForYou && !isHomeMixName(playlist.name)) return@forEach
-                mixes += playlist
-            }
-        }
-    } catch (e: Exception) {
-        KLog.e(YOUTUBE_TAG, "Could not parse music Home mixes", e)
-    }
-    return HomeMixPage(mixes.distinctBy { it.id }, hasMixedForYouShelf)
 }
 
 /** Generated mix names that say so: "Replay Mix", "My Mix 3", "My Supermix". */

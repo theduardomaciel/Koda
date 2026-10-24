@@ -1542,6 +1542,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private var accountLoadJob: Job? = null
     private var accountLoadedAtMs = 0L
     private var recommendationsLoadJob: Job? = null
+    // Written from the Home walk (IO) and read by the load guard on Main.
+    @Volatile
     private var recommendationsLoadedAtMs = 0L
     private var videoFeedLoadedAtMs = 0L
     private var shortsFeedLoadedAtMs = 0L
@@ -3315,8 +3317,12 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
      * this session; an ordinary load keeps YouTube's order. Either way the
      * songs that end up leading are remembered for the next refresh.
      *
+     * Called from the Home walk's IO callback and from a refresh, so access to
+     * the shared lead history is synchronized.
+     *
      * @return false when the fetch had nothing usable and Home was left alone.
      */
+    @Synchronized
     private fun publishHomeRecommendations(fetched: List<Song>, rotate: Boolean): Boolean {
         val pool = usableHomeRecommendations(
             listOf(fetched),
@@ -3338,26 +3344,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         return true
     }
 
-    /**
-     * Read the generated mixes from Home. A failed or empty walk leaves the
-     * rail as it was: Home's shelf order can put "Mixed for you" beyond the
-     * pages read, and that is not proof the account has no mixes.
-     */
-    private suspend fun refreshHomeMixes() {
-        if (!sessionManager.isLoggedIn()) {
-            _homeMixes.value = emptyList()
-            return
-        }
-        try {
-            val fetched = youtubeRepository.getHomeMixes()
-            if (fetched.isNotEmpty()) _homeMixes.value = fetched
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            KLog.w("HomeViewModel", "Home mixes failed to load: ${e.message}")
-        }
-    }
-
     fun loadYouTubeRecommendations(force: Boolean = false) {
         if (!force &&
             (recommendationsLoadJob?.isActive == true || loadedRecently(recommendationsLoadedAtMs))
@@ -3365,21 +3351,26 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         recommendationsLoadJob = viewModelScope.launch {
             _isLoading.value = true
             try {
-                // Not logged in: personalize from the local taste profile
-                // (play history, likes, searches). Falls back to trending
-                // internally when there's no listening data yet.
-                val fetched = if (sessionManager.isLoggedIn()) {
-                    youtubeRepository.getRecommendations()
+                if (sessionManager.isLoggedIn()) {
+                    // The same walk publishes the songs and returns the mixes:
+                    // Home no longer fetches its first pages twice.
+                    val mixes = youtubeRepository.getHomeFeed { songs ->
+                        if (publishHomeRecommendations(songs, rotate = false)) {
+                            recommendationsLoadedAtMs = System.currentTimeMillis()
+                        }
+                    }
+                    if (mixes.isNotEmpty()) _homeMixes.value = mixes
                 } else {
-                    recommendationEngine.getHomeRecommendations(
+                    // Not logged in: personalize from the local taste profile
+                    // (play history, likes, searches). Falls back to trending
+                    // internally when there's no listening data yet.
+                    val fetched = recommendationEngine.getHomeRecommendations(
                         limit = com.ivor.ivormusic.data.HOME_RECOMMENDATION_POOL
                     )
+                    if (publishHomeRecommendations(fetched, rotate = false)) {
+                        recommendationsLoadedAtMs = System.currentTimeMillis()
+                    }
                 }
-                if (publishHomeRecommendations(fetched, rotate = false)) {
-                    recommendationsLoadedAtMs = System.currentTimeMillis()
-                }
-                // After the songs, so the mix walk cannot delay the feed.
-                if (sessionManager.isLoggedIn()) refreshHomeMixes()
             } catch (e: Exception) {
                 // The feed keeps whatever it already had - both branches above
                 // only assign a non-empty result - so a failure here is not
@@ -3772,18 +3763,15 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                         // list, and the same three covers read as nothing having
                         // happened.
                         try {
-                            if (publishHomeRecommendations(
-                                    youtubeRepository.getRecommendations(),
-                                    rotate = true
-                                )
-                            ) {
-                                recommendationsLoadedAtMs = System.currentTimeMillis()
+                            val mixes = youtubeRepository.getHomeFeed { songs ->
+                                if (publishHomeRecommendations(songs, rotate = true)) {
+                                    recommendationsLoadedAtMs = System.currentTimeMillis()
+                                }
                             }
+                            if (mixes.isNotEmpty()) _homeMixes.value = mixes
                         } catch (e: kotlinx.coroutines.CancellationException) {
                             throw e
                         } catch (e: Exception) { }
-
-                        refreshHomeMixes()
 
                         // Update library data. A failed list keeps its cache.
                         refreshAccountLibrary()

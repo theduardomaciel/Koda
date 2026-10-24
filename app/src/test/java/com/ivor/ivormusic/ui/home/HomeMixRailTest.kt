@@ -23,20 +23,20 @@ class HomeMixRailTest {
         val home = listOf(
             item("Discover Mix", "RDTMAK5uy_discover"),
             item("Replay Mix", "RDTMAK5uy_replay"),
-            item("Melancolia Suave", "RDTMAK5uy_melancolia"),
+            item("Morning Focus", "RDTMAK5uy_melancolia"),
         )
 
         assertEquals(
-            listOf("Discover Mix", "Replay Mix", "Melancolia Suave"),
+            listOf("Discover Mix", "Replay Mix", "Morning Focus"),
             homeMixRail(library, home).map { it.name },
         )
     }
 
     @Test
     fun personalizedHomeMixNamesNeedNoMixWord() {
-        val rail = homeMixRail(emptyList(), listOf(item("Reflexões e Batidas", "RDTMAK5uy_reflexoes")))
+        val rail = homeMixRail(emptyList(), listOf(item("Deep Focus", "RDTMAK5uy_reflexoes")))
 
-        assertEquals(listOf("Reflexões e Batidas"), rail.map { it.name })
+        assertEquals(listOf("Deep Focus"), rail.map { it.name })
     }
 
     @Test
