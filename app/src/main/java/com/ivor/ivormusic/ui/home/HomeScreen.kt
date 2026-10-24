@@ -3635,26 +3635,23 @@ fun PlaylistsShelfSection(
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(32.dp)
                         )
-                        if (playlist.thumbnailUrl != null) {
-                            // Layered over the icon, so a cover that fails to
-                            // load leaves the playlist glyph rather than a hole;
-                            // the drawn-size cover then over the original, so a
-                            // resize miss costs sharpness, not the picture.
+                        val artwork = remember(playlist.thumbnailUrl) {
+                            playlist.thumbnailUrl?.let { url ->
+                                com.ivor.ivormusic.data.googleImageAtSize(url, 512) ?: url
+                            }
+                        }
+                        if (artwork != null) {
+                            // One request: the feed's thumbnail is around 120px
+                            // and only stands in when a sized URL cannot be
+                            // built. The glyph stays behind it, so a cover that
+                            // fails to load leaves the playlist icon rather than
+                            // a hole.
                             AsyncImage(
-                                model = playlist.thumbnailUrl,
+                                model = artwork,
                                 contentDescription = playlist.name,
                                 modifier = Modifier.fillMaxSize(),
                                 contentScale = ContentScale.Crop
                             )
-                            val sized = com.ivor.ivormusic.data.googleImageAtSize(playlist.thumbnailUrl, 512)
-                            if (sized != null && sized != playlist.thumbnailUrl) {
-                                AsyncImage(
-                                    model = sized,
-                                    contentDescription = null,
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Crop
-                                )
-                            }
                         }
                     }
 
