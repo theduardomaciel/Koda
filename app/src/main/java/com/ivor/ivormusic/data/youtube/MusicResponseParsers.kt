@@ -506,6 +506,26 @@ internal fun parseLikedMusicTotalCount(root: JSONObject, emptyList: Boolean): In
     return if (emptyList) 0 else null
 }
 
+/**
+ * The total track count a playlist or album page prints under its title:
+ * "23 tracks", "1,454 tracks", "7 songs". Null when the header does not name
+ * one. Runs on the page's own header, so it costs no extra request.
+ */
+internal fun parsePageTotalCount(root: JSONObject): Int? {
+    val headers = mutableListOf<JSONObject>()
+    findObjectsByKey(root, "musicResponsiveHeaderRenderer", headers)
+    val countRegex = Regex("""(\d[\d.,]*)\s+(songs?|tracks?)\b""", RegexOption.IGNORE_CASE)
+    for (header in headers) {
+        for (key in listOf("secondSubtitle", "subtitle", "title")) {
+            val text = getRunText(header.optJSONObject(key)) ?: continue
+            val match = countRegex.find(text) ?: continue
+            val digits = match.groupValues[1].replace(Regex("[.,]"), "")
+            digits.toIntOrNull()?.let { return it }
+        }
+    }
+    return null
+}
+
 // ---------------------------------------------------------------------------
 // The account's own library pages: saved albums and followed artists.
 //

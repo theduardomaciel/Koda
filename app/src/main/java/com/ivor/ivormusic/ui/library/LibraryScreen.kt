@@ -4271,23 +4271,32 @@ fun PlaylistDetailScreen(
     }
     val songPagination = remember(resolvedPlaylist.id) { DemandPagination<String>() }
     val pageState by songPagination.state.collectAsState()
+    // The first page's header names the real track total for a finite
+    // playlist, even when the list item that opened it did not.
+    var remoteTotalCount by remember(resolvedPlaylist.id) { mutableStateOf<Int?>(null) }
     // A mix repeats songs to top itself up; those repeats are filler, so its
     // pages are deduplicated and capped like the whole-list walk was.
     val loadedSongIds = remember(resolvedPlaylist.id) { mutableSetOf<String>() }
     // The playlist's own count is known before its rows are. Showing "100
     // tracks" on a 490-track playlist reads as data loss; only the duration
-    // waits for the last page.
+    // waits for the last page. The page header's count is fresher than the
+    // list item's, so it wins when present.
+    val knownTrackTotal = if (isMixPlaylist) {
+        null
+    } else {
+        remoteTotalCount ?: resolvedPlaylist.itemCount.takeIf { it > 0 }
+    }
     val headerTrackCount = if (canPaginate && pageState.hasMore &&
-        resolvedPlaylist.itemCount > songs.size
+        knownTrackTotal != null && knownTrackTotal > songs.size
     ) {
-        resolvedPlaylist.itemCount
+        knownTrackTotal
     } else {
         songs.size
     }
-    // No total is published for a playlist we have only partly read. Say
-    // "100+" rather than presenting the loaded prefix as the whole list.
+    // No total is published for a list we have only partly read. Say "100+"
+    // rather than presenting the loaded prefix as the whole list.
     val headerTrackCountApproximate = canPaginate && pageState.hasMore &&
-        resolvedPlaylist.itemCount <= songs.size
+        (knownTrackTotal == null || knownTrackTotal <= songs.size)
     val headerTracksLabel = if (headerTrackCountApproximate && songs.isNotEmpty()) {
         pluralStringResource(R.plurals.n_tracks_plus, songs.size, songs.size)
     } else {
@@ -4300,6 +4309,7 @@ fun PlaylistDetailScreen(
         isFetching.value = true
         remoteRowIdsLoaded = false
         loadedSongIds.clear()
+        remoteTotalCount = null
         if (!canPaginate) {
             songRows = playlistSongRows(
                 viewModel.fetchPlaylistSongs(resolvedPlaylist.id),
@@ -4312,6 +4322,7 @@ fun PlaylistDetailScreen(
                 songPagination.fail(request)
             } else {
                 page.songs.forEach { loadedSongIds.add(it.id) }
+                remoteTotalCount = page.totalCount
                 songRows = playlistSongRows(page.songs, trackKeyPrefix)
                 songPagination.complete(request, page.continuation)
             }
@@ -4340,6 +4351,7 @@ fun PlaylistDetailScreen(
 
     /** Replace the rows with the whole list, after a failed remote edit. */
     suspend fun reloadAllRows() {
+        remoteTotalCount = null
         songRows = playlistSongRows(
             viewModel.fetchPlaylistSongs(resolvedPlaylist.id),
             trackKeyPrefix
@@ -5436,7 +5448,7 @@ fun PlaylistDetailScreen(
                                 loadAllSongs = if (canPaginate && pageState.hasMore) {
                                     { viewModel.fetchPlaylistSongs(resolvedPlaylist.id) }
                                 } else null,
-                                declaredSongCount = if (canPaginate) resolvedPlaylist.itemCount else -1,
+                                declaredSongCount = if (canPaginate) knownTrackTotal ?: -1 else -1,
                                 modifier = Modifier.heightIn(min = 48.dp)
                             )
                         }

@@ -10,4 +10,10 @@ package com.ivor.ivormusic.data
 data class MusicPlaylistPage(
     val songs: List<Song>,
     val continuation: String?,
+    /**
+     * The track count the page header prints ("23 tracks", "100 songs"), on
+     * the first page only. Null when the header does not name one, or for a
+     * generated mix whose length is open-ended.
+     */
+    val totalCount: Int? = null,
 )

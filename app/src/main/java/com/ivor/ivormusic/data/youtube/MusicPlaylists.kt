@@ -90,6 +90,15 @@ internal class MusicPlaylists(
             MusicPlaylistPage(
                 songs = parseSongsFromInternalJson(json, preserveDuplicates = true),
                 continuation = extractPlaylistContinuationToken(json),
+                // A generated mix has no fixed total (its chain need not end),
+                // so only a finite playlist takes the header count.
+                totalCount = if (continuation == null &&
+                    !playlistId.removePrefix("VL").startsWith("RD")
+                ) {
+                    parsePageTotalCount(JSONObject(json))
+                } else {
+                    null
+                },
             )
         } catch (e: CancellationException) {
             throw e
