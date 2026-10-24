@@ -888,13 +888,19 @@ fun HomeScreen(
         animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
         label = "miniBubbleFraction"
     )
-    val bottomOverlayInset by androidx.compose.animation.core.animateDpAsState(
-        targetValue = when {
-            musicPillVisible && hasVideoMiniPlayer -> navigationOverlayInset + 196.dp
-            hasVideoMiniPlayer -> navigationOverlayInset + 108.dp
-            musicPillVisible -> navigationOverlayInset + 100.dp
-            else -> navigationOverlayInset
-        },
+    // Two values on purpose. The target is what content padding and the
+    // composition-local clearance use: it changes once per player entry/exit,
+    // never on the spring. The animated State is read only by placement and
+    // draw lambdas (the mini bars, the update badge, the offline panel), so a
+    // dismissal never recomposes Home or any tab on its way down.
+    val bottomOverlayTarget = when {
+        musicPillVisible && hasVideoMiniPlayer -> navigationOverlayInset + 196.dp
+        hasVideoMiniPlayer -> navigationOverlayInset + 108.dp
+        musicPillVisible -> navigationOverlayInset + 100.dp
+        else -> navigationOverlayInset
+    }
+    val bottomOverlayInsetState = androidx.compose.animation.core.animateDpAsState(
+        targetValue = bottomOverlayTarget,
         animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
         label = "bottomOverlayInset"
     )
@@ -908,15 +914,14 @@ fun HomeScreen(
     )
     val overlayNavInset by rememberUpdatedState(navigationOverlayInset)
     val overlayHasMusicPill by rememberUpdatedState(musicPillVisible)
-    val overlayRestingInset = rememberUpdatedState(bottomOverlayInset)
     // Read in the offline panel's placement, not in composition: a lambda
     // keeps the animated Dp out of the Library screen's recomposition scope.
-    val bottomOverlayInsetProvider = remember { { overlayRestingInset.value } }
+    val bottomOverlayInsetProvider = remember { { bottomOverlayInsetState.value } }
     val bottomOverlayMotion = remember(floatingToolbarState, bubbleDensity) {
         com.ivor.ivormusic.ui.components.BottomOverlayMotion(
             bottomPx = {
                 with(bubbleDensity) {
-                    val resting = overlayRestingInset.value
+                    val resting = bottomOverlayInsetState.value
                     if (!overlaysMove) {
                         resting.toPx()
                     } else {
@@ -945,7 +950,9 @@ fun HomeScreen(
     // same animated clearance as the other bottom UI, then comes down with the
     // bars as they slide away.
     val updateBadgeDensity = LocalDensity.current
-    val updateBadgeRestPx = with(updateBadgeDensity) { bottomOverlayInset.toPx() }
+    val updateBadgeRestPx: () -> Float = remember(updateBadgeDensity) {
+        { with(updateBadgeDensity) { bottomOverlayInsetState.value.toPx() } }
+    }
     val updateBadgeGapPx = with(updateBadgeDensity) { 8.dp.toPx() }
     // The one inset every tab list scrolls inside, top and bottom. It belongs
     // in each list's contentPadding and never on a parent modifier: padding a
@@ -954,12 +961,14 @@ fun HomeScreen(
     // as a system title bar. The bottom already worked this way.
     val listContentPadding = PaddingValues(
         top = statusBarInset + if (videoShellTopBar) VIDEO_SHELL_TOP_BAR_HEIGHT else 0.dp,
-        bottom = bottomOverlayInset + navBarInset + 16.dp
+        bottom = bottomOverlayTarget + navBarInset + 16.dp
     )
 
     // Use Box overlay instead of Scaffold for truly floating navbar
     androidx.compose.runtime.CompositionLocalProvider(
-        com.ivor.ivormusic.ui.components.LocalBottomOverlayInset provides bottomOverlayInset,
+        // The resting target: a snackbar or FAB reading this in composition
+        // must not recompose on every frame of the stack spring.
+        com.ivor.ivormusic.ui.components.LocalBottomOverlayInset provides bottomOverlayTarget,
         com.ivor.ivormusic.ui.components.LocalBottomOverlayMotion provides bottomOverlayMotion,
         com.ivor.ivormusic.ui.profile.LocalOpenAccountSwitcher provides { showAccountSheet = true },
         com.ivor.ivormusic.ui.components.LocalNowPlaying provides
@@ -2033,7 +2042,7 @@ fun HomeScreen(
                 // pill used to hold the resting clearance, so it stayed high
                 // over the gap they left whenever a list was scrolled.
                 .offset {
-                    val travelled = updateBadgeRestPx -
+                    val travelled = updateBadgeRestPx() -
                         miniPlayerFollowDistancePx *
                         floatingToolbarState.hiddenFraction()
                     IntOffset(0, -(travelled + updateBadgeGapPx).roundToInt())
