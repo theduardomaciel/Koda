@@ -47,8 +47,13 @@ internal class MusicLibrary(
      * A continuation failure after a good first page returns the partial list:
      * the first page is what the screen needs, and a truncated list is closer
      * to the truth than no list at all.
+     *
+     * [onPage] receives the deduplicated list after each page, so a large
+     * library can be drawn while the rest is still arriving. It runs on IO.
      */
-    suspend fun getSavedAlbumsOrNull(): List<PlaylistDisplayItem>? = withContext(Dispatchers.IO) {
+    suspend fun getSavedAlbumsOrNull(
+        onPage: (List<PlaylistDisplayItem>) -> Unit = {},
+    ): List<PlaylistDisplayItem>? = withContext(Dispatchers.IO) {
         if (!sessionManager.isLoggedIn()) return@withContext emptyList()
         try {
             val albums = mutableListOf<PlaylistDisplayItem>()
@@ -58,6 +63,7 @@ internal class MusicLibrary(
             var pages = 0
             while (json.isNotBlank() && pages < MAX_PAGES) {
                 albums += parseSavedAlbums(json)
+                onPage(albums.distinctBy { it.id })
                 pages++
                 val token = extractGridContinuationToken(json) ?: break
                 if (!seenTokens.add(token)) {
@@ -87,7 +93,9 @@ internal class MusicLibrary(
         getFollowedArtistsOrNull() ?: emptyList()
 
     /** As [getFollowedArtists], with `null` meaning the first page failed. */
-    suspend fun getFollowedArtistsOrNull(): List<ArtistItem>? = withContext(Dispatchers.IO) {
+    suspend fun getFollowedArtistsOrNull(
+        onPage: (List<ArtistItem>) -> Unit = {},
+    ): List<ArtistItem>? = withContext(Dispatchers.IO) {
         if (!sessionManager.isLoggedIn()) return@withContext emptyList()
         try {
             val artists = mutableListOf<ArtistItem>()
@@ -97,6 +105,7 @@ internal class MusicLibrary(
             var pages = 0
             while (json.isNotBlank() && pages < MAX_PAGES) {
                 artists += parseFollowedArtists(json)
+                onPage(artists.distinctBy { it.id })
                 pages++
                 val token = extractShelfContinuationToken(json) ?: break
                 if (!seenTokens.add(token)) {

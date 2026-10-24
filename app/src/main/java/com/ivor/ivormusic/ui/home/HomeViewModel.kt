@@ -1769,7 +1769,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _isSubscriptionsLoading.value = true
             try {
-                _accountChannels.value = youtubeRepository.getSubscribedChannels()
+                _accountChannels.value = youtubeRepository.getSubscribedChannels { page ->
+                    _accountChannels.value = page
+                }
             } finally {
                 _isSubscriptionsLoading.value = false
             }
@@ -2327,7 +2329,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             } else {
                 _isSubscriptionsLoading.value = true
                 try {
-                    _accountChannels.value = youtubeRepository.getSubscribedChannels()
+                    _accountChannels.value = youtubeRepository.getSubscribedChannels { page ->
+                        _accountChannels.value = page
+                    }
                 } finally {
                     _isSubscriptionsLoading.value = false
                 }
@@ -3221,7 +3225,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         try {
             var loaded = false
             try {
-                youtubeRepository.getUserPlaylistsOrNull()?.let {
+                youtubeRepository.getUserPlaylistsOrNull { page ->
+                    _youtubePlaylists.value = page
+                }?.let {
                     _youtubePlaylists.value = it
                     loaded = true
                 }
@@ -3229,7 +3235,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 throw e
             } catch (e: Exception) { }
             try {
-                youtubeRepository.getSavedAlbumsOrNull()?.let {
+                youtubeRepository.getSavedAlbumsOrNull { page ->
+                    _savedAlbums.value = page
+                }?.let {
                     _savedAlbums.value = it
                     loaded = true
                 }
@@ -3237,7 +3245,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 throw e
             } catch (e: Exception) { }
             try {
-                val artists = youtubeRepository.getFollowedArtistsOrNull()
+                val artists = youtubeRepository.getFollowedArtistsOrNull { page ->
+                    _followedArtists.value = page
+                }
                 if (artists != null) {
                     _followedArtists.value = artists
                     _isFollowedArtistsUnavailable.value = false

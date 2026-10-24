@@ -341,7 +341,9 @@ internal class ChannelPages(
      * All channels the user is subscribed to, from the FEchannels browse
      * feed (channelRenderer items), following continuations. Requires login.
      */
-    suspend fun getSubscribedChannels(): List<SubscribedChannel> = withContext(Dispatchers.IO) {
+    suspend fun getSubscribedChannels(
+        onPage: (List<SubscribedChannel>) -> Unit = {},
+    ): List<SubscribedChannel> = withContext(Dispatchers.IO) {
         if (!sessionManager.isLoggedIn()) return@withContext emptyList()
         try {
             val channels = mutableListOf<SubscribedChannel>()
@@ -380,6 +382,7 @@ internal class ChannelPages(
                         SubscribedChannel(channelId, name, avatarUrl, subscriberCount, handle, bell)
                     )
                 }
+                onPage(channels.distinctBy { it.channelId })
                 val token = if (renderers.isNotEmpty()) extractContinuationToken(response) else null
                 response = token?.let {
                     webApi.postWatchApi(

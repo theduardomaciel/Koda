@@ -217,7 +217,9 @@ internal class MusicPlaylists(
      * is the signal: `fetchInternalApi` answers `""` when the request never
      * arrived, while a parsed page is the account's real answer.
      */
-    suspend fun getUserPlaylistsOrNull(): List<PlaylistDisplayItem>? = withContext(Dispatchers.IO) {
+    suspend fun getUserPlaylistsOrNull(
+        onPage: (List<PlaylistDisplayItem>) -> Unit = {},
+    ): List<PlaylistDisplayItem>? = withContext(Dispatchers.IO) {
         if (!sessionManager.isLoggedIn()) return@withContext emptyList()
         
         try {
@@ -236,6 +238,7 @@ internal class MusicPlaylists(
             while (json.isNotEmpty() && pageCount < maxPages) {
                 val parsed = parsePlaylistsFromInternalJson(json)
                 playlists.addAll(parsed)
+                onPage(playlists.distinctBy { it.id })
                 pageCount++
                 KLog.d(YOUTUBE_TAG, "Library playlists page $pageCount: ${parsed.size} items")
                 if (parsed.isEmpty()) break

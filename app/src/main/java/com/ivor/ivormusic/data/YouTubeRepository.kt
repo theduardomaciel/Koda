@@ -309,20 +309,26 @@ class YouTubeRepository(private val context: Context) {
 
     suspend fun getUserPlaylists(): List<PlaylistDisplayItem> = musicPlaylists.getUserPlaylists()
 
-    suspend fun getUserPlaylistsOrNull(): List<PlaylistDisplayItem>? =
-        musicPlaylists.getUserPlaylistsOrNull()
+    suspend fun getUserPlaylistsOrNull(
+        onPage: (List<PlaylistDisplayItem>) -> Unit = {},
+    ): List<PlaylistDisplayItem>? =
+        musicPlaylists.getUserPlaylistsOrNull(onPage)
 
     // --- The account's music library (MusicLibrary) ---
 
     suspend fun getSavedAlbums(): List<PlaylistDisplayItem> = musicLibrary.getSavedAlbums()
 
-    suspend fun getSavedAlbumsOrNull(): List<PlaylistDisplayItem>? =
-        musicLibrary.getSavedAlbumsOrNull()
+    suspend fun getSavedAlbumsOrNull(
+        onPage: (List<PlaylistDisplayItem>) -> Unit = {},
+    ): List<PlaylistDisplayItem>? =
+        musicLibrary.getSavedAlbumsOrNull(onPage)
 
     suspend fun getFollowedArtists(): List<ArtistItem> = musicLibrary.getFollowedArtists()
 
-    suspend fun getFollowedArtistsOrNull(): List<ArtistItem>? =
-        musicLibrary.getFollowedArtistsOrNull()
+    suspend fun getFollowedArtistsOrNull(
+        onPage: (List<ArtistItem>) -> Unit = {},
+    ): List<ArtistItem>? =
+        musicLibrary.getFollowedArtistsOrNull(onPage)
 
     suspend fun getAlbumAudioPlaylistId(browseId: String): String? =
         musicLibrary.getAlbumAudioPlaylistId(browseId)
@@ -538,7 +544,9 @@ class YouTubeRepository(private val context: Context) {
 
     suspend fun getChannelMixPool(channel: SubscribedChannel): ChannelMixPool = channelPages.getChannelMixPool(channel)
 
-    suspend fun getSubscribedChannels(): List<SubscribedChannel> = channelPages.getSubscribedChannels()
+    suspend fun getSubscribedChannels(
+        onPage: (List<SubscribedChannel>) -> Unit = {},
+    ): List<SubscribedChannel> = channelPages.getSubscribedChannels(onPage)
 
     suspend fun resolveChannelId(urlOrHandle: String): String? = channelPages.resolveChannelId(urlOrHandle)
 
