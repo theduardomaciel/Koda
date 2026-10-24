@@ -2143,21 +2143,28 @@ internal fun ExpressiveVideoModeToggleItem(
 }
 
 /** Human-readable label for a stored default video quality value. */
+@Composable
 internal fun videoQualityLabel(value: String): String =
-    if (value == ThemePreferences.VIDEO_QUALITY_AUTO) "Auto (Highest)" else value
+    if (value == ThemePreferences.VIDEO_QUALITY_AUTO) {
+        stringResource(R.string.sp_video_quality_auto_highest)
+    } else {
+        value
+    }
 
 /** Human-readable label for a stored music quality value. */
+@Composable
 internal fun musicQualityLabel(value: String): String = when (value) {
-    ThemePreferences.MUSIC_QUALITY_LOW -> "Data Saver"
-    ThemePreferences.MUSIC_QUALITY_NORMAL -> "Normal"
-    else -> "High"
+    ThemePreferences.MUSIC_QUALITY_LOW -> stringResource(R.string.sp_music_quality_data_saver)
+    ThemePreferences.MUSIC_QUALITY_NORMAL -> stringResource(R.string.sp_music_quality_normal)
+    else -> stringResource(R.string.sp_music_quality_high)
 }
 
 /** Longer picker-row label carrying the approximate bitrate. */
+@Composable
 private fun musicQualityOptionLabel(value: String): String = when (value) {
-    ThemePreferences.MUSIC_QUALITY_LOW -> "Data Saver (~48 kbps)"
-    ThemePreferences.MUSIC_QUALITY_NORMAL -> "Normal (~128 kbps)"
-    else -> "High (best available)"
+    ThemePreferences.MUSIC_QUALITY_LOW -> stringResource(R.string.sp_music_quality_data_saver_bitrate)
+    ThemePreferences.MUSIC_QUALITY_NORMAL -> stringResource(R.string.sp_music_quality_normal_bitrate)
+    else -> stringResource(R.string.sp_music_quality_high_bitrate)
 }
 
 /** Short label for the stored "which subscriptions to show" value. */

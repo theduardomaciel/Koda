@@ -601,7 +601,14 @@
     <string name="qd_no_mobile_data">Don\'t use mobile data</string>
     <string name="sp_quality_network_hint">Koda picks these based on the connection in use</string>
     <string name="sp_music_quality">Music quality</string>
+    <string name="sp_music_quality_data_saver">Data Saver</string>
+    <string name="sp_music_quality_normal">Normal</string>
+    <string name="sp_music_quality_high">High</string>
+    <string name="sp_music_quality_data_saver_bitrate">Data Saver (~48 kbps)</string>
+    <string name="sp_music_quality_normal_bitrate">Normal (~128 kbps)</string>
+    <string name="sp_music_quality_high_bitrate">High (best available)</string>
     <string name="sp_video_quality">Video quality</string>
+    <string name="sp_video_quality_auto_highest">Auto (Highest)</string>
     <string name="sp_prefer_hdr">Prefer HDR video</string>
     <string name="sp_prefer_hdr_sub">Use HDR only when the display and decoder support it</string>
     <string name="vpc_smooth_motion">Smooth motion</string>
@@ -858,6 +865,9 @@
     <string name="ob_crossfade_sub">Blend songs into each other during playback</string>
     <string name="sp_crossfade_automix">AutoMix</string>
     <string name="sp_crossfade_manual">Manual</string>
+    <string name="sp_crossfade_sub_off">Songs change without an overlap</string>
+    <string name="sp_crossfade_sub_automix">AutoMix adapts to each song, up to 15s</string>
+    <string name="sp_crossfade_sub_manual">Always overlap by %1$ds</string>
     <string name="sp_haptics">Haptics</string>
     <string name="haptic_level_off">Off</string>
     <string name="haptic_level_subtle">Subtle</string>

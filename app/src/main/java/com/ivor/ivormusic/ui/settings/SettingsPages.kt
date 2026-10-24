@@ -1092,9 +1092,12 @@ internal fun PlaybackSettingsPage(
                         icon = Icons.Rounded.GraphicEq,
                         title = stringResource(R.string.sp_song_transitions),
                         subtitle = when {
-                            !crossfadeEnabled -> "Songs change without an overlap"
-                            crossfadeAuto -> "AutoMix adapts to each song, up to 15s"
-                            else -> "Always overlap by ${crossfadeDurationMs / 1000}s"
+                            !crossfadeEnabled -> stringResource(R.string.sp_crossfade_sub_off)
+                            crossfadeAuto -> stringResource(R.string.sp_crossfade_sub_automix)
+                            else -> stringResource(
+                                R.string.sp_crossfade_sub_manual,
+                                crossfadeDurationMs / 1000
+                            )
                         },
                         onClick = {
                             if (crossfadeEnabled) {

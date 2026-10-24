@@ -117,6 +117,7 @@
 <string name="your_mix_line2">Mix</string>
 <string name="home_mix_up_next">A seguir no seu Mix</string>
 <string name="update_badge_version">v%1$s</string>
+<string name="update_badge_dismiss">Dispensar atualização</string>
 <string name="artists_joined">%1$s, %2$s</string>
 <string name="cd_profile">Perfil</string>
 <string name="cd_downloads">Downloads</string>
@@ -187,12 +188,15 @@
 <string name="song_options_download">Baixar</string>
 <string name="song_options_download_subtitle">Manter neste dispositivo</string>
 <string name="song_options_downloaded">Baixada</string>
+<string name="song_options_download_offline">Conecte-se para baixar</string>
 <string name="song_options_go_to_artist">Ir para %1$s</string>
 <string name="song_options_not_interested">Não tenho interesse</string>
 <string name="song_options_not_interested_subtitle">Parar de recomendar esta música</string>
 <string name="music_failed_skipped">Não foi possível tocar %1$s. Pulou para a próxima música.</string>
 <string name="music_failed_stopped">Não foi possível tocar %1$s.</string>
 <string name="music_failed_refused">O YouTube está recusando a reprodução nesta rede no momento. Tente novamente em alguns minutos.</string>
+<string name="music_failed_mobile_data">O streaming por dados móveis está desligado.</string>
+<string name="video_mobile_data_blocked">O streaming por dados móveis está desligado.</string>
 <string name="music_failed_untitled">esta música</string>
 <string name="song_options_block_artist">Não recomendar %1$s</string>
     <!-- Playback speed control in the now-playing overflow sheet -->
@@ -570,9 +574,18 @@
 <string name="sp_save_listening_history">Salvar histórico de escuta</string>
 <string name="sp_streaming_quality">Qualidade do streaming</string>
 <string name="sp_quality_per_network">Qualidade por rede</string>
+<string name="sp_mobile_data_off_label">Desligado nos dados móveis</string>
+<string name="qd_no_mobile_data">Não usar dados móveis</string>
 <string name="sp_quality_network_hint">O Koda escolhe essas opções com base na conexão em uso</string>
 <string name="sp_music_quality">Qualidade da música</string>
+<string name="sp_music_quality_data_saver">Economia de dados</string>
+<string name="sp_music_quality_normal">Normal</string>
+<string name="sp_music_quality_high">Alta</string>
+<string name="sp_music_quality_data_saver_bitrate">Economia de dados (~48 kbps)</string>
+<string name="sp_music_quality_normal_bitrate">Normal (~128 kbps)</string>
+<string name="sp_music_quality_high_bitrate">Alta (melhor disponível)</string>
 <string name="sp_video_quality">Qualidade do vídeo</string>
+<string name="sp_video_quality_auto_highest">Automático (mais alta)</string>
 <string name="sp_prefer_hdr">Preferir vídeos em HDR</string>
 <string name="sp_prefer_hdr_sub">Usar HDR somente quando a tela e o decodificador forem compatíveis</string>
 <string name="vpc_smooth_motion">Movimento suave</string>
@@ -656,11 +669,11 @@
 <string name="qd_video_wifi">Qualidade de vídeo no Wi-Fi</string>
 <string name="qd_video_wifi_desc">Os vídeos começam nesta qualidade no Wi-Fi quando ela está disponível, usando a qualidade mais próxima abaixo como alternativa.</string>
 <string name="qd_video_mobile">Qualidade de vídeo na rede móvel</string>
-<string name="qd_video_mobile_desc">Os vídeos começam nesta qualidade na rede móvel quando ela está disponível, usando a qualidade mais próxima abaixo como alternativa.</string>
+<string name="qd_video_mobile_desc">Os vídeos começam nesta qualidade na rede móvel quando ela está disponível, usando a qualidade mais próxima abaixo como alternativa. Escolher Não usar dados móveis interrompe todo o streaming na rede móvel.</string>
 <string name="qd_music_wifi">Qualidade da música no Wi-Fi</string>
 <string name="qd_music_wifi_desc">As músicas são transmitidas nesta qualidade no Wi-Fi.</string>
 <string name="qd_music_mobile">Qualidade da música na rede móvel</string>
-<string name="qd_music_mobile_desc">As músicas são transmitidas nesta qualidade na rede móvel.</string>
+<string name="qd_music_mobile_desc">As músicas são transmitidas nesta qualidade na rede móvel. Escolher Não usar dados móveis interrompe todo o streaming na rede móvel.</string>
     <!-- Android Auto help -->
 <string name="auto_help_subtitle">Por que o Koda pode não aparecer no seu carro</string>
 <string name="auto_help_intro">O Android Auto oculta aplicativos de mídia que não foram instalados pela Play Store. O Koda é distribuído como download do GitHub, então permanece invisível até você permitir - esta é a regra do Auto, não um erro do Koda.</string>
@@ -826,6 +839,9 @@
 <string name="ob_crossfade_sub">Misture as músicas umas nas outras durante a reprodução</string>
 <string name="sp_crossfade_automix">AutoMix</string>
 <string name="sp_crossfade_manual">Manual</string>
+<string name="sp_crossfade_sub_off">As músicas mudam sem sobreposição</string>
+<string name="sp_crossfade_sub_automix">O AutoMix se adapta a cada música, até 15 s</string>
+<string name="sp_crossfade_sub_manual">Sempre sobrepõe por %1$d s</string>
 <string name="sp_haptics">Retorno tátil</string>
 <string name="haptic_level_off">Desligado</string>
 <string name="haptic_level_subtle">Sutil</string>
@@ -1003,6 +1019,13 @@
 <string name="stop_all">Parar tudo</string>
 <string name="in_progress">Em andamento</string>
 <string name="dl_failed">Falhou</string>
+<string name="dl_mobile_data_off">Downloads desligados nos dados móveis</string>
+<string name="pd_mobile_data_block">Os downloads estão desligados nos dados móveis. Conecte-se ao Wi-Fi ou altere isso nas configurações de Armazenamento.</string>
+<string name="pd_offline_block">Você está off-line. Conecte-se à internet para baixar.</string>
+<string name="pd_offline_short">Off-line</string>
+<string name="pd_controls_locked">As configurações ficam bloqueadas enquanto este download estiver em andamento.</string>
+<string name="remove_download_q">Remover download?</string>
+<string name="remove_download_body">Isso exclui a cópia salva deste dispositivo. Você pode baixá-la novamente mais tarde.</string>
 <string name="dl_waiting">Aguardando</string>
 <string name="dl_preparing">Preparando</string>
 <string name="dl_finishing">Finalizando</string>
@@ -1684,6 +1707,15 @@
 <string name="lib_group_sort_songs">Mais músicas</string>
 <string name="lib_group_sort_played">Mais tocadas</string>
 <string name="lib_group_sort_recent">Adicionados recentemente</string>
+<string name="album_sort_last_played">Tocadas por último</string>
+<string name="album_sort_az">A-Z</string>
+<string name="album_sort_za">Z-A</string>
+<string name="lib_offline_no_playlists">Nenhuma playlist disponível off-line</string>
+<string name="lib_offline_no_playlists_body">Baixe uma playlist para mantê-la aqui quando estiver off-line.</string>
+<string name="lib_offline_no_albums">Nenhum álbum disponível off-line</string>
+<string name="lib_offline_no_albums_body">Baixe um álbum ou suas músicas para mantê-lo aqui quando estiver off-line.</string>
+<string name="lib_offline_no_songs">Nenhuma música disponível off-line</string>
+<string name="lib_offline_no_songs_body">Baixe músicas para ouvir quando estiver off-line.</string>
 <string name="lib_group_sort_cd">Ordenar por %1$s</string>
 <string name="pip_back_10">Voltar 10 segundos</string>
 <string name="pip_forward_10">Avançar 10 segundos</string>
@@ -1703,6 +1735,8 @@
 <string name="liked_songs">Músicas curtidas</string>
 <string name="no_artists_yet">Nenhum artista ainda</string>
 <string name="no_artists_yet_subtitle">Artistas das suas músicas vão aparecer aqui</string>
+<string name="lib_offline_no_artists">Nenhum artista disponível off-line</string>
+<string name="lib_offline_no_artists_body">Os artistas das músicas baixadas e do dispositivo aparecem aqui.</string>
 <string name="no_albums_yet">Nenhum álbum ainda</string>
 <string name="no_albums_yet_subtitle">Álbuns das suas músicas vão aparecer aqui</string>
 <string name="lib_no_followed_artists">Nenhum artista seguido</string>
