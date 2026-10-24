@@ -2302,8 +2302,12 @@ fun YourMixContent(
     val isRefreshing by viewModel.isLoading.collectAsState()
 
     // One pass over the merged list: what the user made or saved, and the
-    // mixes YouTube Music generated for them, each to its own rail.
-    val (mixes, ownPlaylists) = remember(playlists) { playlists.partition { isAutoMix(it.name) } }
+    // mixes YouTube Music generated for them, each to its own rail. The
+    // library carries only Discover Mix; Home carries the rest.
+    val homeMixes by viewModel.homeMixes.collectAsState()
+    val (mixes, ownPlaylists) = remember(playlists, homeMixes) {
+        homeMixRail(playlists, homeMixes) to playlists.filterNot { isAutoMix(it.name) }
+    }
 
     // Do not leave an infinite transition running behind the loaded Home.
     // Reading its value here invalidates this whole composition on every

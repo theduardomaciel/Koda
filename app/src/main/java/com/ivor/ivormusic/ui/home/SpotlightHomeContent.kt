@@ -448,7 +448,7 @@ private val AUTO_MIX_PATTERNS = listOf(
     Regex("""^my\s+supermix$""", RegexOption.IGNORE_CASE),
     Regex("""^supermix$""", RegexOption.IGNORE_CASE),
     Regex("""^my\s+mix(\s+\d+)?$""", RegexOption.IGNORE_CASE),
-    Regex("""^(discover|new\s+release|replay)\s+mix$""", RegexOption.IGNORE_CASE),
+    Regex("""^(discover|new\s+release|replay|archive)\s+mix$""", RegexOption.IGNORE_CASE),
     Regex("""\bradio$""", RegexOption.IGNORE_CASE),
 )
 
@@ -456,6 +456,17 @@ internal fun isAutoMix(name: String): Boolean {
     val trimmed = name.trim()
     return AUTO_MIX_PATTERNS.any { it.containsMatchIn(trimmed) }
 }
+
+/**
+ * The "Mixes for you" rail: the generated mixes the account's library lists,
+ * plus the ones Home carries. Only Discover Mix is in both, so the id
+ * deduplication is what stops it appearing twice.
+ */
+internal fun homeMixRail(
+    playlists: List<PlaylistDisplayItem>,
+    homeMixes: List<PlaylistDisplayItem>,
+): List<PlaylistDisplayItem> =
+    (playlists.filter { isAutoMix(it.name) } + homeMixes).distinctBy { it.id }
 
 private const val QUICK_PICK_ROWS = 4
 

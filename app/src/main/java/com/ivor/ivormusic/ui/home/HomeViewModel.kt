@@ -318,6 +318,14 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         initialLibraryCache?.playlists.orEmpty()
     )
 
+    // YouTube Music's generated mixes that live on Home rather than in the
+    // account's library. Discover Mix arrives through both; the rail merges
+    // the two by id. Not cached to disk: Home is refetched on every cold start.
+    private val _homeMixes =
+        MutableStateFlow<List<com.ivor.ivormusic.data.PlaylistDisplayItem>>(emptyList())
+    val homeMixes: StateFlow<List<com.ivor.ivormusic.data.PlaylistDisplayItem>> =
+        _homeMixes.asStateFlow()
+
     // The account's YouTube Music library: the albums saved to it and the
     // artists followed on it. Both are account-scoped, so they are empty signed
     // out and the Library falls back to its device-derived groupings there.
@@ -1648,6 +1656,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         _isYouTubeConnected.value = sessionManager.isLoggedIn()
 
         _youtubeSongs.value = homeRecommendationCache.load()
+        _homeMixes.value = emptyList()
         AccountLikedSongsRepository.reloadForActiveProfile(getApplication())
         hydrateAccountLibraryCache()
         _accountChannels.value = emptyList()
@@ -3329,6 +3338,26 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         return true
     }
 
+    /**
+     * Read the generated mixes from Home. A failed or empty walk leaves the
+     * rail as it was: Home's shelf order can put "Mixed for you" beyond the
+     * pages read, and that is not proof the account has no mixes.
+     */
+    private suspend fun refreshHomeMixes() {
+        if (!sessionManager.isLoggedIn()) {
+            _homeMixes.value = emptyList()
+            return
+        }
+        try {
+            val fetched = youtubeRepository.getHomeMixes()
+            if (fetched.isNotEmpty()) _homeMixes.value = fetched
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            KLog.w("HomeViewModel", "Home mixes failed to load: ${e.message}")
+        }
+    }
+
     fun loadYouTubeRecommendations(force: Boolean = false) {
         if (!force &&
             (recommendationsLoadJob?.isActive == true || loadedRecently(recommendationsLoadedAtMs))
@@ -3349,6 +3378,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 if (publishHomeRecommendations(fetched, rotate = false)) {
                     recommendationsLoadedAtMs = System.currentTimeMillis()
                 }
+                // After the songs, so the mix walk cannot delay the feed.
+                if (sessionManager.isLoggedIn()) refreshHomeMixes()
             } catch (e: Exception) {
                 // The feed keeps whatever it already had - both branches above
                 // only assign a non-empty result - so a failure here is not
@@ -3695,6 +3726,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         // must not survive it.
         clearSearchCaches()
         _youtubeSongs.value = emptyList()
+        _homeMixes.value = emptyList()
         accountLikedSongs.clear()
         clearAccountLibrary()
         forgetHomeLoadTimes()
@@ -3743,6 +3775,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                         } catch (e: kotlinx.coroutines.CancellationException) {
                             throw e
                         } catch (e: Exception) { }
+
+                        refreshHomeMixes()
 
                         // Update library data. A failed list keeps its cache.
                         refreshAccountLibrary()
