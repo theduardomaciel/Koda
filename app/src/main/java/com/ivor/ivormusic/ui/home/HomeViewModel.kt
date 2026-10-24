@@ -218,7 +218,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val _searchHistory = MutableStateFlow(searchHistoryRepository.getHistory())
     val searchHistory: StateFlow<List<String>> = _searchHistory.asStateFlow()
 
-    private val _youtubeSongs = MutableStateFlow(homeRecommendationCache.load())
+    private val _youtubeSongs = MutableStateFlow<List<Song>>(emptyList())
     /**
      * The music recommendation feed, with dismissed songs and blocked artists
      * removed.
@@ -303,19 +303,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000), emptyList())
 
     // The account's Library lists as of the last successful fetch. Hydrated
-    // before the first network call so a cold start offline draws the saved
-    // albums, followed artists and account playlists instead of three empty
-    // tabs. Signed out there is nothing account-scoped to keep.
+    // off the constructor thread so a cold start offline still draws the saved
+    // albums, followed artists and account playlists once the snapshot loads.
     private val libraryCacheStore = LibraryCacheStore(application)
-    private val initialLibraryCache = if (sessionManager.isLoggedIn()) {
-        libraryCacheStore.load(ProfileManager.requireActiveProfileId(application))
-    } else {
-        null
-    }
 
     // YouTube playlists
     private val _youtubePlaylists = MutableStateFlow<List<com.ivor.ivormusic.data.PlaylistDisplayItem>>(
-        initialLibraryCache?.playlists.orEmpty()
+        emptyList()
     )
 
     // YouTube Music's generated mixes that live on Home rather than in the
@@ -330,16 +324,12 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     // artists followed on it. Both are account-scoped, so they are empty signed
     // out and the Library falls back to its device-derived groupings there.
     private val _savedAlbums =
-        MutableStateFlow<List<com.ivor.ivormusic.data.PlaylistDisplayItem>>(
-            initialLibraryCache?.albums.orEmpty()
-        )
+        MutableStateFlow<List<com.ivor.ivormusic.data.PlaylistDisplayItem>>(emptyList())
     val savedAlbums: StateFlow<List<com.ivor.ivormusic.data.PlaylistDisplayItem>> =
         _savedAlbums.asStateFlow()
 
     private val _followedArtists =
-        MutableStateFlow<List<com.ivor.ivormusic.data.ArtistItem>>(
-            initialLibraryCache?.artists.orEmpty()
-        )
+        MutableStateFlow<List<com.ivor.ivormusic.data.ArtistItem>>(emptyList())
     val followedArtists: StateFlow<List<com.ivor.ivormusic.data.ArtistItem>> =
         _followedArtists.asStateFlow()
     
@@ -1540,6 +1530,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     // launch runs up to its first suspension immediately, and an initializer
     // placed after init would reset the job it just stored.
     private var accountLoadJob: Job? = null
+    @Volatile
     private var accountLoadedAtMs = 0L
     private var recommendationsLoadJob: Job? = null
     // Written from the Home walk (IO) and read by the load guard on Main.
@@ -1552,6 +1543,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         // Local playlists load off the constructor thread; the store embeds
         // every playlist's songs, so this is not main-thread work.
         viewModelScope.launch { playlistRepository.refreshPlaylists() }
+        seedCachedHome()
+        seedCachedLibrary()
         observeLocalVideoHistory()
         observeSubscriptionFeedWarmup()
         checkYouTubeConnection()
@@ -1660,9 +1653,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         _userName.value = sessionManager.getUserName()
         _isYouTubeConnected.value = sessionManager.isLoggedIn()
 
-        _youtubeSongs.value = homeRecommendationCache.load()
+        _youtubeSongs.value = emptyList()
         _homeMixes.value = emptyList()
+        seedCachedHome()
         AccountLikedSongsRepository.reloadForActiveProfile(getApplication())
+        // The previous profile's load timestamp must not make the new
+        // profile's snapshot look stale before forgetHomeLoadTimes runs.
+        accountLoadedAtMs = 0L
         hydrateAccountLibraryCache()
         _accountChannels.value = emptyList()
         _subscriptionFeed.value = emptyList()
@@ -3282,15 +3279,51 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Re-seed the three flows from the newly active profile's snapshot. */
+    /** Re-seed the three flows from the newly active profile's snapshot on IO. */
     private fun hydrateAccountLibraryCache() {
-        val cached = if (sessionManager.isLoggedIn()) {
-            libraryCacheStore.load(ProfileManager.requireActiveProfileId(getApplication()))
-        } else null
-        _youtubePlaylists.value = cached?.playlists.orEmpty()
-        _savedAlbums.value = cached?.albums.orEmpty()
-        _followedArtists.value = cached?.artists.orEmpty()
+        _youtubePlaylists.value = emptyList()
+        _savedAlbums.value = emptyList()
+        _followedArtists.value = emptyList()
         _isFollowedArtistsUnavailable.value = false
+        seedCachedLibrary()
+    }
+
+    /**
+     * Put the last Home recommendations on screen without reading the cache on
+     * the constructing thread. The network walk replaces them when it lands;
+     * the empty check keeps a fresher answer if it arrived first.
+     */
+    private fun seedCachedHome() {
+        val profileId = ProfileManager.activeProfileId(app)
+        viewModelScope.launch(Dispatchers.IO) {
+            val cached = homeRecommendationCache.load()
+            if (cached.isEmpty()) return@launch
+            synchronized(this@HomeViewModel) {
+                if (_youtubeSongs.value.isEmpty() &&
+                    ProfileManager.activeProfileId(app) == profileId
+                ) {
+                    _youtubeSongs.value = cached
+                }
+            }
+        }
+    }
+
+    /**
+     * Read the account lists' snapshot for this profile on IO. Each flow is
+     * filled only while empty, so a network answer that arrived first wins, and
+     * a completed load stops an older read from overwriting it.
+     */
+    private fun seedCachedLibrary() {
+        if (!sessionManager.isLoggedIn()) return
+        val profileId = ProfileManager.requireActiveProfileId(app)
+        viewModelScope.launch(Dispatchers.IO) {
+            val cached = libraryCacheStore.load(profileId) ?: return@launch
+            if (accountLoadedAtMs != 0L) return@launch
+            if (ProfileManager.activeProfileId(app) != profileId) return@launch
+            if (_youtubePlaylists.value.isEmpty()) _youtubePlaylists.value = cached.playlists
+            if (_savedAlbums.value.isEmpty()) _savedAlbums.value = cached.albums
+            if (_followedArtists.value.isEmpty()) _followedArtists.value = cached.artists
+        }
     }
 
     /** Sign-out: the account's lists are cleared from memory and from disk. */
