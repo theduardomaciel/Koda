@@ -140,6 +140,56 @@ fun SharedLinkHandler(
             (channelRef != null || (videoId != null && playlistId == null))
         if (!staysInPlace) onNavigateHome()
 
+        /**
+         * Start a music playlist from its first page and queue the rest as it
+         * arrives.
+         *
+         * A link that names a track used to walk every page before the first
+         * note: 15 requests for the account's longest playlist. If the track is
+         * on page one the queue starts there in playlist order; if it is
+         * deeper, the track plays at once and the playlist queues behind it.
+         */
+        suspend fun playMusicPlaylist(playlistId: String, startVideoId: String?) {
+            val firstPage = homeViewModel.fetchPlaylistPage(playlistId, null)
+            val firstSongs = firstPage?.songs.orEmpty()
+            val start = startVideoId?.let { id -> firstSongs.firstOrNull { it.id == id } }
+            val queueIdentity: String
+            if (startVideoId != null && start == null) {
+                val video = homeViewModel.resolveVideoFromLink(startVideoId)
+                if (video == null) {
+                    toast("Couldn't open that link")
+                    return
+                }
+                playerViewModel.playSong(video.toSong())
+                queueIdentity = video.videoId
+            } else if (firstSongs.isEmpty()) {
+                toast("Couldn't open that playlist")
+                return
+            } else {
+                playerViewModel.playQueue(firstSongs, start ?: firstSongs.first())
+                queueIdentity = firstSongs.first().id
+            }
+
+            val seen = HashSet<String>()
+            if (startVideoId != null && start == null) {
+                seen += startVideoId
+                val fresh = firstSongs.filter { seen.add(it.id) }
+                if (fresh.isNotEmpty()) playerViewModel.addToQueue(fresh)
+            } else {
+                firstSongs.forEach { seen += it.id }
+            }
+            var continuation = firstPage?.continuation
+            while (continuation != null) {
+                // The user started something else: its queue is not this list's
+                // to extend any more.
+                if (playerViewModel.currentQueue.value.firstOrNull()?.song?.id != queueIdentity) break
+                val page = homeViewModel.fetchPlaylistPage(playlistId, continuation) ?: break
+                val fresh = page.songs.filter { seen.add(it.id) }
+                if (fresh.isNotEmpty()) playerViewModel.addToQueue(fresh)
+                continuation = page.continuation
+            }
+        }
+
         when {
             // A channel link, in any of its four shapes.
             channelRef != null -> onOpenChannel(channelRef)
@@ -154,11 +204,9 @@ fun SharedLinkHandler(
                     homeViewModel.requestPlaylistPage(page)
                 } else {
                     // No page behind the id - a mix, a private list, or a
-                    // failed lookup. Playing it is both the old behaviour and
-                    // the right answer for a mix, which has no page to open.
-                    val songs = homeViewModel.resolvePlaylistSongsFromLink(playlistId)
-                    if (songs.isEmpty()) toast("Couldn't open that playlist")
-                    else playerViewModel.playQueue(songs, songs.first())
+                    // failed lookup. Play its first page and queue the rest
+                    // rather than walking the whole list first.
+                    playMusicPlaylist(playlistId, null)
                 }
             }
 
@@ -166,13 +214,7 @@ fun SharedLinkHandler(
             // names a track is a link to that track, so it plays; only the
             // playlist itself opens a page.
             link.isMusicLink && playlistId != null -> {
-                val songs = homeViewModel.resolvePlaylistSongsFromLink(playlistId)
-                if (songs.isEmpty()) {
-                    toast("Couldn't open that playlist")
-                } else {
-                    val start = songs.firstOrNull { it.id == videoId } ?: songs.first()
-                    playerViewModel.playQueue(songs, start)
-                }
+                playMusicPlaylist(playlistId, videoId)
             }
 
             link.isMusicLink && videoId != null -> {
