@@ -1510,7 +1510,7 @@ private fun PipButtonsSetting(value: String, onChange: (String) -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 16.dp, end = 16.dp, bottom = 14.dp),
+            .padding(start = 16.dp, end = 16.dp, bottom = 14.dp, top = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
     ) {
         options.forEachIndexed { index, (key, label) ->

@@ -1557,7 +1557,7 @@
 <string name="sd_quality_saver">Economia de dados</string>
 <string name="sd_quality_unavailable">Não disponível para esta música</string>
 <string name="sd_bitrate">AAC, %1$d kbps</string>
-<string name="sd_about_size">Cerca de %1$s</string>
+<string name="sd_about_size">~%1$s</string>
 <string name="sd_download_size">Download • %1$s</string>
 <string name="sd_lyrics">Salvar letra</string>
 <string name="sd_lyrics_sub">Manter a letra com a música para que ela apareça off-line</string>
