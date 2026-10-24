@@ -1547,6 +1547,7 @@ fun HomeScreen(
                                     else playerViewModel.addToQueue(song)
                                 },
                                 bottomOverlayInset = bottomOverlayInset,
+                                navigationOverlayInset = navigationOverlayInset,
                                 floatingToolbarState = floatingToolbarState,
                                 floatingOverlayFollowOffsetPx = miniPlayerFollowOffsetPx,
                                 allSongsListState = musicLibraryScrollState

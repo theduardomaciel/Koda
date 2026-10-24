@@ -222,6 +222,12 @@ fun LibraryContent(
      */
     bottomOverlayInset: Dp = 0.dp,
     /**
+     * [bottomOverlayInset] with no mini player or bar, i.e. the top of the
+     * navigation bar inset. The panel fades the system inset out over the rise
+     * from this value, so a player appearing never flips its padding.
+     */
+    navigationOverlayInset: Dp = 0.dp,
+    /**
      * The Home shell's scroll state, so the offline panel closes and opens on
      * the same gesture as the mini player. Null leaves only the manual
      * controls.
@@ -681,6 +687,16 @@ fun LibraryContent(
         LibraryRoute.AddSongs, LibraryRoute.SpotifyImport -> true
         else -> false
     }
+    // bottomOverlayInset is measured from the top of the navigation bar inset.
+    // While the panel is the bottom control it must add that inset or it
+    // clips the bar; once a player is in the stack the player clears the bar
+    // for it. Fading the inset out over the first player's rise keeps the
+    // padding a continuous function of the already-animated stack, so nothing
+    // flips mid-flight and the panel never jumps.
+    val navBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val overlayRise = (bottomOverlayInset - navigationOverlayInset).coerceAtLeast(0.dp)
+    val overlayProgress = (overlayRise / OFFLINE_PANEL_NAV_FADE).coerceIn(0f, 1f)
+    val panelNavInset = navBarInset * (1f - overlayProgress)
     if (isYouTubeConnected && !isOnline && !immersiveRoute) {
         LibraryOfflinePanel(
             floatingToolbarState = floatingToolbarState,
@@ -689,7 +705,7 @@ fun LibraryContent(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(horizontal = 16.dp)
-                .padding(bottom = bottomOverlayInset + OFFLINE_PANEL_GAP)
+                .padding(bottom = bottomOverlayInset + panelNavInset + OFFLINE_PANEL_GAP)
         )
     }
     }
@@ -3359,6 +3375,13 @@ private val OFFLINE_PANEL_COLLAPSE_SCROLL = 56.dp
 
 /** One mini-player gap above the bottom overlays. */
 private val OFFLINE_PANEL_GAP = 12.dp
+
+/**
+ * Rise over which the offline panel hands the system navigation clearance to
+ * the player entering the stack. One music-pill reserve, so a pill appearing
+ * fades the inset out across its own entrance rather than at one frame.
+ */
+private val OFFLINE_PANEL_NAV_FADE = 100.dp
 
 /**
  * The Library's offline state as a floating panel above the bottom overlays.
