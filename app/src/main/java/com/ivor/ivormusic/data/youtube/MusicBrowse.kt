@@ -31,6 +31,12 @@ import org.json.JSONObject
 private const val HOME_PAGES_FOR_PICKS = 3
 
 /**
+ * Home pages walked for the generated mixes. They have sat on the second and
+ * third pages; the walk stops early once the "Mixed for you" shelf arrives.
+ */
+private const val HOME_PAGES_FOR_MIXES = 4
+
+/**
  * The pages of YouTube Music that are browsed rather than searched: Home and
  * its shelves, charts, an artist's page, a song's album, and the radio that
  * follows a song.
@@ -105,6 +111,39 @@ internal class MusicBrowse(
         } catch (e: Exception) {
             KLog.e(YOUTUBE_TAG, "Error fetching recommendations", e)
             fillHomeRecommendations(emptyList())
+        }
+    }
+
+    /**
+     * YouTube Music's own mixes, read from Home.
+     *
+     * The account's library carries only "Discover Mix", so the rest of the
+     * rail has to come from the shelves that generate them. The walk follows
+     * Home's section continuations and stops once "Mixed for you" is on the
+     * page, which is where the personal set lives.
+     */
+    suspend fun getHomeMixes(): List<PlaylistDisplayItem> = withContext(Dispatchers.IO) {
+        if (!sessionManager.isLoggedIn()) return@withContext emptyList()
+        try {
+            var json = musicApi.fetchInternalApi("FEmusic_home")
+            if (json.isEmpty()) return@withContext emptyList()
+            val mixes = mutableListOf<PlaylistDisplayItem>()
+            var pages = 0
+            while (json.isNotEmpty() && pages < HOME_PAGES_FOR_MIXES) {
+                val page = parseHomeMixes(json)
+                mixes += page.mixes
+                pages++
+                if (page.hasMixedForYouShelf) break
+                val token = homeSectionContinuationToken(json) ?: break
+                json = musicApi.fetchContinuation(token)
+            }
+            KLog.d(YOUTUBE_TAG, "Read ${mixes.size} Home mixes across $pages pages")
+            mixes.distinctBy { it.id }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            KLog.e(YOUTUBE_TAG, "Could not fetch Home mixes", e)
+            emptyList()
         }
     }
 
