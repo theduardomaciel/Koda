@@ -828,9 +828,10 @@ fun HomeScreen(
         if (nonExpressiveNavigationBar || useRail) 0f
         else (miniPlayerCollapsedSpacing - MINI_PLAYER_RESTING_GAP).toPx()
     }
-    val miniPlayerFollowOffsetPx: () -> Float = {
-        miniPlayerFollowDistancePx * floatingToolbarState.hiddenFraction()
-    }
+    val miniPlayerFollowOffsetPx: () -> Float =
+        remember(floatingToolbarState, miniPlayerFollowDistancePx) {
+            { miniPlayerFollowDistancePx * floatingToolbarState.hiddenFraction() }
+        }
     // Whether the music pill is closed into its bubble. A latch with two
     // different distances rather than the toolbar's own hidden fraction: the
     // toolbar comes back on the first pixel of an upward scroll, which is
@@ -908,6 +909,9 @@ fun HomeScreen(
     val overlayNavInset by rememberUpdatedState(navigationOverlayInset)
     val overlayHasMusicPill by rememberUpdatedState(musicPillVisible)
     val overlayRestingInset = rememberUpdatedState(bottomOverlayInset)
+    // Read in the offline panel's placement, not in composition: a lambda
+    // keeps the animated Dp out of the Library screen's recomposition scope.
+    val bottomOverlayInsetProvider = remember { { overlayRestingInset.value } }
     val bottomOverlayMotion = remember(floatingToolbarState, bubbleDensity) {
         com.ivor.ivormusic.ui.components.BottomOverlayMotion(
             bottomPx = {
@@ -1546,7 +1550,7 @@ fun HomeScreen(
                                     if (playNext) playerViewModel.playNext(song)
                                     else playerViewModel.addToQueue(song)
                                 },
-                                bottomOverlayInset = bottomOverlayInset,
+                                bottomOverlayInset = bottomOverlayInsetProvider,
                                 navigationOverlayInset = navigationOverlayInset,
                                 floatingToolbarState = floatingToolbarState,
                                 floatingOverlayFollowOffsetPx = miniPlayerFollowOffsetPx,

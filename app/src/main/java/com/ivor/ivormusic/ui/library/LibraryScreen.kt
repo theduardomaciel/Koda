@@ -216,15 +216,16 @@ fun LibraryContent(
      */
     onEnqueueSong: ((Song, Boolean) -> Unit)? = null,
     /**
-     * The top of the bottom overlays (mini player, video mini bar, navigation)
-     * in screen coordinates. The offline panel sits one mini-player gap above
-     * it, rather than in the page's flow.
+     * The animated clearance above the navigation bar inset for the bottom
+     * stack. A lambda, read in placement: the pill dismisses on a spring, and
+     * taking the value in composition recomposed this whole screen on every
+     * frame of that spring.
      */
-    bottomOverlayInset: Dp = 0.dp,
+    bottomOverlayInset: () -> Dp = { 0.dp },
     /**
-     * [bottomOverlayInset] with no mini player or bar, i.e. the top of the
-     * navigation bar inset. The panel fades the system inset out over the rise
-     * from this value, so a player appearing never flips its padding.
+     * [bottomOverlayInset] with no mini player or bar. The panel fades the
+     * system inset out over the rise from this value, so a player appearing
+     * never flips its padding.
      */
     navigationOverlayInset: Dp = 0.dp,
     /**
@@ -687,25 +688,16 @@ fun LibraryContent(
         LibraryRoute.AddSongs, LibraryRoute.SpotifyImport -> true
         else -> false
     }
-    // bottomOverlayInset is measured from the top of the navigation bar inset.
-    // While the panel is the bottom control it must add that inset or it
-    // clips the bar; once a player is in the stack the player clears the bar
-    // for it. Fading the inset out over the first player's rise keeps the
-    // padding a continuous function of the already-animated stack, so nothing
-    // flips mid-flight and the panel never jumps.
-    val navBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    val overlayRise = (bottomOverlayInset - navigationOverlayInset).coerceAtLeast(0.dp)
-    val overlayProgress = (overlayRise / OFFLINE_PANEL_NAV_FADE).coerceIn(0f, 1f)
-    val panelNavInset = navBarInset * (1f - overlayProgress)
     if (isYouTubeConnected && !isOnline && !immersiveRoute) {
         LibraryOfflinePanel(
             floatingToolbarState = floatingToolbarState,
             resetKey = currentRoute,
+            bottomOverlayInset = bottomOverlayInset,
+            navigationOverlayInset = navigationOverlayInset,
             followOffsetPx = floatingOverlayFollowOffsetPx,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(horizontal = 16.dp)
-                .padding(bottom = bottomOverlayInset + panelNavInset + OFFLINE_PANEL_GAP)
         )
     }
     }
@@ -3404,6 +3396,10 @@ private val OFFLINE_PANEL_NAV_FADE = 100.dp
 private fun LibraryOfflinePanel(
     floatingToolbarState: androidx.compose.material3.FloatingToolbarState?,
     resetKey: Any?,
+    /** Animated stack clearance, read in placement so the screen never recomposes. */
+    bottomOverlayInset: () -> Dp,
+    /** The same clearance with no player in the stack. */
+    navigationOverlayInset: Dp,
     followOffsetPx: () -> Float,
     modifier: Modifier = Modifier
 ) {
@@ -3411,6 +3407,8 @@ private fun LibraryOfflinePanel(
     val haptics = com.ivor.ivormusic.util.rememberKodaHaptics()
     val density = androidx.compose.ui.platform.LocalDensity.current
     val collapsePx = with(density) { OFFLINE_PANEL_COLLAPSE_SCROLL.toPx() }
+    // System inset only: it changes with the window, never on the stack spring.
+    val navBarInsetPx = WindowInsets.navigationBars.getBottom(density).toFloat()
     // One size in every state: the collapsed circle is as small as the pill.
     // The mini player's collapsed bubble is 68dp, its cover 52dp with an 8dp
     // round, so the circle is inset 8dp from the end edge to share that
@@ -3456,7 +3454,26 @@ private fun LibraryOfflinePanel(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .offset { IntOffset(0, followOffsetPx().roundToInt()) },
+            // The whole stack clearance is resolved in placement, like the
+            // mini player's own follow: the spring moves the panel without
+            // recomposing the Library, and the system inset fades out
+            // numerically as a player rises into the stack.
+            .offset {
+                val restingPx = bottomOverlayInset().toPx()
+                val risePx = (restingPx - navigationOverlayInset.toPx())
+                    .coerceAtLeast(0f)
+                val fadePx = OFFLINE_PANEL_NAV_FADE.toPx()
+                val progress = if (fadePx > 0f) (risePx / fadePx).coerceIn(0f, 1f) else 1f
+                val navInsetPx = navBarInsetPx * (1f - progress)
+                val bottomPx = restingPx + navInsetPx + OFFLINE_PANEL_GAP.toPx()
+                // The box is bottom-aligned: lift it by the stack clearance,
+                // then let the player-follow offset bring it back down with
+                // the toolbar. (The old padding plus offset did the same.)
+                IntOffset(
+                    0,
+                    -bottomPx.roundToInt() + followOffsetPx().roundToInt()
+                )
+            },
         // The mini player's bubble closes from the end side, so the circle
         // lines up over it rather than over the pill's start.
         contentAlignment = Alignment.CenterEnd
