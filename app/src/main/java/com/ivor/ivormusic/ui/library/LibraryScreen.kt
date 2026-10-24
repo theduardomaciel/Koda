@@ -91,6 +91,7 @@ import androidx.compose.ui.zIndex
 import coil.compose.AsyncImage
 import androidx.compose.ui.platform.LocalContext
 import com.ivor.ivormusic.ui.components.PredictiveBackStack
+import com.ivor.ivormusic.data.DemandPagination
 import com.ivor.ivormusic.data.PlaylistDisplayItem
 import com.ivor.ivormusic.data.Song
 import com.ivor.ivormusic.data.SongSource
@@ -103,8 +104,11 @@ import com.ivor.ivormusic.data.isPlayableOffline
 import com.ivor.ivormusic.data.isUnknownAlbum
 import com.ivor.ivormusic.data.isUnknownArtist
 import com.ivor.ivormusic.data.sortedInAlbumOrder
+import com.ivor.ivormusic.data.youtube.MIX_SONG_CEILING
 import com.ivor.ivormusic.ui.artist.ArtistScreen
 import com.ivor.ivormusic.ui.components.ExpressivePullToRefresh
+import com.ivor.ivormusic.ui.components.LoadPageAtEnd
+import com.ivor.ivormusic.ui.components.PageLoadFooter
 import com.ivor.ivormusic.ui.components.VideoThumbnail
 import com.ivor.ivormusic.ui.downloads.MusicPlaylistDownloadAction
 import com.ivor.ivormusic.ui.player.rememberArtworkColorScheme
@@ -4249,6 +4253,94 @@ fun PlaylistDetailScreen(
     // playlist may legitimately contain the same video twice.
     var remoteRowIdsLoaded by remember { mutableStateOf(false) }
 
+    // Remote playlists arrive one page at a time. The screen keeps owning the
+    // rows (editing, reorder and removal all mutate them); DemandPagination
+    // owns the cursor and the in-flight/end/failed state. Local playlists,
+    // albums, likes and the offline snapshot already have their whole list and
+    // keep the single-fetch path.
+    val canPaginate = remember(
+        resolvedPlaylist.id, isLocalPlaylist, isAlbum, isVideoModePlaylist,
+        isLikedSongs, isOnline, preloadedSongs
+    ) {
+        preloadedSongs == null && !isLocalPlaylist && !isAlbum && !isVideoModePlaylist &&
+            !isLikedSongs && isOnline &&
+            (resolvedPlaylist.id.startsWith("PL") || resolvedPlaylist.id.startsWith("RD"))
+    }
+    val isMixPlaylist = remember(resolvedPlaylist.id) {
+        resolvedPlaylist.id.removePrefix("VL").startsWith("RD")
+    }
+    val songPagination = remember(resolvedPlaylist.id) { DemandPagination<String>() }
+    val pageState by songPagination.state.collectAsState()
+    // A mix repeats songs to top itself up; those repeats are filler, so its
+    // pages are deduplicated and capped like the whole-list walk was.
+    val loadedSongIds = remember(resolvedPlaylist.id) { mutableSetOf<String>() }
+    // The playlist's own count is known before its rows are. Showing "100
+    // tracks" on a 490-track playlist reads as data loss; only the duration
+    // waits for the last page.
+    val headerTrackCount = if (canPaginate && pageState.hasMore &&
+        resolvedPlaylist.itemCount > songs.size
+    ) {
+        resolvedPlaylist.itemCount
+    } else {
+        songs.size
+    }
+    val allTracksLoaded = !canPaginate ||
+        (!pageState.hasMore && !pageState.isLoading && !isFetching.value)
+
+    suspend fun loadFirstPage() {
+        isFetching.value = true
+        remoteRowIdsLoaded = false
+        loadedSongIds.clear()
+        if (!canPaginate) {
+            songRows = playlistSongRows(
+                viewModel.fetchPlaylistSongs(resolvedPlaylist.id),
+                trackKeyPrefix
+            )
+        } else {
+            val request = songPagination.first()
+            val page = viewModel.fetchPlaylistPage(resolvedPlaylist.id, null)
+            if (page == null) {
+                songPagination.fail(request)
+            } else {
+                page.songs.forEach { loadedSongIds.add(it.id) }
+                songRows = playlistSongRows(page.songs, trackKeyPrefix)
+                songPagination.complete(request, page.continuation)
+            }
+        }
+        loadAttempted = true
+        isFetching.value = false
+    }
+
+    suspend fun loadNextPage() {
+        val request = songPagination.more() ?: return
+        val page = viewModel.fetchPlaylistPage(resolvedPlaylist.id, request.continuation)
+        if (page == null) {
+            songPagination.fail(request)
+            return
+        }
+        val accepted = if (isMixPlaylist) {
+            val room = (MIX_SONG_CEILING - songRows.size).coerceAtLeast(0)
+            page.songs.filter { loadedSongIds.add(it.id) }.take(room)
+        } else {
+            page.songs
+        }
+        songRows = appendPlaylistSongRows(songRows, accepted, trackKeyPrefix)
+        val atCeiling = isMixPlaylist && songRows.size >= MIX_SONG_CEILING
+        songPagination.complete(request, if (atCeiling) null else page.continuation)
+    }
+
+    /** Replace the rows with the whole list, after a failed remote edit. */
+    suspend fun reloadAllRows() {
+        songRows = playlistSongRows(
+            viewModel.fetchPlaylistSongs(resolvedPlaylist.id),
+            trackKeyPrefix
+        )
+        songPagination.reset()
+        loadedSongIds.clear()
+        loadedSongIds.addAll(songRows.map { it.song.id })
+        remoteRowIdsLoaded = false
+    }
+
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
     val haptics = com.ivor.ivormusic.util.rememberKodaHaptics()
@@ -4256,6 +4348,14 @@ fun PlaylistDetailScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var isUploading by remember(playlist.id) { mutableStateOf(false) }
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+
+    var loadMoreTick by remember(resolvedPlaylist.id) { mutableIntStateOf(0) }
+    if (canPaginate) {
+        LoadPageAtEnd(listState, songRows.size, pageState) { loadMoreTick++ }
+    }
+    LaunchedEffect(loadMoreTick) {
+        if (loadMoreTick > 0) loadNextPage()
+    }
 
     val shareContext = LocalContext.current
 
@@ -4337,15 +4437,7 @@ fun PlaylistDetailScreen(
     }
 
     LaunchedEffect(resolvedPlaylist.id, isOnline) {
-        if (preloadedSongs == null) {
-            isFetching.value = true
-            songRows = playlistSongRows(
-                viewModel.fetchPlaylistSongs(resolvedPlaylist.id),
-                trackKeyPrefix
-            )
-            isFetching.value = false
-            loadAttempted = true
-        }
+        if (preloadedSongs == null) loadFirstPage()
     }
 
     LaunchedEffect(resolvedPlaylist.id, isLocalPlaylist, isFetching.value) {
@@ -4429,11 +4521,7 @@ fun PlaylistDetailScreen(
             // Row beyond the first browse page - no setVideoId to move it by,
             // so restore the server's order instead of guessing.
             scope.launch {
-                songRows = playlistSongRows(
-                    viewModel.fetchPlaylistSongs(resolvedPlaylist.id),
-                    trackKeyPrefix
-                )
-                remoteRowIdsLoaded = false
+                reloadAllRows()
             }
         } else {
             scope.launch {
@@ -4441,11 +4529,7 @@ fun PlaylistDetailScreen(
                     resolvedPlaylist.id, movedSetId, successorSetId
                 )
                 if (!ok) {
-                    songRows = playlistSongRows(
-                        viewModel.fetchPlaylistSongs(resolvedPlaylist.id),
-                        trackKeyPrefix
-                    )
-                    remoteRowIdsLoaded = false
+                    reloadAllRows()
                 }
             }
         }
@@ -5223,8 +5307,8 @@ fun PlaylistDetailScreen(
                             )
                         )
 
-                        val totalDurationLabel = remember(songs) {
-                            formatTotalDuration(songs.sumOf { it.duration })
+                        val totalDurationLabel = remember(songs, allTracksLoaded) {
+                            if (allTracksLoaded) formatTotalDuration(songs.sumOf { it.duration }) else null
                         }
                         val releaseType = songs.firstOrNull()?.releaseType ?: resolvedPlaylist.releaseType
                         val releaseYear = songs.firstOrNull()?.releaseYear ?: resolvedPlaylist.releaseYear
@@ -5234,7 +5318,7 @@ fun PlaylistDetailScreen(
                                 if (isAlbum) kindLabel else stringResource(R.string.label_playlist),
                                 resolvedPlaylist.uploaderName.takeIf { isAlbum && it.isNotBlank() },
                                 releaseYear?.toString()?.takeIf { isAlbum },
-                                pluralStringResource(R.plurals.n_tracks, songs.size, songs.size),
+                                pluralStringResource(R.plurals.n_tracks, headerTrackCount, headerTrackCount),
                                 totalDurationLabel
                             ).joinToString("  ·  "),
                             style = MaterialTheme.typography.labelLarge,
@@ -5336,6 +5420,14 @@ fun PlaylistDetailScreen(
                                 playlistTitle = resolvedPlaylist.name,
                                 artworkUrl = resolvedPlaylist.thumbnailUrl,
                                 songs = songs,
+                                // The page holds only the first rows. A full
+                                // playlist download is an explicit action, so
+                                // it finishes the walk here instead of quietly
+                                // downloading the loaded half.
+                                loadAllSongs = if (canPaginate && pageState.hasMore) {
+                                    { viewModel.fetchPlaylistSongs(resolvedPlaylist.id) }
+                                } else null,
+                                declaredSongCount = if (canPaginate) resolvedPlaylist.itemCount else -1,
                                 modifier = Modifier.heightIn(min = 48.dp)
                             )
                         }
@@ -5370,7 +5462,7 @@ fun PlaylistDetailScreen(
             if (!isSearchActive && !isFetching.value && songs.isNotEmpty()) {
                 item {
                     TrackSectionHeader(
-                        countLabel = pluralStringResource(R.plurals.n_tracks, songs.size, songs.size),
+                        countLabel = pluralStringResource(R.plurals.n_tracks, headerTrackCount, headerTrackCount),
                         manageEnabled = isReorderMode,
                         canEdit = canEditSongs,
                         onToggleEdit = {
@@ -5446,15 +5538,7 @@ fun PlaylistDetailScreen(
                         subtitle = stringResource(R.string.lib_load_failed_body),
                         action = {
                             Button(onClick = {
-                                scope.launch {
-                                    isFetching.value = true
-                                    songRows = playlistSongRows(
-                                        viewModel.fetchPlaylistSongs(resolvedPlaylist.id),
-                                        trackKeyPrefix
-                                    )
-                                    remoteRowIdsLoaded = false
-                                    isFetching.value = false
-                                }
+                                scope.launch { loadFirstPage() }
                             }) {
                                 Icon(Icons.Rounded.Refresh, null, Modifier.size(18.dp))
                                 Spacer(Modifier.width(8.dp))
@@ -5606,6 +5690,16 @@ fun PlaylistDetailScreen(
                         )
                     }
                     }
+                }
+            }
+
+            // Only a paged list has a next page; a failed one keeps its rows
+            // and its cursor, so retry resumes where it stopped.
+            if (canPaginate && !isSearchActive && !isFetching.value && songRows.isNotEmpty() &&
+                (pageState.isLoading || pageState.hasMore || pageState.failed)
+            ) {
+                item(key = "playlist_page_footer") {
+                    PageLoadFooter(pageState) { loadMoreTick++ }
                 }
             }
             } // showTracks

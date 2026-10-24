@@ -142,6 +142,14 @@ fun MusicPlaylistDownloadAction(
     playlistTitle: String,
     artworkUrl: String? = null,
     songs: List<Song>,
+    /**
+     * Finish a paged playlist before the sheet opens. The page holds only the
+     * rows loaded so far, and a download labelled "playlist" must not quietly
+     * cover just those. Null when the caller already holds the whole list.
+     */
+    loadAllSongs: (suspend () -> List<Song>)? = null,
+    /** The playlist's own count while only its first page is loaded. */
+    declaredSongCount: Int = -1,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -152,8 +160,19 @@ fun MusicPlaylistDownloadAction(
     val isOnline = rememberIsOnline()
     var showSheet by remember(playlistTitle) { mutableStateOf(false) }
 
-    val eligibleSongs = remember(songs) {
-        songs.filter { it.source == SongSource.YOUTUBE && it.id.isNotBlank() }
+    // Grow with the page as it pages in, unless the full list was resolved
+    // already: then the sheet keeps the whole playlist even if the reader
+    // scrolls back to a screen holding fewer rows.
+    var allSongs by remember(playlistId) { mutableStateOf(songs) }
+    var allSongsResolved by remember(playlistId) { mutableStateOf(false) }
+    var resolvingAllSongs by remember(playlistId) { mutableStateOf(false) }
+    LaunchedEffect(songs) {
+        if (!allSongsResolved && songs.size > allSongs.size) allSongs = songs
+    }
+    val displayedSongCount = maxOf(allSongs.size, declaredSongCount)
+
+    val eligibleSongs = remember(allSongs) {
+        allSongs.filter { it.source == SongSource.YOUTUBE && it.id.isNotBlank() }
             .distinctBy { it.id }
     }
     val eligibleIds = remember(eligibleSongs) { eligibleSongs.mapTo(linkedSetOf()) { it.id } }
@@ -165,10 +184,10 @@ fun MusicPlaylistDownloadAction(
             it.request.type == DownloadMediaType.MUSIC && it.request.id in eligibleIds
         }.associateBy { it.request.id }
     }
-    val downloadableEntryCount = remember(songs) {
-        songs.count { it.source == SongSource.YOUTUBE && it.id.isNotBlank() }
+    val downloadableEntryCount = remember(allSongs) {
+        allSongs.count { it.source == SongSource.YOUTUBE && it.id.isNotBlank() }
     }
-    val snapshot = remember(eligibleIds, downloadedIds, relevantProgress, songs) {
+    val snapshot = remember(eligibleIds, downloadedIds, relevantProgress, allSongs) {
         PlaylistDownloadSnapshot(
             eligibleIds = eligibleIds,
             completedIds = downloadedIds,
@@ -176,8 +195,8 @@ fun MusicPlaylistDownloadAction(
                 it.status == DownloadStatus.QUEUED || it.status == DownloadStatus.DOWNLOADING
             },
             failedIds = relevantProgress.filterValues { it.status == DownloadStatus.FAILED }.keys,
-            localOfflineCount = songs.count { it.source == SongSource.LOCAL },
-            skippedCount = songs.count { it.source == SongSource.YOUTUBE && it.id.isBlank() },
+            localOfflineCount = allSongs.count { it.source == SongSource.LOCAL },
+            skippedCount = allSongs.count { it.source == SongSource.YOUTUBE && it.id.isBlank() },
             repeatedEntryCount = (downloadableEntryCount - eligibleSongs.size).coerceAtLeast(0)
         )
     }
@@ -185,22 +204,39 @@ fun MusicPlaylistDownloadAction(
     PlaylistDownloadButton(
         kind = PlaylistDownloadKind.MUSIC,
         snapshot = snapshot,
-        totalItemCount = songs.size,
+        totalItemCount = displayedSongCount,
         // Completing an already-downloaded playlist only writes the local
         // snapshot, which needs no connection.
-        enabled = songs.isNotEmpty() && (isOnline || snapshot.isComplete),
+        enabled = !resolvingAllSongs && allSongs.isNotEmpty() && (isOnline || snapshot.isComplete),
         onClick = {
-            if (snapshot.isComplete) {
-                repositoryScope.launch {
-                    val saved = repository.playlistStore.playlists.value.any { it.id == playlistId } ||
-                        repository.rememberDownloadedPlaylist(playlistId, playlistTitle, artworkUrl, songs)
-                    android.widget.Toast.makeText(
-                        context,
-                        if (saved) R.string.vd_added else R.string.sm_write_failed,
-                        android.widget.Toast.LENGTH_SHORT
-                    ).show()
+            when {
+                loadAllSongs != null && !allSongsResolved -> {
+                    repositoryScope.launch {
+                        resolvingAllSongs = true
+                        val resolved = loadAllSongs()
+                        // A failed walk leaves the button armed: opening the
+                        // sheet with one page would download a partial list.
+                        if (resolved.isNotEmpty()) {
+                            allSongs = resolved
+                            allSongsResolved = true
+                            showSheet = true
+                        }
+                        resolvingAllSongs = false
+                    }
                 }
-            } else showSheet = true
+                snapshot.isComplete -> {
+                    repositoryScope.launch {
+                        val saved = repository.playlistStore.playlists.value.any { it.id == playlistId } ||
+                            repository.rememberDownloadedPlaylist(playlistId, playlistTitle, artworkUrl, allSongs)
+                        android.widget.Toast.makeText(
+                            context,
+                            if (saved) R.string.vd_added else R.string.sm_write_failed,
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+                else -> showSheet = true
+            }
         },
         modifier = modifier
     )
@@ -209,7 +245,7 @@ fun MusicPlaylistDownloadAction(
         PlaylistDownloadSheet(
             playlistTitle = playlistTitle,
             kind = PlaylistDownloadKind.MUSIC,
-            playlistItemCountLabel = itemCountLabel(songs.size, PlaylistDownloadKind.MUSIC),
+            playlistItemCountLabel = itemCountLabel(displayedSongCount, PlaylistDownloadKind.MUSIC),
             snapshot = snapshot,
             // Only when every song still to fetch states its length: a total
             // built from half the list would be a confident underestimate.
@@ -219,7 +255,7 @@ fun MusicPlaylistDownloadAction(
                 ?.sumOf { it.duration },
             onDismiss = { showSheet = false },
             onQueue = { _, music ->
-                if (repository.rememberDownloadedPlaylist(playlistId, playlistTitle, artworkUrl, songs)) {
+                if (repository.rememberDownloadedPlaylist(playlistId, playlistTitle, artworkUrl, allSongs)) {
                     repository.downloadPlaylist(eligibleSongs, music)
                     true
                 } else false
