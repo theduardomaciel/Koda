@@ -107,6 +107,33 @@ internal fun homeSectionContinuationToken(json: String): String? = try {
     null
 }
 
+/**
+ * One playlist card from a two-row renderer, or null when the row is not a
+ * playlist (a song, an album, a menu command).
+ */
+private fun twoRowPlaylist(card: JSONObject): PlaylistDisplayItem? {
+    val browseId = card.optJSONObject("navigationEndpoint")
+        ?.optJSONObject("browseEndpoint")
+        ?.optString("browseId")
+        ?.takeIf { it.startsWith("VL") || it.startsWith("PL") }
+        ?: return null
+    val cleanId = browseId.removePrefix("VL")
+    val title = getRunText(card.optJSONObject("title")).orEmpty().trim()
+    if (title.isEmpty()) return null
+    val subtitleObj = card.optJSONObject("subtitle")
+    val thumbnails = card.optJSONObject("thumbnailRenderer")
+        ?.optJSONObject("musicThumbnailRenderer")
+        ?.optJSONObject("thumbnail")
+        ?.optJSONArray("thumbnails")
+    return PlaylistDisplayItem(
+        name = title,
+        url = "https://music.youtube.com/playlist?list=$cleanId",
+        uploaderName = getRunText(subtitleObj).orEmpty(),
+        itemCount = extractItemCountFromSubtitle(subtitleObj),
+        thumbnailUrl = thumbnails?.optJSONObject(thumbnails.length() - 1)?.optString("url")
+    )
+}
+
 internal fun parsePlaylistsFromInternalJson(json: String): List<PlaylistDisplayItem> {
     val playlists = mutableListOf<PlaylistDisplayItem>()
     try {
@@ -118,58 +145,78 @@ internal fun parsePlaylistsFromInternalJson(json: String): List<PlaylistDisplayI
         // Iterate over shelves and items
         for (i in 0 until contentsArray.length()) {
             val shelfWrapper = contentsArray.optJSONObject(i) ?: continue
-            val items = parseItemsFromShelf(shelfWrapper)
-
-            items.forEach { item ->
-                try {
-                     // Playlists are usually musicTwoRowItemRenderer
-                     val twoRowItem = item.optJSONObject("musicTwoRowItemRenderer")
-                     if (twoRowItem != null) {
-                         // Extract ID
-                         val navigationEndpoint = twoRowItem.optJSONObject("navigationEndpoint")
-                         val browseId = navigationEndpoint?.optJSONObject("browseEndpoint")?.optString("browseId")
-
-                         // Ensure it's a playlist
-                         if (browseId != null && (browseId.startsWith("VL") || browseId.startsWith("PL"))) {
-                             val cleanId = browseId.removePrefix("VL")
-
-                             // Extract Title
-                             val title = getRunText(twoRowItem.optJSONObject("title")).orEmpty()
-
-                             // Extract Subtitle (Uploader / Count)
-                             val subtitleObj = twoRowItem.optJSONObject("subtitle")
-                             val subtitle = getRunText(subtitleObj).orEmpty()
-
-                             val itemCount = extractItemCountFromSubtitle(subtitleObj)
-
-                             // Extract Thumbnail
-                             val thumbnails = twoRowItem.optJSONObject("thumbnailRenderer")
-                                ?.optJSONObject("musicThumbnailRenderer")
-                                ?.optJSONObject("thumbnail")
-                                ?.optJSONArray("thumbnails")
-
-                             val thumbnailUrl = thumbnails?.let {
-                                 it.optJSONObject(it.length() - 1)?.optString("url")
-                             }
-
-                             playlists.add(PlaylistDisplayItem(
-                                 name = title,
-                                 url = "https://music.youtube.com/playlist?list=$cleanId",
-                                 uploaderName = subtitle,
-                                 itemCount = itemCount,
-                                 thumbnailUrl = thumbnailUrl
-                             ))
-                         }
-                     }
-                } catch (e: Exception) {
-                     // Skip
-                }
+            parseItemsFromShelf(shelfWrapper).forEach { item ->
+                item.optJSONObject("musicTwoRowItemRenderer")
+                    ?.let(::twoRowPlaylist)
+                    ?.let(playlists::add)
             }
         }
     } catch (e: Exception) {
         KLog.e(YOUTUBE_TAG, "Could not parse music playlist shelf", e)
     }
     return playlists 
+}
+
+/**
+ * YouTube Music's own mixes, which live on Home rather than in the account's
+ * library.
+ *
+ * `FEmusic_liked_playlists` returns only "Discover Mix" for an account; the
+ * rest arrive on Home's "Fresh finds, old favorites" shelf ("Replay Mix",
+ * "Archive Mix", "New Release Mix") and under "Mixed for you" ("My Supermix"
+ * plus a personal set whose names carry no "mix" word at all).
+ *
+ * Every generated mix is a radio playlist, so its browse id is `RD...` once
+ * the `VL` prefix is gone. That id is the machine-made signal; the title is
+ * only used to keep curated radios on other shelves ("Indie Lullaby",
+ * "Alternative All Day") out of the rail. Inside "Mixed for you" every card
+ * is taken regardless of title, because those names are generated per account
+ * and are not matchable.
+ */
+internal data class HomeMixPage(
+    val mixes: List<PlaylistDisplayItem>,
+    /** Whether this page carried the "Mixed for you" shelf, which ends the walk. */
+    val hasMixedForYouShelf: Boolean,
+)
+
+internal fun parseHomeMixes(json: String): HomeMixPage {
+    val mixes = mutableListOf<PlaylistDisplayItem>()
+    var hasMixedForYouShelf = false
+    try {
+        val root = JSONObject(json)
+        val contents = findRootContents(root) ?: return HomeMixPage(emptyList(), false)
+        for (i in 0 until contents.length()) {
+            val section = contents.optJSONObject(i) ?: continue
+            val title = shelfTitle(section).orEmpty()
+            val mixedForYou = title.contains("mixed for you", ignoreCase = true)
+            if (mixedForYou) hasMixedForYouShelf = true
+            parseItemsFromShelf(section).forEach { item ->
+                val card = item.optJSONObject("musicTwoRowItemRenderer") ?: return@forEach
+                val playlist = twoRowPlaylist(card) ?: return@forEach
+                if (!playlist.id.startsWith("RD")) return@forEach
+                if (!mixedForYou && !isHomeMixName(playlist.name)) return@forEach
+                mixes += playlist
+            }
+        }
+    } catch (e: Exception) {
+        KLog.e(YOUTUBE_TAG, "Could not parse music Home mixes", e)
+    }
+    return HomeMixPage(mixes.distinctBy { it.id }, hasMixedForYouShelf)
+}
+
+/** Generated mix names that say so: "Replay Mix", "My Mix 3", "My Supermix". */
+private val HOME_MIX_NAME = Regex("""(^|\s)mix(\s+\d+)?$|supermix$""", RegexOption.IGNORE_CASE)
+
+private fun isHomeMixName(name: String): Boolean = HOME_MIX_NAME.containsMatchIn(name.trim())
+
+private fun shelfTitle(section: JSONObject): String? {
+    val header = section.optJSONObject("musicCarouselShelfRenderer")?.optJSONObject("header")
+        ?: section.optJSONObject("musicShelfRenderer")?.optJSONObject("header")
+        ?: return null
+    val renderer = header.optJSONObject("musicCarouselShelfBasicHeaderRenderer")
+        ?: header.optJSONObject("musicShelfBasicHeaderRenderer")
+        ?: return null
+    return getRunText(renderer.optJSONObject("title"))
 }
 
 /**
