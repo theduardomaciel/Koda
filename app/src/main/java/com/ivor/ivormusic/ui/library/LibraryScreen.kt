@@ -1276,7 +1276,6 @@ fun LibraryMainScreen(
                             playlists = visiblePlaylists,
                             localPlaylistIds = localPlaylistIds,
                             savedPlaylistIds = savedPlaylistIds,
-                            likedSongs = likedSongsVisible,
                             onPlaylistClick = onNavigateToPlaylist,
                             onRemoveSavedPlaylist = { playlist ->
                                 viewModel.removeSavedPlaylist(playlist.id)
@@ -1294,9 +1293,6 @@ fun LibraryMainScreen(
                                 } else {
                                     viewModel.deleteYouTubePlaylist(playlist.id)
                                 }
-                            },
-                            onLikedSongsClick = {
-                                onNavigateToPlaylist(PlaylistDisplayItem(context.getString(R.string.liked_songs), "LM", context.getString(R.string.settings_section_you), likedSongsVisible.size, null))
                             },
                             hiddenPlaylists = hiddenPlaylists,
                             onHidePlaylist = { playlist -> viewModel.hidePlaylist(playlist) },
@@ -1994,11 +1990,9 @@ private fun RecentSongCard(
 fun PlaylistsGrid(
     playlists: List<PlaylistDisplayItem>,
     localPlaylistIds: Set<String>,
-    likedSongs: List<Song>,
     onPlaylistClick: (PlaylistDisplayItem) -> Unit,
     onEditPlaylist: (playlist: PlaylistDisplayItem, newName: String, newDescription: String?) -> Unit,
-    onDeletePlaylist: (playlist: PlaylistDisplayItem) -> Unit,
-    onLikedSongsClick: () -> Unit,
+    onDeletePlaylist: (PlaylistDisplayItem) -> Unit,
     contentPadding: PaddingValues,
     savedPlaylistIds: Set<String> = emptySet(),
     onRemoveSavedPlaylist: (PlaylistDisplayItem) -> Unit = {},
@@ -2034,15 +2028,6 @@ fun PlaylistsGrid(
         verticalArrangement = Arrangement.spacedBy(20.dp),
         modifier = Modifier.fillMaxSize()
     ) {
-        // Liked songs as a full-width hero banner, same card the Songs tab
-        // uses, instead of an odd square tile among the playlists
-        item(key = "liked_hero", span = { GridItemSpan(maxLineSpan) }) {
-            ExpressiveLikedSongsCard(
-                count = likedSongs.size,
-                onClick = onLikedSongsClick
-            )
-        }
-
         // The header stands whenever there is either a playlist or something
         // hidden, because the hidden count is the only route back and a
         // library whose every playlist is hidden is exactly when it is needed.
@@ -2051,7 +2036,7 @@ fun PlaylistsGrid(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 8.dp),
+                        .padding(top = 4.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
