@@ -1788,6 +1788,8 @@
     <string name="liked_songs">Liked Songs</string>
     <string name="no_artists_yet">No artists yet</string>
     <string name="no_artists_yet_subtitle">Artists from your songs will show up here</string>
+    <string name="lib_offline_no_artists">No artists available offline</string>
+    <string name="lib_offline_no_artists_body">Artists from downloaded and device songs appear here.</string>
     <string name="no_albums_yet">No albums yet</string>
     <string name="no_albums_yet_subtitle">Albums from your songs will show up here</string>
     <string name="lib_no_followed_artists">No followed artists</string>

@@ -1447,7 +1447,8 @@ fun LibraryMainScreen(
                             onFollowedClick = onNavigateToFollowedArtist,
                             onArtistClick = onNavigateToArtist,
                             playCounts = playCounts,
-                            contentPadding = contentPadding
+                            contentPadding = contentPadding,
+                            offline = !isOnline
                         )
                     }
                     LibraryTab.Albums -> {
@@ -2332,7 +2333,9 @@ fun ArtistsLibraryGrid(
     onFollowedClick: (com.ivor.ivormusic.data.TasteArtist) -> Unit,
     onArtistClick: (String) -> Unit,
     playCounts: Map<String, Int>,
-    contentPadding: PaddingValues
+    contentPadding: PaddingValues,
+    /** Empty state wording: offline means "nothing downloaded", not "none exist". */
+    offline: Boolean = false
 ) {
     val artists = remember(songs, sort, playCounts, showAccount) {
         if (showAccount) emptyList()
@@ -2438,9 +2441,15 @@ fun ArtistsLibraryGrid(
                                 .height(emptyHeight)
                         ) {
                             EmptyLibraryState(
-                                icon = Icons.Rounded.Person,
-                                title = stringResource(R.string.no_artists_yet),
-                                subtitle = stringResource(R.string.no_artists_yet_subtitle)
+                                icon = if (offline) Icons.Rounded.CloudOff else Icons.Rounded.Person,
+                                title = stringResource(
+                                    if (offline) R.string.lib_offline_no_artists
+                                    else R.string.no_artists_yet
+                                ),
+                                subtitle = stringResource(
+                                    if (offline) R.string.lib_offline_no_artists_body
+                                    else R.string.no_artists_yet_subtitle
+                                )
                             )
                         }
                     }
